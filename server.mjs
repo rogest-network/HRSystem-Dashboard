@@ -46,7 +46,8 @@ function instances() {
   const std = path.dirname(HERE);
   if (fs.existsSync(path.join(std, 'current.txt')) && !listed.some((i) => i.root.toLowerCase() === std.toLowerCase())) {
     const upd = (() => { try { return JSON.parse(fs.readFileSync(path.join(std, 'update.json'), 'utf8')); } catch { return {}; } })();
-    listed.unshift({ id: 'hrsystem', name: 'HRSystem (ky PC)', root: std, data: std + 'Data', repo: upd.repo, channel: upd.channel || 'stable', task: 'HRSystem' });
+    // The name shown (page, menu, phone messages) is the name of the repository the installation follows (the company's own repo, e.g. HRSystem-ReginaCenter), not "HRSystem (ky PC)".
+    listed.unshift({ id: 'hrsystem', name: upd.repo ? String(upd.repo).split('/').pop() : 'HRSystem (ky PC)', root: std, data: std + 'Data', repo: upd.repo, channel: upd.channel || 'stable', task: 'HRSystem' });
   }
   return listed.map((i) => {
     let env = {};

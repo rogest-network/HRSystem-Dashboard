@@ -80,6 +80,8 @@
 
   .kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
   .stack { display:grid; gap:16px; align-content:start; min-width:0; } .stack > .card { margin-bottom:0; }
+  .cols2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 32px; } .cols2 table.kv tr:first-child td { border-top:0; }
+  @media (max-width:900px) { .cols2 { grid-template-columns:1fr; } .cols2 table.kv + table.kv tr:first-child td { border-top:1px solid var(--line); } }
   .grid2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
   .grid3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
   @media (max-width:1280px) { .kpis { grid-template-columns:repeat(2, minmax(0,1fr)); } .grid3 { grid-template-columns:repeat(2, minmax(0,1fr)); } }
@@ -844,7 +846,9 @@ function view(s) {
       plainRow('Token GitHub', s.tokenSet ? 'vendosur' : 'mungon', false),
       plainRow('Backup-et', s.backups.length + ' kopje (të fundit)', false),
     ];
-    return el('div', { class: 'card' }, el('h2', {}, 'Instalimi, folderët dhe databaza'), el('table', { class: 'kv' }, ...rows));
+    // two columns (a long list is hard to read): the first half and the second half side by side
+    const half = Math.ceil(rows.length / 2);
+    return el('div', { class: 'card' }, el('h2', {}, 'Instalimi, folderët dhe databaza'), el('div', { class: 'cols2' }, el('table', { class: 'kv' }, ...rows.slice(0, half)), el('table', { class: 'kv' }, ...rows.slice(half))));
   };
   pages.data = () => {
     const sec = state.secrets[s.id];

@@ -787,6 +787,19 @@ const server = http.createServer(async (req, res) => {
         spawn('explorer.exe', entry.file ? ['/select,' + entry.path] : [entry.path], { detached: true, stdio: 'ignore' }).unref();
         return send(res, 200, { ok: true });
       }
+      if (url.pathname === '/api/developer-open') {
+        // Opens /developer already unlocked: the dashboard sends the SETUP_TOKEN (from .env) to the application on this PC and hands the
+        // session cookie to the browser. Cookies ignore the port, so the cookie set for 127.0.0.1 here is also sent to 127.0.0.1:<app port>.
+        needLocal(inst);
+        const env = readEnv(path.join(inst.root, '.env'));
+        if (!env.SETUP_TOKEN) return send(res, 400, { error: 'SETUP_TOKEN mungon te .env.' });
+        const port = env.PORT || 3000;
+        const base = 'http://127.0.0.1:' + port;
+        const r = await fetch(base + '/api/developer/unlock', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify({ token: env.SETUP_TOKEN }), signal: AbortSignal.timeout(8000) });
+        if (!r.ok) return send(res, 400, { error: r.status === 429 ? 'Shumë tentativa, provo pas pak.' : 'Aplikacioni nuk e pranoi tokenin (kod ' + r.status + ').' });
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Set-Cookie': r.headers.getSetCookie() });
+        return res.end(JSON.stringify({ url: base + '/developer' }));
+      }
       if (url.pathname === '/api/setup-link') {
         needLocal(inst);
         const env = readEnv(path.join(inst.root, '.env'));

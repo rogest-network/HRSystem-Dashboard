@@ -211,7 +211,15 @@ function view(s) {
   };
   const openBtn = el('button', { type: 'button', class: 'btn' }, 'Hap aplikacionin');
   openBtn.onclick = () => window.open(mainUrl, '_blank');
-  const controls = el('div', { class: 'row' }, openBtn, sysBtn('Stop', 'stop', 'Ndaloj aplikacionin? Përdoruesit nuk do ta hapin deri sa ta nisësh.'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin? Mund të mos hapet për disa sekonda.'));
+  // /developer opens already unlocked (the dashboard sends the SETUP_TOKEN from .env); the window is opened first so the browser does not block it.
+  const devBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Hap /developer');
+  devBtn.disabled = !s.local;
+  devBtn.onclick = async () => {
+    const w = window.open('', '_blank');
+    const j = await call('developer-open');
+    if (j && w) w.location = j.url; else if (w) w.close();
+  };
+  const controls = el('div', { class: 'row' }, openBtn, devBtn, sysBtn('Stop', 'stop', 'Ndaloj aplikacionin? Përdoruesit nuk do ta hapin deri sa ta nisësh.'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin? Mund të mos hapet për disa sekonda.'));
   const header = (title, sub, extra) => el('div', { class: 'top' }, el('div', {}, el('h1', {}, title), el('p', {}, sub)), extra || '');
 
   const [importBtn, importInput] = fileButton('Importo databazën...', '.sql', async (f) => {
@@ -376,6 +384,7 @@ function view(s) {
         item('Përditëso aplikacionin', s.update ? 'Ka version të ri në GitHub (' + latText + ').' : 'Je në versionin e fundit (' + verText + ').', updBtn),
         item('Përditëso dashboard-in', dashText, dash ? dashBtn : ''))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
+        item('Paneli /developer', 'Emri, logoja, modulet dhe databaza e aplikacionit; hapet pa shkruar token.', devBtn),
         item('Ndalo, nise, rinis', 'Kontrollon detyrën e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin? Përdoruesit nuk do ta hapin deri sa ta nisësh.'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Databaza'), el('div', { class: 'act' },

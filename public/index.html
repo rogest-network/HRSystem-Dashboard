@@ -12,7 +12,8 @@
     --ok:#047857; --okbg:#d1fae5; --warn:#92400e; --warnbg:#fef3c7; --bad:#b91c1c; --badbg:#fee2e2;
     --side:#0f172a; --side-2:#1e293b; --side-text:#cbd5e1; --side-muted:#64748b;
     --shadow:0 1px 2px rgba(15,23,42,.05), 0 1px 3px rgba(15,23,42,.06);
-    --font:"Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, "Courier New", monospace;
+    --font:"Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono:"Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, "Courier New", monospace;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme]) {
     --bg:#0b1020; --card:#131a2e; --text:#e5e9f4; --muted:#8b97b1; --line:#222c47; --soft:#18213a;
@@ -31,7 +32,7 @@
   :root[data-theme='dark'] { color-scheme:dark; } :root[data-theme='light'] { color-scheme:light; }
   * { box-sizing:border-box; }
   html, body { height:100%; }
-  body { margin:0; background:var(--bg); color:var(--text); font:13px/1.55 var(--font); -webkit-font-smoothing:antialiased; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.55 var(--font); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   button, input, select, textarea { font-family:var(--font); }
   a { color:var(--accent); text-decoration:none; word-break:break-all; } a:hover { text-decoration:underline; }
   .app { display:grid; grid-template-columns:252px minmax(0,1fr); min-height:100vh; }
@@ -96,7 +97,7 @@
   table.kv tr:first-child td { border-top:0; }
   table.kv td.k { width:34%; color:var(--muted); white-space:nowrap; padding-right:14px; }
   table.kv td.a { text-align:right; white-space:nowrap; width:1%; }
-  code, .mono { font:12.5px/1.4 var(--font); }
+  code, .mono { font:12.5px/1.4 var(--mono); }
   .val { display:inline-block; max-width:100%; background:var(--soft); border:1px solid var(--line); border-radius:7px; padding:3px 9px; word-break:break-all; }
   .val.secret { letter-spacing:1px; }
   .iconbtn { background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:7px; padding:3px 8px; font:inherit; font-size:12px; cursor:pointer; margin-left:4px; }
@@ -113,13 +114,13 @@
   ul.list li:first-child { border-top:0; }
   ul.list .p { min-width:0; } ul.list .p b { display:block; font-weight:600; } ul.list .p span { color:var(--muted); font-size:12.5px; word-break:break-all; }
   ul.list li.missing .p span { color:var(--bad); }
-  pre.log { margin:0; max-height:520px; overflow:auto; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font:12.5px/1.5 var(--font); white-space:pre-wrap; word-break:break-word; }
+  pre.log { margin:0; max-height:520px; overflow:auto; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font:12.5px/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; }
   .empty { color:var(--muted); padding:16px 2px; }
   .toast { position:fixed; right:22px; bottom:22px; max-width:520px; background:var(--side); color:#fff; padding:12px 16px; border-radius:11px; box-shadow:0 10px 30px rgba(0,0,0,.25); font-size:13.5px; opacity:0; transform:translateY(8px); transition:.2s; pointer-events:none; z-index:20; }
   .toast.show { opacity:1; transform:none; } .toast.err { background:#991b1b; }
 
   /* --- compact and restrained (22.10.2026): smaller type, tighter cards, quieter headings */
-  body { font-size:12.5px; }
+  body { font-size:13.5px; }
   .top { margin-bottom:16px; } .top h1 { font-size:19px !important; font-weight:600; letter-spacing:-.2px; } .top p { font-size:12px; }
   .card { padding:14px 16px; border-radius:10px; box-shadow:none; }
   .card h2 { font-size:10.5px; letter-spacing:1px; margin-bottom:10px; }
@@ -323,7 +324,9 @@ const TR_LIST = [
   ["Rikthej aplikacionin te versioni ", "Go back to version ", "Vratiti aplikaciju na verziju "], ["Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).", "It is downloaded from GitHub, the database is backed up and built (a few minutes).", "Preuzima se sa GitHub-a, pravi se backup baze i build (nekoliko minuta)."], ["Kalon menjëherë (kodi është në këtë PC).", "It switches at once (the code is already on this PC).", "Prelazi odmah (kod je već na ovom računaru)."],
   ["Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.", "The database stays as it is; automatic updates are paused until a newer version.", "Baza ostaje kakva jeste; automatska ažuriranja se zaustavljaju do novije verzije."], ["Rikthimi i versionit", "Version rollback", "Vraćanje verzije"],
   ["Rikthe + databazën", "Restore + database", "Vrati + bazu"], [" DHE databazën nga ", " AND the database from ", " I bazu iz "], ["Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ", "A backup of the current state is made first; then the tables are DELETED and this is loaded: ", "Prvo se pravi backup trenutnog stanja; zatim se tabele BRIŠU i učitava se: "], ["backup: ", "backup: ", "backup: "], ["Po rikthehet edhe databaza nga ", "Also restoring the database from ", "Vraća se i baza iz "],
-  ["Fikur", "Off", "Isključeno"], ["Download / Upload (HR)", "Download / Upload (HR)", "Download / Upload (HR)"], [" sot", " today", " danas"], ["që nga ndezja: ", "since it started: ", "od pokretanja: "], [" · ndezur ", " · running ", " · radi "], ["Aplikacioni është tashmë i fikur.", "The application is already off.", "Aplikacija je već isključena."], ["Aplikacioni punon tashmë.", "The application is already running.", "Aplikacija već radi."], ["Hapësira që zë HR", "Space used by HR", "Prostor koji zauzima HR"], ["po llogaritet...", "calculating...", "izračunava se..."], ["programi ", "program ", "program "], [" · databaza ", " · database ", " · baza "], [" · backup-et ", " · backups ", " · backup-i "], ["disku ", "disk ", "disk "], [" i lirë", " free", " slobodno"], ["Sistemi HR (CPU dhe RAM)", "HR system (CPU and RAM)", "HR sistem (CPU i RAM)"], ["aplikacioni ", "application ", "aplikacija "], [" MB · databaza ", " MB · database ", " MB · baza "], ["Disku", "Disk", "Disk"], [" të lira", " free", " slobodno"], ["nga ", "of ", "od "], ["Aplikacioni ndezur prej", "Application running for", "Aplikacija radi"], ["Kompjuteri ndezur prej ", "Computer on for ", "Računar uključen "], ["Backup i fundit", "Latest backup", "Poslednji backup"], ["asnjë", "none", "nijedan"], ["Dëmtuar", "Damaged", "Oštećen"], ["Historiku", "History", "Istorija"], ["Ende pa veprime.", "No actions yet.", "Još nema akcija."], ["Gabim", "Error", "Greška"],
+  ["Fikur", "Off", "Isključeno"], ["Ndrysho tani", "Change now", "Promeni sada"], ["Ndrysho adresën", "Change the address", "Promeni adresu"], ["Adresë e përkohshme", "Temporary address", "Privremena adresa"], ["përkohshme", "temporary", "privremena"], ["pa adresë publike", "no public address", "nema javne adrese"], ["Adresa", "Address", "Adresa"],
+  ["Pa domen dhe pa llogari: krijohet menjëherë (një adresë trycloudflare.com). Ndryshon sa herë krijohet përsëri.", "No domain and no account: created at once (a trycloudflare.com address). It changes each time it is created again.", "Bez domena i bez naloga: pravi se odmah (trycloudflare.com adresa). Menja se svaki put kada se ponovo napravi."], ["Domeni im (tunel Cloudflare)", "My domain (Cloudflare tunnel)", "Moj domen (Cloudflare tunel)"], ["Lidh domenin tënd me tokenin e tunelit nga Cloudflare. Adresa mbetet e njëjtë.", "Connect your domain with the tunnel token from Cloudflare. The address stays the same.", "Poveži svoj domen tokenom tunela sa Cloudflare-a. Adresa ostaje ista."], ["Hiq tunelin e domenit", "Remove the domain tunnel", "Ukloni tunel domena"],
+  ["Heq adresën ", "Remove the address ", "Ukloniti adresu "], [" nga lista?", " from the list?", " sa liste?"], ["Nuk hiqet vetë kurrë: vetëm kur e heq ti.", "It is never removed by itself: only when you remove it.", "Nikada se ne uklanja samo: samo kada ti ukloniš."], ["Adresa u hoq.", "The address was removed.", "Adresa je uklonjena."], ["Adresë e pavlefshme.", "Invalid address.", "Neispravna adresa."], ["Download / Upload (HR)", "Download / Upload (HR)", "Download / Upload (HR)"], [" sot", " today", " danas"], ["që nga ndezja: ", "since it started: ", "od pokretanja: "], [" · ndezur ", " · running ", " · radi "], ["Aplikacioni është tashmë i fikur.", "The application is already off.", "Aplikacija je već isključena."], ["Aplikacioni punon tashmë.", "The application is already running.", "Aplikacija već radi."], ["Hapësira që zë HR", "Space used by HR", "Prostor koji zauzima HR"], ["po llogaritet...", "calculating...", "izračunava se..."], ["programi ", "program ", "program "], [" · databaza ", " · database ", " · baza "], [" · backup-et ", " · backups ", " · backup-i "], ["disku ", "disk ", "disk "], [" i lirë", " free", " slobodno"], ["Sistemi HR (CPU dhe RAM)", "HR system (CPU and RAM)", "HR sistem (CPU i RAM)"], ["aplikacioni ", "application ", "aplikacija "], [" MB · databaza ", " MB · database ", " MB · baza "], ["Disku", "Disk", "Disk"], [" të lira", " free", " slobodno"], ["nga ", "of ", "od "], ["Aplikacioni ndezur prej", "Application running for", "Aplikacija radi"], ["Kompjuteri ndezur prej ", "Computer on for ", "Računar uključen "], ["Backup i fundit", "Latest backup", "Poslednji backup"], ["asnjë", "none", "nijedan"], ["Dëmtuar", "Damaged", "Oštećen"], ["Historiku", "History", "Istorija"], ["Ende pa veprime.", "No actions yet.", "Još nema akcija."], ["Gabim", "Error", "Greška"],
   ["Veprimet e fundit: backup-e, përditësime, rikthime dhe probleme.", "Latest actions: backups, updates, rollbacks and problems.", "Poslednje akcije: backup-i, ažuriranja, vraćanja i problemi."], ["Shkarko diagnostikën", "Download diagnostics", "Preuzmi dijagnostiku"],
   ["Kopje jashtë PC-së", "Copy outside this PC", "Kopija van ovog računara"], ["Folderi", "Folder", "Fascikla"], ["Zgjidh folderin...", "Choose the folder...", "Izaberi fasciklu..."], ["Ndrysho folderin...", "Change the folder...", "Promeni fasciklu..."], ["Kopjo tani", "Copy now", "Kopiraj sada"], ["Kopjo çdo backup automatikisht", "Copy every backup automatically", "Automatski kopiraj svaki backup"],
   ["Zgjidh një disk të jashtëm, një folder rrjeti ose një folder cloud (OneDrive, Google Drive): nëse prishet ky PC, backup-et mbeten.", "Choose an external disk, a network folder or a cloud folder (OneDrive, Google Drive): if this PC breaks, the backups remain.", "Izaberi spoljni disk, mrežnu ili cloud fasciklu (OneDrive, Google Drive): ako se ovaj računar pokvari, backup-i ostaju."],
@@ -594,22 +597,51 @@ function view(s) {
   };
 
   // ---- addresses (shared by "Pasqyra" and "Adresat")
-  const quickBtn = el('button', { type: 'button', class: 'btn ghost sm' }, a.quickUrl ? 'Ndale' : 'Krijo');
-  quickBtn.onclick = async () => {
-    quickBtn.disabled = true;
-    if (a.quickUrl) { if (await call('quick-tunnel', '&do=stop')) { toast('Adresa e përkohshme u ndal.'); load(); } else quickBtn.disabled = false; return; }
+  // One list of addresses (the temporary one is just another address) and ONE button, "Ndrysho tani", to choose between a temporary address and the owner's own domain (tunnel).
+  const quickCreate = async () => {
     toast('Po krijohet adresa e përkohshme (deri në 40 sekonda)...');
+    if (a.quickUrl) await call('quick-tunnel', '&do=stop');
     const j = await call('quick-tunnel', '&do=start');
-    if (j) { toast('Gati: ' + j.url); load(); } else quickBtn.disabled = false;
+    if (j) { toast('Gati: ' + j.url); load(); }
+  };
+  const removeAddress = async (u) => {
+    if (!confirm('Heq adresën ' + u.replace(/^https?:[/][/]/, '') + ' nga lista?' + NL + 'Nuk hiqet vetë kurrë: vetëm kur e heq ti.')) return;
+    if (await call('address-remove', '&host=' + encodeURIComponent(u), 'Adresa u hoq.')) load();
+  };
+  const changeAddress = () => {
+    const prev = document.activeElement;
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
+    const opt = (title, text, fn) => { const b = el('button', { type: 'button', class: 'btn ghost', style: 'display:block;width:100%;text-align:left;padding:12px;margin-bottom:10px;height:auto' }, el('b', { style: 'display:block' }, title), el('span', { class: 'sub', style: 'display:block;white-space:normal;margin-top:3px' }, text)); b.onclick = () => { close(); fn(); }; return b; };
+    const closeBtn = el('button', { type: 'button', class: 'btn' }, 'Mbyll'); closeBtn.onclick = close;
+    const panel = el('div', { class: 'a11y-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'addrTitle' },
+      el('h2', { id: 'addrTitle' }, 'Ndrysho adresën'),
+      opt('Adresë e përkohshme', 'Pa domen dhe pa llogari: krijohet menjëherë (një adresë trycloudflare.com). Ndryshon sa herë krijohet përsëri.', quickCreate),
+      opt('Domeni im (tunel Cloudflare)', 'Lidh domenin tënd me tokenin e tunelit nga Cloudflare. Adresa mbetet e njëjtë.', () => tunBtn.onclick()),
+      a.tunnel ? opt('Hiq tunelin e domenit', 'Ndalon tunelin e përhershëm në këtë PC (adresat mbeten të listuara derisa t\'i heqësh ti).', () => rmTunBtn.onclick()) : '',
+      el('div', { class: 'row', style: 'margin-top:6px' }, closeBtn));
+    const overlay = el('div', { class: 'a11y-overlay' }, panel);
+    overlay.onmousedown = (e) => { if (e.target === overlay) close(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { close(); return; }
+      if (e.key === 'Tab') {
+        const f = [...panel.querySelectorAll('button')].filter((x) => !x.disabled);
+        if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.append(overlay);
+    panel.querySelector('button').focus();
   };
   const link = (u) => el('a', { class: 'dom', href: u, target: '_blank', rel: 'noopener' }, u.replace(/^https?:[/][/]/, ''));
   const addressTable = () => el('table', { class: 'kv' },
     el('tr', {}, el('td', { class: 'k' }, 'Lokale'), el('td', {}, link(a.local)), el('td', { class: 'a' }, pill('ok', 'në këtë PC'))),
     ...(a.domains && a.domains.length
-      ? a.domains.map((d, i) => el('tr', {}, el('td', { class: 'k' }, i === 0 ? 'Domeni' : ''), el('td', {}, link(d.url)), el('td', { class: 'a' }, d.ok ? pill('ok', 'hapet') : pill('bad', 'nuk hapet'), '')))
-      : [el('tr', {}, el('td', { class: 'k' }, 'Domeni'), el('td', {}, a.tunnel ? 'zbulohet vetë' : el('span', { style: 'color:var(--muted)' }, 'pa domen')), el('td', { class: 'a' }))]),
-    el('tr', {}, el('td', { class: 'k' }, 'Adresa e përkohshme'), el('td', {}, a.quickUrl ? link(a.quickUrl) : el('span', { style: 'color:var(--muted)' }, 'pa')), el('td', { class: 'a' }, quickBtn)),
-    el('tr', {}, el('td', { class: 'k' }, 'Tuneli Cloudflare'), el('td', {}, !a.tunnel ? 'nuk është lidhur' : a.tunnelOk ? 'lidhur' : 'procesi punon, asnjë adresë nuk hapet'), el('td', { class: 'a' }, a.tunnel ? (a.tunnelOk ? pill('ok', 'aktiv') : pill('bad', 'nuk hapet')) : pill('warn', 'jo aktiv'), ' ', tunBtn, a.tunnel ? [' ', rmTunBtn] : '')));
+      ? a.domains.map((d, i) => { const rm = el('button', { type: 'button', class: 'iconbtn' }, 'Hiq'); rm.onclick = () => removeAddress(d.url); return el('tr', {}, el('td', { class: 'k' }, i === 0 ? 'Adresa' : ''), el('td', {}, link(d.url), d.temporary ? el('span', { class: 'sub', style: 'margin-left:8px' }, 'përkohshme') : ''), el('td', { class: 'a' }, d.ok ? pill('ok', 'hapet') : pill('bad', 'nuk hapet'), ' ', rm)); })
+      : [el('tr', {}, el('td', { class: 'k' }, 'Adresa'), el('td', {}, a.tunnel ? 'zbulohet vetë' : el('span', { style: 'color:var(--muted)' }, 'pa adresë publike')), el('td', { class: 'a' }))]),
+    el('tr', {}, el('td', { class: 'k' }, 'Tuneli Cloudflare'), el('td', {}, !a.tunnel ? 'nuk është lidhur' : a.tunnelOk ? 'lidhur' : 'procesi punon, asnjë adresë nuk hapet'), el('td', { class: 'a' }, a.tunnel ? (a.tunnelOk ? pill('ok', 'aktiv') : pill('bad', 'nuk hapet')) : pill('warn', 'jo aktiv'), ' ', (() => { const b = el('button', { type: 'button', class: 'btn sm', 'aria-haspopup': 'dialog' }, 'Ndrysho tani'); b.disabled = busy; b.onclick = changeAddress; return b; })())));
 
   const spark = () => { const max = Math.max(1, ...h.history); return el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%' } : { class: 'down' }))); };
   const appKpi = () => el('div', { class: 'card kpi', id: 'kpi-app' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Fikur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : ''), el('div', { class: 's' }, a.local), h.ok ? spark() : '');

@@ -496,8 +496,9 @@ function normalizeDomain(raw) {
 
 // The names the application is opened with from the internet are found by themselves: the application remembers the address of its last
 // request that came through the tunnel (GET /api/local/public-host); the dashboard asks for it every few seconds and keeps every name it
-// sees with the time (domainsSeen). One tunnel can carry several names (self, app, test ...), so all of them are shown. A name not seen
-// for 14 days is forgotten; a temporary address (quick tunnel) is never a domain of the application.
+// sees with the time (domainsSeen). One tunnel can carry several names (self, app, test ...), so all of them are shown. A name is never forgotten
+// by itself, not even when it does not open (owner, 2026-10-22): only the owner removes it (Hiq). A temporary address (quick tunnel) is kept apart
+// from the learning, but it is shown in the same list.
 async function learnDomains(inst) {
   try {
     const rawSeen = (await (await fetch(inst.local + '/api/local/public-host', { signal: AbortSignal.timeout(3000), cache: 'no-store' })).json()).host || '';
@@ -509,7 +510,6 @@ async function learnDomains(inst) {
     const oldOne = settings.domainSeen && !/[.]trycloudflare[.]com$/i.test(settings.domainSeen) ? settings.domainSeen : '';
     if (oldOne && !known[oldOne]) known[oldOne] = new Date().toISOString();
     if (seen) known[seen] = new Date().toISOString();
-    for (const [h, at] of Object.entries(known)) if (Date.now() - Date.parse(at) > 14 * 864e5) delete known[h];
     if (JSON.stringify(known) !== JSON.stringify(settings.domainsSeen) || settings.domainSeen !== undefined || settings.domain !== undefined) {
       settings.domainsSeen = known; delete settings.domainSeen; delete settings.domain; // a domain typed by hand is no longer used (owner, 2026-10-22: only automatic)
       fs.writeFileSync(settingsFile(inst), JSON.stringify(settings, null, 2));
@@ -524,7 +524,8 @@ async function accessOf(inst, env) {
   const settings = readSettings(inst);
   const isPublic = (o) => o && !o.includes('localhost') && !o.includes('127.0.0.1');
   // Only automatic: the names that were seen (in alphabetical order), then the one from the .env.
-  const names = [...Object.keys(settings.domainsSeen || {}).sort(), env.APP_ORIGIN].filter(isPublic).filter((o, i, all) => all.indexOf(o) === i);
+  const hidden = new Set(settings.domainsHidden || []);
+  const names = [...Object.keys(settings.domainsSeen || {}).sort(), env.APP_ORIGIN].filter(isPublic).filter((o, i, all) => all.indexOf(o) === i).filter((o) => !hidden.has(o));
   const domains = await Promise.all(names.map(async (u) => {
     let ok = false;
     const seen = domainHealth.get(u);
@@ -533,15 +534,14 @@ async function accessOf(inst, env) {
     domainHealth.set(u, { at: Date.now(), ok });
     return { url: u, ok };
   }));
-  // A name learned from the tunnel that no longer opens (the tunnel or its DNS record was deleted) is forgotten at once; only the one in
-  // .env stays listed when it does not open.
-  const learned = settings.domainsSeen || {};
-  const gone = domains.filter((d) => !d.ok && learned[d.url] && d.url !== env.APP_ORIGIN).map((d) => d.url);
-  if (gone.length) {
-    const cur = readSettings(inst);
-    for (const g of gone) delete (cur.domainsSeen || {})[g];
-    try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
-    domains.splice(0, domains.length, ...domains.filter((d) => !gone.includes(d.url)));
+  // The temporary address is one more address in the same list: it stays listed (as "nuk hapet") when its process is gone, until the owner removes it.
+  const quickNow = quickUrlOf(inst) || (settings.quickLast && settings.quickLast.url) || '';
+  if (quickNow && !hidden.has(quickNow) && !domains.some((d) => d.url === quickNow)) {
+    let ok = false;
+    const seenQ = domainHealth.get(quickNow);
+    if (seenQ && Date.now() - seenQ.at < 45000) ok = seenQ.ok;
+    else { try { ok = (await fetch(quickNow + '/api/health', { signal: AbortSignal.timeout(5000), cache: 'no-store' })).ok; } catch { ok = false; } domainHealth.set(quickNow, { at: Date.now(), ok }); }
+    domains.push({ url: quickNow, ok, temporary: true });
   }
   const publicDomain = domains.length ? domains[0].url : '';
   const domainOk = domains.length ? domains[0].ok : null;
@@ -575,12 +575,16 @@ async function systemAction(inst, action) {
   await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);
   // A Stop pressed by the owner is remembered, so the watcher does not start the application again; Start / Restart forget it.
   { const cur = readSettings(inst); if (action === 'stop') cur.manualStop = Date.now(); else delete cur.manualStop; settingsWrite(inst, cur); }
+  // The phone is told what was done and by whom (owner, 2026-10-22), and the history keeps it.
+  { const what = { stop: ['Aplikacioni u ndal manualisht', 'Është ndalur me butonin Stop nga dashboard-i.'], start: ['Aplikacioni u ndez manualisht', 'Është ndezur me butonin Start nga dashboard-i.'], restart: ['Aplikacioni u rindez manualisht', 'Është rindezur me butonin Restart nga dashboard-i.'] }[action];
+    if (what && !systemAction.quiet) { notify(inst, what[0], (inst.name || '') + ': ' + what[1]); addHistory(inst, { title: what[0], ok: true, detail: '' }); } }
   return { ok: true };
 }
 
 // The Cloudflare Tunnel (opens the application from the internet with the owner's own address): the same steps as the installer.
 function runTunnel(inst, rawToken) {
   needLocal(inst);
+  { const cur = readSettings(inst); delete cur.domainsHidden; settingsWrite(inst, cur); } // a new tunnel: the names it carries are shown again
   const token = String(rawToken || '').replace(/^.*service\s+install\s+/i, '').trim().replace(/^["']|["']$/g, '');
   if (token.length < 20 || /\s/.test(token)) throw new Error('Tokeni i Cloudflare nuk duket i sakte (ngjite sic e jep Cloudflare).');
   const script = [
@@ -660,8 +664,13 @@ async function startQuick(inst) {
     try { env = readEnv(path.join(inst.root, '.env')); } catch { /* defaults */ }
     const log = path.join(inst.root, 'quick-tunnel.log');
     try { fs.rmSync(log, { force: true }); } catch { /* in use */ }
-    const proc = spawn(exe, ['tunnel', '--no-autoupdate', '--url', 'http://localhost:' + (env.PORT || 3000), '--logfile', log], { detached: true, stdio: 'ignore', windowsHide: true });
-    proc.unref();
+    // Started through WMI (like the application's launcher): the process is not a child of the dashboard, so it is not in the job of the dashboard's
+    // scheduled task and survives its restarts and updates (a child was ended with the task: the temporary address vanished after an update).
+    const cmd = '"' + exe + '" tunnel --no-autoupdate --url http://localhost:' + (env.PORT || 3000) + ' --logfile "' + log + '"';
+    const pidOut = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+      `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q(cmd)}; CurrentDirectory = ${q(path.dirname(exe))} }; if ($r.ReturnValue -eq 0) { $r.ProcessId } else { throw ('WMI ' + $r.ReturnValue) }`]);
+    const proc = { pid: Number(String(pidOut).trim().split(/\s+/).pop()) };
+    if (!proc.pid) throw new Error('cloudflared nuk u nis.');
     let url = '';
     for (let i = 0; i < 40 && !url; i++) {
       await new Promise((r) => setTimeout(r, 1000));
@@ -669,6 +678,7 @@ async function startQuick(inst) {
     }
     if (!url) { try { process.kill(proc.pid); } catch { /* gone */ } throw new Error('Adresa e përkohshme nuk u krijua (kontrollo internetin).'); }
     fs.writeFileSync(quickFile(inst), JSON.stringify({ pid: proc.pid, url }));
+    { const cur = readSettings(inst); cur.quickLast = { url, at: new Date().toISOString() }; cur.domainsHidden = (cur.domainsHidden || []).filter((x) => x !== url); settingsWrite(inst, cur); }
     setQuickWanted(inst, true);
     return { url };
   } finally { quickStarting = false; }
@@ -676,6 +686,7 @@ async function startQuick(inst) {
 function stopQuick(inst) {
   try { const j = JSON.parse(fs.readFileSync(quickFile(inst), 'utf8')); process.kill(j.pid); } catch { /* not running */ }
   try { fs.rmSync(quickFile(inst), { force: true }); } catch { /* gone */ }
+  { const cur = readSettings(inst); delete cur.quickLast; settingsWrite(inst, cur); }
   setQuickWanted(inst, false);
   return { ok: true };
 }
@@ -929,8 +940,8 @@ async function watchTick() {
     try { ok = (await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(5000) })).ok; } catch { ok = false; }
     if (ok || (job && job.state === 'running')) {
       if (ok) { const st = readSettings(inst); if (st.manualStop && Date.now() - st.manualStop > 20000) { delete st.manualStop; settingsWrite(inst, st); } }
-      if (ok && w.told) { notify(inst, 'Aplikacioni u kthye', (inst.name || '') + ' punon përsëri.'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
-      w.down = 0; w.told = false;
+      if (ok && w.told && !w.selfStarted) { notify(inst, 'Aplikacioni u kthye', (inst.name || '') + ' punon përsëri.'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
+      w.down = 0; w.told = false; w.selfStarted = false;
     } else {
       if (!w.down) w.down = Date.now();
       // Self-heal (owner, 2026-10-22): when it fell by itself (not stopped with the Stop button) and "Nisja me Windows" for the application is ON, it is started again
@@ -939,14 +950,14 @@ async function watchTick() {
         try {
           const app = (await autostartState(inst).catch(() => [])).find((x) => x.key === 'app');
           if (app && app.on) {
-            w.lastStart = Date.now();
-            await systemAction(inst, 'start');
+            w.lastStart = Date.now(); w.selfStarted = true;
+            systemAction.quiet = true; try { await systemAction(inst, 'start'); } finally { systemAction.quiet = false; }
             addHistory(inst, { title: 'Aplikacioni u ndez vetë (kishte rënë)', ok: true, detail: '' });
-            notify(inst, 'Aplikacioni u ndez vetë', (inst.name || '') + ' kishte rënë dhe u ndez përsëri.');
+            notify(inst, 'Aplikacioni u ndez vetë', (inst.name || '') + ' ishte mbyllur vetë dhe dashboard-i e ndezi përsëri (ndezja automatike është e ndezur).');
           }
         } catch { /* tried; the next attempt is in 10 minutes */ }
       }
-      if (!w.told && Date.now() - w.down >= 60000) { w.told = true; notify(inst, 'Aplikacioni ka rënë', (inst.name || '') + ' nuk përgjigjet prej 1 minute.'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
+      if (!w.told && Date.now() - w.down >= 60000 && !readSettings(inst).manualStop) { w.told = true; notify(inst, 'Aplikacioni u mbyll vetë', (inst.name || '') + ' u mbyll pa e ndalur ti dhe nuk përgjigjet prej 1 minute.'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
     }
     const d = diskOf(inst.data || inst.root);
     if (d && d.total && d.free / d.total < 0.1) {
@@ -1060,31 +1071,39 @@ async function procStats(inst) {
     const out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
       `$ErrorActionPreference='SilentlyContinue'; $cores=[Environment]::ProcessorCount; $appPid=${appPid}; $dbPid=${dbPid}; ` +
       `if ($appPid) { 'since|' + (Get-Process -Id $appPid).StartTime.ToUniversalTime().ToString('o') }; ` +
-      `foreach ($x in @($appPid, $dbPid)) { if ($x -gt 0) { $q = Get-CimInstance Win32_Process -Filter "ProcessId=$x"; if ($q) { 'io|' + $q.ReadTransferCount + '|' + $q.WriteTransferCount } } }; ` +
+      `foreach ($x in @($appPid, $dbPid)) { if ($x -gt 0) { $q = Get-CimInstance Win32_Process -Filter "ProcessId=$x"; if ($q) { 'io|' + $x + '|' + $q.ReadTransferCount + '|' + $q.WriteTransferCount } } }; ` +
       `foreach ($pp in (Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.IDProcess -gt 0 -and $_.IDProcess -in @($appPid, $dbPid) })) { ($(if ($pp.IDProcess -eq $appPid) { 'app' } else { 'db' })) + '|' + $pp.PercentProcessorTime + '|' + $pp.WorkingSetPrivate }; "cores|$cores"`]);
     let cores = 1, cpu = 0, ioR = 0, ioW = 0;
+    const procsNow = {};
     for (const l of out.split(/\r?\n/)) {
       const p = l.trim().split('|');
       if (p[0] === 'since') value.appSince = p[1];
       else if (p[0] === 'cores') cores = Number(p[1]) || 1;
-      else if (p[0] === 'io') { ioR += Number(p[1]) || 0; ioW += Number(p[2]) || 0; }
+      else if (p[0] === 'io') { const r = Number(p[2]) || 0, w = Number(p[3]) || 0; procsNow[p[1]] = { r, w }; ioR += r; ioW += w; }
       else if (p[0] === 'app') { cpu += Number(p[1]) || 0; value.appRam = Number(p[2]) || 0; }
       else if (p[0] === 'db') { cpu += Number(p[1]) || 0; value.dbRam = Number(p[2]) || 0; }
     }
     value.cpu = Math.min(100, Math.round((cpu / cores) * 10) / 10); value.ram = value.appRam + value.dbRam;
     // Data moved by the HR processes (reads and writes: the network, the database and the disk of the application and its MySQL), speed since the last look and the total of today.
     const now = Date.now(), prev = c && c.value && c.value.io;
-    value.io = { t: now, r: ioR, w: ioW }; value.totalR = ioR; value.totalW = ioW;
-    if (prev && now > prev.t) {
-      const dr = ioR >= prev.r ? ioR - prev.r : ioR, dw = ioW >= prev.w ? ioW - prev.w : ioW, secs = Math.max(1, (now - prev.t) / 1000);
+    value.io = { t: now, procs: procsNow }; value.totalR = ioR; value.totalW = ioW;
+    if (prev && prev.procs && now > prev.t) {
+      // counted per process: a process that restarted (a new pid) counts from its own start, never the whole lifetime of another one
+      let dr = 0, dw = 0;
+      for (const [pid, c] of Object.entries(procsNow)) {
+        const o = prev.procs[pid];
+        if (o) { dr += c.r >= o.r ? c.r - o.r : c.r; dw += c.w >= o.w ? c.w - o.w : c.w; }
+        else { dr += c.r; dw += c.w; }
+      }
+      const secs = Math.max(1, (now - prev.t) / 1000);
       value.readBps = dr / secs; value.writeBps = dw / secs;
       if (dr + dw > 0) {
         const cur = readSettings(inst), day = new Date().toISOString().slice(0, 10);
-        const d = cur.ioDay && cur.ioDay.date === day ? cur.ioDay : { date: day, r: 0, w: 0 };
+        const d = cur.ioDay && cur.ioDay.date === day && cur.ioDay.v === 2 ? cur.ioDay : { date: day, v: 2, r: 0, w: 0 }; // v2: per-process counting (the first version counted a restarted process's whole lifetime)
         d.r = (d.r || 0) + dr; d.w = (d.w || 0) + dw; cur.ioDay = d; settingsWrite(inst, cur);
       }
     }
-    const dd = readSettings(inst).ioDay, same = dd && dd.date === new Date().toISOString().slice(0, 10); value.todayR = same ? dd.r || 0 : 0; value.todayW = same ? dd.w || 0 : 0;
+    const dd = readSettings(inst).ioDay, same = dd && dd.v === 2 && dd.date === new Date().toISOString().slice(0, 10); value.todayR = same ? dd.r || 0 : 0; value.todayW = same ? dd.w || 0 : 0;
   } catch { /* leave zeros */ }
   procSeen.set(inst.id, { at: Date.now(), value });
   return value;
@@ -1438,6 +1457,18 @@ const server = http.createServer(async (req, res) => {
         let given = '';
         try { given = String(JSON.parse(body).token || ''); } catch { /* wrong body */ }
         return send(res, 200, runTunnel(inst, given));
+      }
+      if (url.pathname === '/api/address-remove') {
+        needLocal(inst);
+        const target = String(url.searchParams.get('host') || '');
+        if (!/^https:[/][/][A-Za-z0-9.-]+$/.test(target)) return send(res, 400, { error: 'Adresë e pavlefshme.' });
+        if (target === quickUrlOf(inst) || target === (readSettings(inst).quickLast || {}).url) { stopQuick(inst); }
+        const cur = readSettings(inst);
+        if (cur.domainsSeen) delete cur.domainsSeen[target];
+        cur.domainsHidden = [...new Set([...(cur.domainsHidden || []), target])].slice(-50); // also hides the one from .env and keeps a still-running name from coming back
+        settingsWrite(inst, cur);
+        domainHealth.delete(target);
+        return send(res, 200, { ok: true });
       }
       if (url.pathname === '/api/quick-tunnel') return send(res, 200, url.searchParams.get('do') === 'stop' ? stopQuick(inst) : await startQuick(inst));
       if (url.pathname === '/api/system') return send(res, 200, await systemAction(inst, url.searchParams.get('do')));

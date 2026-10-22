@@ -12,8 +12,8 @@ Program i vogël që hapet vetëm në PC-në tënde (`http://127.0.0.1:<port>`, 
 
 ## Çfarë bën
 - **Shëndeti dhe shpejtësia** nga `/api/health` i aplikacionit; **versioni i instaluar** kundrejt `stable`/`test` të repo-s së programit (versioni më i ri, ose build i ri me të njëjtin numër).
-- **Domenet:** i mëson vetë (aplikacioni kujton adresën e kërkesës së fundit nga tuneli, pyetet çdo 15 s), i tregon me "hapet / nuk hapet" dhe i harron kur nuk hapen më (ose pas 14 ditësh). Nuk shkruhen me dorë.
-- **Tuneli Cloudflare:** *Shto / Ndrysho tunelin* (token), *Hiq*; statusi "aktiv" vetëm kur procesi punon dhe të paktën një adresë hapet. **Adresa e përkohshme** (`trycloudflare.com`) krijohet me një buton, pa llogari.
+- **Adresat:** një listë e vetme (domenet që i mëson vetë aplikacioni dhe adresa e përkohshme `trycloudflare.com` janë njësoj adresa). Asnjë adresë nuk hiqet vetë, as kur nuk hapet: vetëm kur e heq ti me **Hiq**. Një buton, **Ndrysho tani**, zgjedh: adresë e përkohshme ose domeni yt me tunel Cloudflare (token). Adresa e përkohshme nis si proces i pavarur (WMI), ndaj mbijeton rindezjes dhe përditësimit të dashboard-it.
+- **Tuneli Cloudflare:** *Shto / Ndrysho tunelin* (token), *Hiq tunelin* (te **Ndrysho tani**); statusi "aktiv" vetëm kur procesi punon dhe të paktën një adresë hapet.
 - **Backup:** `mysqldump` (me `--hex-blob`) te `<të dhënat>\Backups`, emri **`Emri-Data-Ora.sql`** (emri = emri i databazës). Vetëm databaza.
 - **Automatik në natë:** një orar i përbashkët (ora, sa backup të mbahen) me dy çelësa të pavarur: *Backup i databazës* dhe *Përditëso programin*. Nëse ka version të ri dhe përditësimi është i ndezur, përditësimi bëhet (ai fillon me backup: një backup, jo dy); përndryshe bëhet backup. Fshihen vetëm backup-et që i ka bërë ky orar.
 - **Nisja me Windows:** çelës për *Aplikacioni + databaza* (një i vetëm), *Dashboard-i*, *Tuneli*; plus "Aktivizo / Ndalo të gjitha". Ato që punojnë nuk ndalen.
@@ -32,6 +32,7 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 ## Veçoritë profesionale
 - **Pasqyra:** hapësira që zë HR (programi, databaza, backup-et), CPU dhe RAM vetëm të sistemit HR (aplikacioni + databaza), sa kohë punon aplikacioni, backup-i i fundit me kontrollin OK / Dëmtuar. Kur aplikacioni është **Fikur** nuk matet çdo 3 sekonda (kontrollohet çdo 15 s).
 - **Download / Upload (HR):** sa të dhëna lexon (download) dhe shkruan (upload) vetëm sistemi HR (aplikacioni + databaza): shpejtësia tani, totali i sotëm dhe që nga ndezja. Windows nuk e jep rrjetin e një programi të vetëm pa mjete shtesë, prandaj matet leximi/shkrimi i proceseve HR.
+- **Njoftimet për ndalimin:** në telefon vjen çdo herë shkaku: *u ndal manualisht* (Stop), *u ndez manualisht* (Start), *u rindez manualisht* (Restart), *u mbyll vetë* (pa e ndalur ti, pas 1 minute), *u ndez vetë* (ndezja automatike). Fonti i dashboard-it është një sans-serif profesional; monospace vetëm për kodin dhe log-un.
 - **Ndezja vetë kur bie:** nëse aplikacioni bie pa e ndalur ti (jo me butonin Stop) dhe "Nisja me Windows" për aplikacionin është e ndezur, dashboard-i e ndez përsëri pas 1 minute dhe të njofton (provon sërish më së shpeshti çdo 10 minuta). Pas Stop, ose kur ndezja automatike është e fikur, nuk ndizet vetë.
 - **Historiku:** 200 veprimet e fundit (backup, përditësim, rikthim, probleme, kopje jashtë PC-së).
 - **Kopje jashtë PC-së** (Veprime): çdo backup kopjohet automatikisht te një folder i zgjedhur (disk i jashtëm, rrjet, folder cloud); kontrollohet çdo 5 minuta.

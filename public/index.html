@@ -375,6 +375,15 @@ function view(s) {
   const autoBtn = el('button', { type: 'button', class: au.on ? 'btn ghost' : 'btn' }, au.on ? 'Fike' : 'Ndize');
   autoBtn.onclick = async () => { if (await call('auto-update', '&on=' + (au.on ? 0 : 1) + '&hour=' + hourSel.value, au.on ? 'Përditësimi automatik u fik.' : 'Përditësimi automatik u ndez.')) load(); };
   const autoLast = !au.last ? 'Ende nuk është ekzekutuar.' : 'Hera e fundit: ' + au.last.date + ' · ' + ({ no_update: 'nuk kishte version të ri', started: 'filloi', ok: 'u krye me sukses', error: 'dështoi (shiko Log-un)' }[au.last.result] || au.last.result);
+  // Automatic backup: on/off, the hour and how many to keep.
+  const ab = s.autoBackup || { on: true, hour: 2, keep: 14, last: null };
+  const selStyle = 'font:inherit;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)';
+  const abHour = el('select', { 'aria-label': 'Ora e backup-it', style: selStyle }, ...Array.from({ length: 24 }, (_, h) => { const o = el('option', { value: String(h) }, String(h).padStart(2, '0') + ':00'); if (h === ab.hour) o.selected = true; return o; }));
+  const abKeep = el('select', { 'aria-label': 'Sa backup të mbahen', style: selStyle }, ...[3, 7, 14, 30, 60, 90].map((n) => { const o = el('option', { value: String(n) }, 'mbaj ' + n); if (n === ab.keep) o.selected = true; return o; }));
+  const abSave = async (on) => { if (await call('auto-backup', '&on=' + (on ? 1 : 0) + '&hour=' + abHour.value + '&keep=' + abKeep.value, 'U ruajt.')) load(); };
+  abHour.onchange = () => abSave(ab.on); abKeep.onchange = () => abSave(ab.on);
+  const abBtn = el('button', { type: 'button', class: ab.on ? 'btn ghost' : 'btn' }, ab.on ? 'Fike' : 'Ndize'); abBtn.onclick = () => abSave(!ab.on);
+  const abLast = !ab.last ? 'Ende nuk është ekzekutuar.' : 'Hera e fundit: ' + ab.last.date + ' · ' + (ab.last.result === 'ok' ? 'u ruajt ' + ab.last.name : ab.last.result);
   const backupBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Backup tani');
   backupBtn.disabled = busy;
   backupBtn.onclick = async () => {
@@ -432,6 +441,7 @@ function view(s) {
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Databaza'), el('div', { class: 'act' },
         item('Backup tani', 'Ruan një kopje të databazës te Backup-et.', backupBtn),
+        item('Backup automatik', (ab.on ? 'Çdo ditë në orën ' + String(ab.hour).padStart(2, '0') + ':00; mbahen ' + ab.keep + ' më të rejat. ' : 'Fikur. ') + abLast, abHour, abKeep, abBtn),
         item('Ekzekuto SQL', 'Skedar .sql, me backup automatik para tij.', sqlBtn, sqlInput),
         s.ownerMissing ? '' : item('Importo databazën', 'Zëvendëson gjithë databazën me një dump të plotë (backup automatik).', importBtn, importInput))),
       el('div', { class: 'card' }, el('h2', {}, 'Lidhjet'), el('div', { class: 'act' },

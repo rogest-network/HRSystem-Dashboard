@@ -172,7 +172,7 @@ function mysqldumpPath() {
   return 'mysqldump';
 }
 
-async function backup(inst) {
+async function backup(inst, tag) {
   if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter: backup-in e bën nga paneli i hostit.');
   const cfg = readEnv(path.join(inst.root, '.env'));
   const dir = backupDir(inst);
@@ -180,7 +180,7 @@ async function backup(inst) {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; // local time, like the updater's backups
-  const file = path.join(dir, `hrsystem-${stamp}.sql`);
+  const file = path.join(dir, `hrsystem-${tag ? tag + '-' : ''}${stamp}.sql`);
   await run(
     mysqldumpPath(),
     [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--single-transaction', '--no-tablespaces', '--hex-blob', '--default-character-set=utf8mb4', `--result-file=${file}`, cfg.DB_NAME],
@@ -691,6 +691,43 @@ async function autoUpdateTick() {
 }
 setInterval(() => { autoUpdateTick().catch(() => {}); }, 60000).unref();
 
+// Automatic backup of the database: once a day at the chosen hour (default 02:00, before the update of 03:00), kept in the Backups folder like
+// the others. The owner chooses on/off and the hour (Veprime). Only the newest `keep` automatic backups are kept (default 14).
+function autoBackupOf(inst) {
+  const s = readSettings(inst);
+  return { on: s.autoBackup !== false, hour: Number.isInteger(s.autoBackupHour) ? s.autoBackupHour : 2, keep: Number.isInteger(s.autoBackupKeep) ? s.autoBackupKeep : 14, last: s.autoBackupLast || null };
+}
+function setAutoBackup(inst, on, hour, keep) {
+  const cur = readSettings(inst);
+  cur.autoBackup = Boolean(on);
+  if (Number.isInteger(hour) && hour >= 0 && hour <= 23) cur.autoBackupHour = hour;
+  if (Number.isInteger(keep) && keep >= 1 && keep <= 365) cur.autoBackupKeep = keep;
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+  return autoBackupOf(inst);
+}
+async function autoBackupTick() {
+  const now = new Date();
+  const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  for (const inst of instances()) {
+    if (!inst.root || !inst.data) continue;
+    const auto = autoBackupOf(inst);
+    if (!auto.on || now.getHours() !== auto.hour || (auto.last && auto.last.date === today)) continue;
+    const running = jobs.get(inst.id);
+    if (running && running.state === 'running') continue; // an update makes its own backup first
+    const record = { date: today, at: new Date().toISOString() };
+    const save = (result, name) => { const cur = readSettings(inst); cur.autoBackupLast = { ...record, result, name }; try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ } };
+    save('started');
+    try {
+      const made = await backup(inst, 'auto');
+      save('ok', made.name);
+      // keep the newest `keep` AUTOMATIC backups (hrsystem-auto-<stamp>.sql); manual ones and the updater's are never deleted here
+      const all = listBackups(inst).filter((b) => /^hrsystem-auto-\d{8}-\d{6}[.]sql$/.test(b.name));
+      for (const old of all.slice(auto.keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
+    } catch (e) { save('error: ' + String(e.message).slice(0, 120)); }
+  }
+}
+setInterval(() => { autoBackupTick().catch(() => {}); }, 60000).unref();
+
 async function status(inst) {
   const [h, l] = await Promise.all([health(inst), latestCached(inst)]);
   const i = installed(inst);
@@ -702,7 +739,7 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoUpdate: autoUpdateOf(inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoUpdate: autoUpdateOf(inst), autoBackup: autoBackupOf(inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
 }
 
 const send = (res, code, data, type = 'application/json') => {
@@ -802,6 +839,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, left: listBackups(inst).length });
       }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
+      if (url.pathname === '/api/auto-backup') { needLocal(inst); const q = url.searchParams; return send(res, 200, setAutoBackup(inst, q.get('on') !== '0', q.has('hour') ? Number(q.get('hour')) : undefined, q.has('keep') ? Number(q.get('keep')) : undefined)); }
       if (url.pathname === '/api/auto-update') { needLocal(inst); return send(res, 200, setAutoUpdate(inst, url.searchParams.get('on') !== '0', url.searchParams.has('hour') ? Number(url.searchParams.get('hour')) : undefined)); }
       if (url.pathname === '/api/dashboard-update') return send(res, 200, await updateDashboard());
       if (url.pathname === '/api/github-token') {

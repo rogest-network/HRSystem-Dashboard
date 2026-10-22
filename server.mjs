@@ -201,8 +201,8 @@ function startJob(inst, title, launch) {
   const add = (t) => { for (const l of clean(String(t)).split('\n')) if (l.trim()) job.lines.push(l); job.lines = job.lines.slice(-200); };
   Promise.resolve()
     .then(() => launch(add))
-    .then((ok) => { job.state = ok === false ? 'error' : 'ok'; })
-    .catch((e) => { add('GABIM: ' + e.message); job.state = 'error'; });
+    .then((ok) => { job.state = ok === false ? 'error' : 'ok'; job.ended = Date.now(); })
+    .catch((e) => { add('GABIM: ' + e.message); job.state = 'error'; job.ended = Date.now(); });
   return job;
 }
 
@@ -410,7 +410,7 @@ const q = (t) => "'" + String(t).replace(/'/g, "''") + "'";
 async function systemAction(inst, action) {
   needLocal(inst);
   const task = inst.task || 'HRSystem';
-  const stop = `Stop-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine -like ${q('*' + inst.root + '*server.mjs*')} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+  const stop = `Stop-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine -like ${q('*' + inst.root + '*server.mjs*')} -and $_.CommandLine -notlike '*\manager\*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
   const start = `Start-ScheduledTask -TaskName ${q(task)}`;
   const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;
   if (!command) throw new Error('Veprim i panjohur.');
@@ -536,13 +536,17 @@ async function ghJson(url) {
   return res.json();
 }
 const dashSafe = (rel) => { const full = path.resolve(HERE, rel); return full.startsWith(HERE + path.sep) && !rel.startsWith('.previous') ? full : null; };
+// Besides manager/ the repo keeps root/<name>: the PowerShell scripts of the installation root (the updater kills the dashboard unless it has
+// the fixed hr-common.ps1), updated in the same way. Only these names, and only when the file already exists in the installation root.
+const ROOT_FILES = new Set(['hr-common.ps1', 'updater.ps1', 'sql-import.ps1']);
+const localPathOf = (rel) => (rel.startsWith('root/') ? (ROOT_FILES.has(rel.slice(5)) ? path.join(path.dirname(HERE), rel.slice(5)) : null) : dashSafe(rel));
 async function dashboardDiff() {
   const tree = await ghJson(`https://api.github.com/repos/${DASH_REPO}/git/trees/main?recursive=1`);
   const changed = [];
   for (const e of tree.tree || []) {
-    if (e.type !== 'blob' || !dashSafe(e.path) || /^(instances|dashboard)[.](json|key)$/.test(e.path)) continue;
+    if (e.type !== 'blob' || !localPathOf(e.path) || /^(instances|dashboard)[.](json|key)$/.test(e.path)) continue;
     let local = null;
-    try { local = fs.readFileSync(path.join(HERE, e.path)); } catch { continue; } // only files that exist here are updated
+    try { local = fs.readFileSync(localPathOf(e.path)); } catch { continue; } // only files that exist here are updated
     if (gitBlobSha(local) !== e.sha) changed.push({ rel: e.path, sha: e.sha });
   }
   return changed;
@@ -581,12 +585,12 @@ async function updateDashboard() {
     const prev = path.join(HERE, '.previous');
     fs.rmSync(prev, { recursive: true, force: true });
     for (const f of files) {
-      const full = dashSafe(f.rel);
+      const full = localPathOf(f.rel);
       fs.mkdirSync(path.dirname(full), { recursive: true });
       if (fs.existsSync(full)) { const keep = path.join(prev, f.rel); fs.mkdirSync(path.dirname(keep), { recursive: true }); fs.copyFileSync(full, keep); }
     }
     if (server) fs.writeFileSync(path.join(HERE, '.updating'), String(Date.now())); // read by the restart: starts the guard
-    for (const f of files) fs.writeFileSync(dashSafe(f.rel), f.buf);
+    for (const f of files) fs.writeFileSync(localPathOf(f.rel), f.buf);
     dashCache = null;
     return { ok: true, files: files.length };
   } finally { dashUpdating = false; }
@@ -602,7 +606,7 @@ setTimeout(() => {
   try { url = fs.readFileSync(path.join(dir, '..', 'dashboard-url.txt'), 'utf8').trim(); } catch { url = ''; }
   const restore = () => {
     const prev = path.join(dir, '.previous');
-    const walk = (d, rel) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const r = path.join(rel, e.name); if (e.isDirectory()) walk(path.join(d, e.name), r); else fs.copyFileSync(path.join(d, e.name), path.join(dir, r)); } };
+    const walk = (d, rel) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const r = path.join(rel, e.name); if (e.isDirectory()) walk(path.join(d, e.name), r); else fs.copyFileSync(path.join(d, e.name), r.startsWith('root' + path.sep) ? path.join(dir, '..', r.slice(5)) : path.join(dir, r)); } };
     try { walk(prev, ''); } catch {}
     try { fs.rmSync(flag, { force: true }); } catch {}
     try { cp.spawn(process.execPath, [path.join(dir, 'server.mjs')], { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch {}

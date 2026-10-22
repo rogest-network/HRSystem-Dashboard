@@ -96,6 +96,7 @@
   .act .item b { display:block; font-weight:600; } .act .item span { color:var(--muted); font-size:12.5px; }
   .banner { border:1px solid var(--warn); background:var(--warnbg); color:var(--text); border-radius:12px; padding:14px 18px; margin-bottom:16px; display:grid; gap:10px; }
   .banner p { margin:0; }
+  .banner.ok { border-color:var(--ok); background:var(--okbg); } .banner.bad { border-color:var(--bad); background:var(--badbg); }
   ul.list { list-style:none; margin:0; padding:0; }
   ul.list li { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 2px; border-top:1px solid var(--line); }
   ul.list li:first-child { border-top:0; }
@@ -193,7 +194,7 @@ async function copyText(text) {
 }
 
 const SECTIONS = [['home', 'Pasqyra', 'home'], ['access', 'Adresat', 'globe'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Ku është instaluar', 'folder'], ['log', 'Log-u', 'term']];
-const state = { cur: store.get('cur', ''), section: store.get('section', 'home'), data: null, secrets: {}, shown: {} };
+const state = { cur: store.get('cur', ''), section: store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
 // ---------------------------------------------------------------- one installation
@@ -491,10 +492,22 @@ function render() {
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off') }), select),
     nav,
     el('div', { class: 'foot' }, j.dashboard && j.dashboard.files ? (() => { const b = el('button', { type: 'button' }, 'Dashboard i ri: përditëso'); b.onclick = () => go('actions'); return b; })() : '', el('span', {}, j.at ? 'Përditësuar ' + fmtTime(j.at, true) : ''), el('span', {}, 'Rifreskohet vetë çdo 30 s'), refresh, un));
-  page.replaceChildren(v.html);
+  // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.
+  const job = s.job;
+  let done = '';
+  if (job && job.state !== 'running' && job.ended && Date.now() - job.ended < 900000 && state.dismissed !== job.ended) {
+    const ok = job.state === 'ok';
+    const close = el('button', { type: 'button', class: 'iconbtn' }, 'Mbyll'); close.onclick = () => { state.dismissed = job.ended; render(); };
+    const see = el('button', { type: 'button', class: 'iconbtn' }, 'Shiko log-un'); see.onclick = () => go('log');
+    done = el('div', { class: 'banner ' + (ok ? 'ok' : 'bad') },
+      el('p', {}, el('b', {}, (ok ? '✓ ' : '✗ ') + jobName(job.title) + (ok ? ' u krye me sukses' : ' dështoi')), ' · ' + fmtTime(job.ended, true) + (ok && s.installed && s.installed.name ? ' · versioni tani: ' + s.installed.name : '')),
+      el('div', { class: 'row' }, see, close));
+  }
+  page.replaceChildren(...(done ? [done] : []), v.html);
 }
 
 // One status request at a time (a slow measurement must not pile up), and background refreshes stay silent when the dashboard is briefly unreachable (e.g. while it restarts itself).
+const jobName = (t) => ({ Perditesim: 'Përditësimi i aplikacionit', 'Cloudflare Tunnel': 'Lidhja e tunelit', 'Heqja e tunelit': 'Heqja e tunelit' }[t] || t);
 let loading = false, again = false;
 async function load(quiet) {
   if (loading) { if (quiet !== true) again = true; return; }
@@ -504,6 +517,12 @@ async function load(quiet) {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Gabim');
     state.data = j;
+    // A job (update, SQL, import, tunnel) that was running and has ended now: say so at once.
+    for (const i of j.instances) {
+      const prev = state.jobStates[i.id], cur = i.job && i.job.state;
+      if (prev === 'running' && cur && cur !== 'running') toast(cur === 'ok' ? '✓ ' + jobName(i.job.title) + ' u krye me sukses.' : '✗ ' + jobName(i.job.title) + ' dështoi: shiko Log-un.', cur !== 'ok');
+      state.jobStates[i.id] = cur;
+    }
     render();
   } catch (e) { if (quiet !== true) toast('GABIM: ' + e.message, true); }
   finally { loading = false; if (again) { again = false; load(); } }

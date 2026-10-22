@@ -177,7 +177,9 @@
   .a11y-panel { width:min(460px,100%); max-height:92vh; overflow:auto; background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px; padding:18px 20px; box-shadow:0 20px 50px rgba(0,0,0,.35); }
   .a11y-panel h2 { margin:0 0 12px; font-size:15px; text-transform:none; letter-spacing:0; color:var(--text); }
   .a11y-panel fieldset { border:0; padding:0; margin:0 0 14px; } .a11y-panel legend { font-weight:600; margin-bottom:6px; padding:0; }
-  .a11y-panel .opts { display:flex; flex-wrap:wrap; gap:8px; } .a11y-panel label.opt { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .a11y-panel .opts, .settings .opts { display:flex; flex-wrap:wrap; gap:8px; } .settings fieldset { border:0; padding:0; margin:0 0 16px; } .settings legend { font-weight:600; margin-bottom:8px; padding:0; } .settings .switches { display:grid; gap:12px; } .settings input[type=radio] { accent-color:var(--accent); } .settings label.opt:has(input:checked) { border-color:var(--accent); background:var(--accent-soft); }
+  .settings label.opt { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .a11y-panel label.opt { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
   .a11y-panel label.opt:has(input:checked) { border-color:var(--accent); background:var(--accent-soft); }
   .a11y-panel input[type=radio] { accent-color:var(--accent); }
   .a11y-panel .switches { display:grid; gap:10px; margin-bottom:14px; }
@@ -387,7 +389,7 @@ const TR_LIST = [
   ["Rikthej aplikacionin te versioni ", "Go back to version ", "Vratiti aplikaciju na verziju "], ["Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).", "It is downloaded from GitHub, the database is backed up and built (a few minutes).", "Preuzima se sa GitHub-a, pravi se backup baze i build (nekoliko minuta)."], ["Kalon menjëherë (kodi është në këtë PC).", "It switches at once (the code is already on this PC).", "Prelazi odmah (kod je već na ovom računaru)."],
   ["Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.", "The database stays as it is; automatic updates are paused until a newer version.", "Baza ostaje kakva jeste; automatska ažuriranja se zaustavljaju do novije verzije."], ["Rikthimi i versionit", "Version rollback", "Vraćanje verzije"],
   ["Rikthe + databazën", "Restore + database", "Vrati + bazu"], [" DHE databazën nga ", " AND the database from ", " I bazu iz "], ["Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ", "A backup of the current state is made first; then the tables are DELETED and this is loaded: ", "Prvo se pravi backup trenutnog stanja; zatim se tabele BRIŠU i učitava se: "], ["backup: ", "backup: ", "backup: "], ["Po rikthehet edhe databaza nga ", "Also restoring the database from ", "Vraća se i baza iz "],
-  ["Fikur", "Off", "Isključeno"], ["Ndrysho tani", "Change now", "Promeni sada"], ["Ndrysho adresën", "Change the address", "Promeni adresu"], ["Adresë e përkohshme", "Temporary address", "Privremena adresa"], ["përkohshme", "temporary", "privremena"], ["pa adresë publike", "no public address", "nema javne adrese"], ["Adresa", "Address", "Adresa"],
+  ["Fikur", "Off", "Isključeno"], ["Cilësimet", "Settings", "Podešavanja"], ["Ndrysho tani", "Change now", "Promeni sada"], ["Ndrysho adresën", "Change the address", "Promeni adresu"], ["Adresë e përkohshme", "Temporary address", "Privremena adresa"], ["përkohshme", "temporary", "privremena"], ["pa adresë publike", "no public address", "nema javne adrese"], ["Adresa", "Address", "Adresa"],
   ["Pa domen dhe pa llogari: krijohet menjëherë (një adresë trycloudflare.com). Ndryshon sa herë krijohet përsëri.", "No domain and no account: created at once (a trycloudflare.com address). It changes each time it is created again.", "Bez domena i bez naloga: pravi se odmah (trycloudflare.com adresa). Menja se svaki put kada se ponovo napravi."], ["Domeni im (tunel Cloudflare)", "My domain (Cloudflare tunnel)", "Moj domen (Cloudflare tunel)"], ["Lidh domenin tënd me tokenin e tunelit nga Cloudflare. Adresa mbetet e njëjtë.", "Connect your domain with the tunnel token from Cloudflare. The address stays the same.", "Poveži svoj domen tokenom tunela sa Cloudflare-a. Adresa ostaje ista."], ["Hiq tunelin e domenit", "Remove the domain tunnel", "Ukloni tunel domena"],
   ["Heq adresën ", "Remove the address ", "Ukloniti adresu "], [" nga lista?", " from the list?", " sa liste?"], ["Nuk hiqet vetë kurrë: vetëm kur e heq ti.", "It is never removed by itself: only when you remove it.", "Nikada se ne uklanja samo: samo kada ti ukloniš."], ["Adresa u hoq.", "The address was removed.", "Adresa je uklonjena."], ["Adresë e pavlefshme.", "Invalid address.", "Neispravna adresa."], ["Download / Upload (HR)", "Download / Upload (HR)", "Download / Upload (HR)"], [" sot", " today", " danas"], ["që nga ndezja: ", "since it started: ", "od pokretanja: "], [" · ndezur ", " · running ", " · radi "], ["Aplikacioni është tashmë i fikur.", "The application is already off.", "Aplikacija je već isključena."], ["Aplikacioni punon tashmë.", "The application is already running.", "Aplikacija već radi."], ["Hapësira që zë HR", "Space used by HR", "Prostor koji zauzima HR"], ["po llogaritet...", "calculating...", "izračunava se..."], ["programi ", "program ", "program "], [" · databaza ", " · database ", " · baza "], [" · backup-et ", " · backups ", " · backup-i "], ["disku ", "disk ", "disk "], [" i lirë", " free", " slobodno"], ["Sistemi HR (CPU dhe RAM)", "HR system (CPU and RAM)", "HR sistem (CPU i RAM)"], ["aplikacioni ", "application ", "aplikacija "], [" MB · databaza ", " MB · database ", " MB · baza "], ["Disku", "Disk", "Disk"], [" të lira", " free", " slobodno"], ["nga ", "of ", "od "], ["Aplikacioni ndezur prej", "Application running for", "Aplikacija radi"], ["Kompjuteri ndezur prej ", "Computer on for ", "Računar uključen "], ["Backup i fundit", "Latest backup", "Poslednji backup"], ["asnjë", "none", "nijedan"], ["Dëmtuar", "Damaged", "Oštećen"], ["Historiku", "History", "Istorija"], ["Ende pa veprime.", "No actions yet.", "Još nema akcija."], ["Gabim", "Error", "Greška"],
   ["Veprimet e fundit: backup-e, përditësime, rikthime dhe probleme.", "Latest actions: backups, updates, rollbacks and problems.", "Poslednje akcije: backup-i, ažuriranja, vraćanja i problemi."], ["Shkarko diagnostikën", "Download diagnostics", "Preuzmi dijagnostiku"],
@@ -436,6 +438,7 @@ const ICONS = {
   folder: 'M3 6a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z',
   term: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM7 10l3 2-3 2M12 15h5',
   clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
+  gear: 'M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   help: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7M12 17h.01',
 };
 const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('width', '18'); s.setAttribute('height', '18'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.8'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p); return s; };
@@ -522,9 +525,9 @@ const helpLang = () => { const l = store.get('lang', 'sq'); return HELP[l] ? l :
 
 // ---- Appearance and accessibility: the choices live in localStorage; <html> carries them as data-theme and a11y-* classes (also set by a tiny script in <head> so nothing flashes).
 const A11Y = {
-  sq: { open: 'Cilësimet', title: 'Cilësimet', lang: 'Gjuha', theme: 'Tema', system: 'Sistemi', light: 'Drita', dark: 'Errët', size: 'Madhësia e shkrimit', s0: 'Normale', s1: 'Më e madhe', s2: 'Shumë e madhe', contrast: 'Kontrast i lartë', motion: 'Pa animacione', font: 'Shkrim i lexueshëm (jo monospace)', links: 'Lidhjet me nënvizim', extra: 'Shtesë', s3: 'Maksimale', spacing: 'Hapësirë më e madhe mes rreshtave dhe shkronjave', targets: 'Butona dhe objekte më të mëdha për klikim', cb: 'Ngjyra të sigurta për verbëri ngjyrash (me simbole)', focus: 'Fokus më i dukshëm te tastiera', pause: 'Ndalo përditësimin automatik (LIVE)', toastStay: 'Mesazhet qëndrojnë derisa t\'i mbyll', reset: 'Rivendos', close: 'Mbyll', skip: 'Kalo te përmbajtja' },
-  en: { open: 'Settings', title: 'Settings', lang: 'Language', theme: 'Theme', system: 'System', light: 'Light', dark: 'Dark', size: 'Text size', s0: 'Normal', s1: 'Larger', s2: 'Largest', contrast: 'High contrast', motion: 'No animations', font: 'Readable font (not monospace)', links: 'Underline links', extra: 'Extras', s3: 'Maximum', spacing: 'More space between lines and letters', targets: 'Larger buttons and click targets', cb: 'Colour-blind safe colours (with symbols)', focus: 'Stronger keyboard focus', pause: 'Pause automatic updates (LIVE)', toastStay: 'Messages stay until I close them', reset: 'Reset', close: 'Close', skip: 'Skip to content' },
-  sr: { open: 'Podešavanja', title: 'Podešavanja', lang: 'Jezik', theme: 'Tema', system: 'Sistem', light: 'Svetla', dark: 'Tamna', size: 'Veličina teksta', s0: 'Normalna', s1: 'Veća', s2: 'Najveća', contrast: 'Visok kontrast', motion: 'Bez animacija', font: 'Čitljiv font (ne monospace)', links: 'Podvuci linkove', extra: 'Dodatno', s3: 'Maksimalna', spacing: 'Veći razmak između redova i slova', targets: 'Veća dugmad i ciljevi za klik', cb: 'Boje bezbedne za daltonizam (sa simbolima)', focus: 'Jači fokus tastature', pause: 'Pauziraj automatsko ažuriranje (LIVE)', toastStay: 'Poruke ostaju dok ih ne zatvorim', reset: 'Vrati', close: 'Zatvori', skip: 'Idi na sadržaj' },
+  sq: { open: 'Cilësimet', title: 'Cilësimet', lang: 'Gjuha', theme: 'Tema', system: 'Sistemi', light: 'Drita', dark: 'Errët', size: 'Madhësia e shkrimit', s0: 'Normale', s1: 'Më e madhe', s2: 'Shumë e madhe', contrast: 'Kontrast i lartë', motion: 'Pa animacione', font: 'Shkrim i lexueshëm (jo monospace)', links: 'Lidhjet me nënvizim', look: 'Pamja', access: 'Qasja', security: 'Siguria', sub: 'Gjuha, pamja, qasja dhe siguria e dashboard-it. Çdo zgjedhje vlen menjëherë.', extra: 'Shtesë të qasjes', s3: 'Maksimale', spacing: 'Hapësirë më e madhe mes rreshtave dhe shkronjave', targets: 'Butona dhe objekte më të mëdha për klikim', cb: 'Ngjyra të sigurta për verbëri ngjyrash (me simbole)', focus: 'Fokus më i dukshëm te tastiera', pause: 'Ndalo përditësimin automatik (LIVE)', toastStay: 'Mesazhet qëndrojnë derisa t\'i mbyll', reset: 'Rivendos', close: 'Mbyll', skip: 'Kalo te përmbajtja' },
+  en: { open: 'Settings', title: 'Settings', lang: 'Language', theme: 'Theme', system: 'System', light: 'Light', dark: 'Dark', size: 'Text size', s0: 'Normal', s1: 'Larger', s2: 'Largest', contrast: 'High contrast', motion: 'No animations', font: 'Readable font (not monospace)', links: 'Underline links', look: 'Appearance', access: 'Accessibility', security: 'Security', sub: 'Language, appearance, accessibility and security of the dashboard. Every choice applies at once.', extra: 'Accessibility extras', s3: 'Maximum', spacing: 'More space between lines and letters', targets: 'Larger buttons and click targets', cb: 'Colour-blind safe colours (with symbols)', focus: 'Stronger keyboard focus', pause: 'Pause automatic updates (LIVE)', toastStay: 'Messages stay until I close them', reset: 'Reset', close: 'Close', skip: 'Skip to content' },
+  sr: { open: 'Podešavanja', title: 'Podešavanja', lang: 'Jezik', theme: 'Tema', system: 'Sistem', light: 'Svetla', dark: 'Tamna', size: 'Veličina teksta', s0: 'Normalna', s1: 'Veća', s2: 'Najveća', contrast: 'Visok kontrast', motion: 'Bez animacija', font: 'Čitljiv font (ne monospace)', links: 'Podvuci linkove', look: 'Izgled', access: 'Pristupačnost', security: 'Bezbednost', sub: 'Jezik, izgled, pristupačnost i bezbednost dashboard-a. Svaki izbor važi odmah.', extra: 'Dodatna pristupačnost', s3: 'Maksimalna', spacing: 'Veći razmak između redova i slova', targets: 'Veća dugmad i ciljevi za klik', cb: 'Boje bezbedne za daltonizam (sa simbolima)', focus: 'Jači fokus tastature', pause: 'Pauziraj automatsko ažuriranje (LIVE)', toastStay: 'Poruke ostaju dok ih ne zatvorim', reset: 'Vrati', close: 'Zatvori', skip: 'Idi na sadržaj' },
 };
 const prefs = {
   get theme() { return store.get('theme', 'system'); }, set theme(v) { store.set('theme', v); },
@@ -545,79 +548,52 @@ function applyPrefs() {
   const g = document.getElementById('gear'); if (g) { g.setAttribute('aria-label', A11Y[helpLang()].open); g.title = A11Y[helpLang()].open; }
 }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (store.get('theme', 'system') === 'system') applyPrefs(); }); } catch { /* old browser */ }
-let a11yReturn = null;
-function openA11y() {
+// ---- The Settings page (a page of its own, opened by the gear and by the menu): language, appearance, accessibility (and its extras), security. Every choice applies at once.
+function settingsBody() {
   const L = A11Y[helpLang()];
-  a11yReturn = document.activeElement;
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); if (a11yReturn && a11yReturn.focus) a11yReturn.focus(); };
   const radios = (name, key, options, def) => el('fieldset', {}, el('legend', {}, name), el('div', { class: 'opts' }, ...options.map(([val, label]) => {
     const input = el('input', { type: 'radio', name: key, value: val }); input.checked = store.get(key, def) === val;
     input.onchange = () => { store.set(key, val); applyPrefs(); };
     return el('label', { class: 'opt' }, input, label);
   })));
   const sw = (label, key) => { const input = el('input', { type: 'checkbox' }); input.checked = store.get(key, '0') === '1'; input.onchange = () => { store.set(key, input.checked ? '1' : '0'); applyPrefs(); }; return el('label', { class: 'sw' }, input, el('i'), label); };
+  const card = (title, ...kids) => el('div', { class: 'card' }, el('h2', {}, title), ...kids);
+  const langCard = card(L.lang, el('div', { class: 'opts' }, ...Object.keys(HELP).map((k) => {
+    const input = el('input', { type: 'radio', name: 'lang', value: k }); input.checked = helpLang() === k;
+    input.onchange = () => { store.set('lang', k); applyPrefs(); render(); };
+    return el('label', { class: 'opt' }, input, HELP[k].name);
+  })));
+  const lookCard = card(L.look, radios(L.theme, 'theme', [['system', L.system], ['light', L.light], ['dark', L.dark]], 'system'), radios(L.size, 'textsize', [['0', L.s0], ['1', L.s1], ['2', L.s2], ['3', L.s3]], '0'));
+  const accessCard = card(L.access, el('div', { class: 'switches' }, sw(L.contrast, 'contrast'), sw(L.motion, 'motion'), sw(L.font, 'font'), sw(L.links, 'links')));
+  const extrasCard = card(L.extra, el('div', { class: 'switches' }, sw(L.cb, 'cb'), sw(L.spacing, 'spacing'), sw(L.targets, 'targets'), sw(L.focus, 'focus'), sw(L.toastStay, 'toastStay'),
+    (() => { const input = el('input', { type: 'checkbox' }); input.checked = store.get('pause', '0') === '1'; input.onchange = () => setPause(input.checked); return el('label', { class: 'sw' }, input, el('i'), L.pause); })()));
+  const securityCard = (() => {
+    const sec = (state.data && state.data.security) || {};
+    const inp = el('input', { type: 'password', 'aria-label': 'Fjalëkalimi i dashboard-it', autocomplete: 'new-password', style: 'font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);width:100%;max-width:340px;box-sizing:border-box' });
+    const send = async (pw) => {
+      try { const r = await fetch('/api/dashboard-password?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(pw ? 'Fjalëkalimi u vendos.' : 'Fjalëkalimi u hoq.'); await load(); render(); }
+      catch (e) { toast('GABIM: ' + e.message, true); }
+    };
+    const save = el('button', { type: 'button', class: 'btn sm' }, 'Ruaj fjalëkalimin'); save.onclick = () => { if (inp.value) send(inp.value); else inp.focus(); };
+    const drop = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hiq fjalëkalimin'); drop.onclick = () => send('');
+    drop.disabled = !sec.password || !!sec.env; save.disabled = !!sec.env;
+    return card(L.security, el('p', { class: 'desc', style: 'margin:0 0 10px' }, sec.env ? 'Vendoset nga variabla DASHBOARD_KEY e kompjuterit.' : sec.password ? 'Aktiv: faqja kërkon fjalëkalim.' : 'Jo aktiv: dashboard-i hapet pa fjalëkalim (vetëm në këtë PC). Vendose nëse kompjuteri përdoret nga disa persona.'),
+      inp, el('div', { class: 'row', style: 'margin-top:10px' }, save, drop));
+  })();
   const reset = el('button', { type: 'button', class: 'btn ghost' }, L.reset);
-  reset.onclick = () => { for (const k of ['theme', 'textsize', 'contrast', 'motion', 'font', 'links', 'spacing', 'targets', 'cb', 'focus', 'toastStay']) store.set(k, k === 'theme' ? 'system' : '0'); if (store.get('pause', '0') === '1') setPause(false); applyPrefs(); close(); openA11y(); };
-  const closeBtn = el('button', { type: 'button', class: 'btn' }, L.close); closeBtn.onclick = close;
-  const panel = el('div', { class: 'a11y-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'a11yTitle' },
-    el('h2', { id: 'a11yTitle' }, L.title),
-    el('fieldset', {}, el('legend', {}, L.lang), el('div', { class: 'opts' }, ...Object.keys(HELP).map((k) => {
-      const input = el('input', { type: 'radio', name: 'lang', value: k }); input.checked = helpLang() === k;
-      input.onchange = () => { store.set('lang', k); applyPrefs(); close(); openA11y(); render(); };
-      return el('label', { class: 'opt' }, input, HELP[k].name);
-    }))),
-    (() => {
-      const sec = (state.data && state.data.security) || {};
-      const inp = el('input', { type: 'password', 'aria-label': 'Fjalëkalimi i dashboard-it', autocomplete: 'new-password', style: 'font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);width:100%;box-sizing:border-box' });
-      const send = async (pw) => {
-        try { const r = await fetch('/api/dashboard-password?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(pw ? 'Fjalëkalimi u vendos.' : 'Fjalëkalimi u hoq.'); await load(); close(); openA11y(); }
-        catch (e) { toast('GABIM: ' + e.message, true); }
-      };
-      const save = el('button', { type: 'button', class: 'btn sm' }, 'Ruaj fjalëkalimin'); save.onclick = () => { if (inp.value) send(inp.value); else inp.focus(); };
-      const drop = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hiq fjalëkalimin'); drop.onclick = () => send('');
-      drop.disabled = !sec.password || !!sec.env; save.disabled = !!sec.env;
-      return el('fieldset', {}, el('legend', {}, 'Fjalëkalimi i dashboard-it'),
-        el('p', { class: 'desc', style: 'margin:0 0 8px' }, sec.env ? 'Vendoset nga variabla DASHBOARD_KEY e kompjuterit.' : sec.password ? 'Aktiv: faqja kërkon fjalëkalim.' : 'Jo aktiv: dashboard-i hapet pa fjalëkalim (vetëm në këtë PC). Vendose nëse kompjuteri përdoret nga disa persona.'),
-        inp, el('div', { class: 'row', style: 'margin-top:8px' }, save, drop));
-    })(),
-    radios(L.theme, 'theme', [['system', L.system], ['light', L.light], ['dark', L.dark]], 'system'),
-    radios(L.size, 'textsize', [['0', L.s0], ['1', L.s1], ['2', L.s2], ['3', L.s3]], '0'),
-    el('div', { class: 'switches' }, sw(L.contrast, 'contrast'), sw(L.motion, 'motion'), sw(L.font, 'font'), sw(L.links, 'links')),
-    // the further choices are kept apart as extras (opened by itself when one of them is on)
-    (() => {
-      const d = el('details', { class: 'extras' }, el('summary', {}, L.extra),
-        el('div', { class: 'switches' }, sw(L.cb, 'cb'), sw(L.spacing, 'spacing'), sw(L.targets, 'targets'), sw(L.focus, 'focus'), sw(L.toastStay, 'toastStay'),
-          (() => { const input = el('input', { type: 'checkbox' }); input.checked = store.get('pause', '0') === '1'; input.onchange = () => setPause(input.checked); return el('label', { class: 'sw' }, input, el('i'), L.pause); })()));
-      if (['cb', 'spacing', 'targets', 'focus', 'toastStay', 'pause'].some((k) => store.get(k, '0') === '1')) d.open = true;
-      return d;
-    })(),
-    el('div', { class: 'row' }, closeBtn, reset));
-  const overlay = el('div', { class: 'a11y-overlay' }, panel);
-  overlay.onmousedown = (e) => { if (e.target === overlay) close(); };
-  const onKey = (e) => {
-    if (e.key === 'Escape') { close(); return; }
-    if (e.key === 'Tab') { // keep the focus inside the panel
-      const f = [...panel.querySelectorAll('input,button')].filter((x) => !x.disabled);
-      if (!f.length) return;
-      const first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
-  };
-  document.addEventListener('keydown', onKey);
-  document.body.append(overlay);
-  (panel.querySelector('input:checked') || closeBtn).focus();
+  reset.onclick = () => { for (const k of ['theme', 'textsize', 'contrast', 'motion', 'font', 'links', 'spacing', 'targets', 'cb', 'focus', 'toastStay']) store.set(k, k === 'theme' ? 'system' : '0'); if (store.get('pause', '0') === '1') setPause(false); applyPrefs(); render(); };
+  return el('div', { class: 'settings' }, el('div', { class: 'grid2' }, el('div', { class: 'stack' }, langCard, lookCard, securityCard), el('div', { class: 'stack' }, accessCard, extrasCard)), el('div', { class: 'row' }, reset));
 }
 { // the settings gear: always at the top right, outside the redrawn page
-  const g = el('button', { type: 'button', class: 'gear', id: 'gear', 'aria-haspopup': 'dialog' });
+  const g = el('button', { type: 'button', class: 'gear', id: 'gear' });
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   for (const [k, v] of [['width', '20'], ['height', '20'], ['viewBox', '0 0 24 24'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '1.8'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']]) svg.setAttribute(k, v);
   for (const d of ['M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z']) { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); svg.append(p); }
-  g.append(svg); g.onclick = openA11y; document.body.append(g);
+  g.append(svg); g.onclick = () => go('settings'); document.body.append(g);
 }
 applyPrefs();
 
-const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['history', 'Historiku', 'clock'], ['help', 'Si ta përdorësh', 'help']];
+const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['history', 'Historiku', 'clock'], ['settings', 'Cilësimet', 'gear'], ['help', 'Si ta përdorësh', 'help']];
 const state = { cur: store.get('cur', ''), section: store.get('section', 'home') === 'access' ? 'data' : store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
@@ -1066,6 +1042,7 @@ function view(s) {
     return el('div', { lang }, header(t.title, t.sub, ''),
       ...t.sections.map(([title, items]) => el('div', { class: 'card' }, el('h2', {}, title), el('ul', { class: 'guide' }, ...items.map((x) => el('li', {}, x))))));
   };
+  pages.settings = () => el('div', {}, header(A11Y[helpLang()].title, A11Y[helpLang()].sub, ''), settingsBody());
   pages.history = () => el('div', {}, header('Historiku', 'Veprimet e fundit: backup-e, përditësime, rikthime dhe probleme.', ''),
     el('div', { class: 'card' }, (s.history && s.history.length) ? el('table', { class: 'kv' }, ...s.history.map((x) => el('tr', {}, el('td', { class: 'k' }, fmtTime(x.at, true)), el('td', {}, el('b', {}, jobName(x.title)), x.detail ? el('div', { class: 'sub' }, x.detail) : ''), el('td', { class: 'a' }, x.ok ? pill('ok', 'OK') : pill('bad', 'Gabim'))))) : el('div', { class: 'empty' }, 'Ende pa veprime.')));
   pages.log = () => {

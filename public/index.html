@@ -790,8 +790,7 @@ function view(s) {
 
   pages.help = () => {
     const lang = helpLang(), t = HELP[lang];
-    const switcher = el('div', { class: 'row' }, ...Object.keys(HELP).map((k) => { const b = el('button', { type: 'button', class: k === lang ? 'btn sm' : 'btn ghost sm' }, k.toUpperCase() + ' · ' + HELP[k].name); b.onclick = () => { store.set('lang', k); applyPrefs(); render(); }; return b; }));
-    return el('div', { lang }, header(t.title, t.sub, switcher),
+    return el('div', { lang }, header(t.title, t.sub, ''),
       ...t.sections.map(([title, items]) => el('div', { class: 'card' }, el('h2', {}, title), el('ul', { class: 'guide' }, ...items.map((x) => el('li', {}, x))))));
   };
   pages.log = () => {

@@ -977,7 +977,8 @@ function jobDone(inst, job) {
 }
 
 // ---- notifications: ntfy.sh (a topic name the owner subscribes to in the free ntfy phone app) or any webhook URL; opt-in, off until set
-function notifyOf(inst) { const n = readSettings(inst).notify || {}; return { on: !!n.on, target: String(n.target || ''), daily: n.daily !== false }; }
+function notifyOf(inst) { const n = readSettings(inst).notify || {}; return { on: !!n.on, target: String(n.target || ''), daily: n.daily !== false, hour: hourOf(n.hour) }; }
+function hourOf(v) { const h = Number(v); return v !== undefined && v !== null && v !== '' && Number.isInteger(h) && h >= 0 && h <= 23 ? h : DAILY_HOUR; }
 // Every message has a LEVEL: critical (the application is down), error (something failed), warn (attention), ok (all good / done), info (what was done by hand). The level sets
 // the priority and the icon on the phone; the title is "<company> · <what happened>" and the body ends with the time.
 const NOTE_LEVELS = { critical: { priority: 5, tags: ['rotating_light'] }, error: { priority: 4, tags: ['x'] }, warn: { priority: 4, tags: ['warning'] }, ok: { priority: 3, tags: ['white_check_mark'] }, info: { priority: 2, tags: ['information_source'] } };
@@ -996,11 +997,11 @@ function notify(inst, title, message, level = 'info') {
   if (!n.on || !n.target) return;
   sendNotify(n.target, composeNote(inst, title, message, level)).catch(() => { /* a failed notification never breaks anything */ });
 }
-function setNotify(inst, on, target, daily) {
+function setNotify(inst, on, target, daily, hour) {
   const cur = readSettings(inst);
   const t = target === undefined ? String((cur.notify || {}).target || '') : String(target).trim();
   if (t && !/^[A-Za-z0-9_-]{3,64}$/.test(t) && !/^https?:\/\/\S+$/i.test(t)) throw new Error('Adresa: një emër teme (shkronja, shifra, - _ ; min. 3) ose një URL https.');
-  cur.notify = { on: (on === undefined ? !!(cur.notify || {}).on : !!on) && !!t, target: t, daily: daily === undefined ? (cur.notify || {}).daily !== false : !!daily };
+  cur.notify = { on: (on === undefined ? !!(cur.notify || {}).on : !!on) && !!t, target: t, daily: daily === undefined ? (cur.notify || {}).daily !== false : !!daily, hour: hour === undefined ? (cur.notify || {}).hour : (Number.isInteger(Number(hour)) && Number(hour) >= 0 && Number(hour) <= 23 ? Number(hour) : (() => { throw new Error('Ora duhet të jetë 0-23.'); })()) };
   settingsWrite(inst, cur);
   return notifyOf(inst);
 }
@@ -1384,7 +1385,7 @@ async function dailyReportCheck(inst) {
   const n = notifyOf(inst);
   if (!n.on || !n.target || !n.daily) return;
   const now = new Date(), cur = readSettings(inst), day = todayKey();
-  if (now.getHours() < DAILY_HOUR || cur.lastDailyReport === day) return;
+  if (now.getHours() < n.hour || cur.lastDailyReport === day) return;
   cur.lastDailyReport = day; settingsWrite(inst, cur);
   const r = await dailyReportText(inst);
   notify(inst, r.title, r.message, r.level);
@@ -1666,7 +1667,7 @@ const server = http.createServer(async (req, res) => {
         needLocal(inst);
         let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; }
         let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
-        return send(res, 200, setNotify(inst, j.on, j.target, j.daily));
+        return send(res, 200, setNotify(inst, j.on, j.target, j.daily, j.hour));
       }
       if (url.pathname === '/api/notify-test') {
         needLocal(inst);

@@ -44,6 +44,6 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - Kur dashboard-i rindizet, faqja e hapur rifreskohet vetë një herë (pa "forbidden").
 - **Gabimet** (faqja Gabimet, numri i gabimeve të 24 orëve në menu): gabimet e dashboard-it (`dashboard-errors.log`, mbahen ~1500 të fundit), me log-un e aplikacionit, të përditësimit dhe të dashboard-it; filtër, shkarkim, pastrim. Diagnostika i përfshin 20 të fundit.
 - **Vendndodhja e serverit** (faqja Të dhënat): shteti, qendra Cloudflare, IP publike dhe emri i kompjuterit.
-- **Alarme:** backup i vjetër (mbi 36 orë), adresa publike nuk hapet / u kthye, dhe **raporti i ditës** (një përmbledhje në telefon, ora 20:00; ndizet/fiket te njoftimet).
+- **Alarme:** backup i vjetër (mbi 36 orë), adresa publike nuk hapet / u kthye, dhe **raporti i ditës** (një përmbledhje në telefon, ora e zgjedhur (parazgjedhje 08:00); ndizet/fiket te njoftimet).
 - **Testo backup-in** (faqja Backup-et): kontrollon strukturën e kopjes (tabelat, përdoruesit) pa e prekur databazën; backup-i shënohet "I provuar".
 - **Njoftimet:** çdo njoftim ka nivel (info, sukses, kujdes, gabim), titull dhe tekst të qartë.

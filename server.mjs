@@ -183,7 +183,7 @@ async function backup(inst) {
   const file = path.join(dir, `hrsystem-${stamp}.sql`);
   await run(
     mysqldumpPath(),
-    [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--single-transaction', '--no-tablespaces', '--default-character-set=utf8mb4', `--result-file=${file}`, cfg.DB_NAME],
+    [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--single-transaction', '--no-tablespaces', '--hex-blob', '--default-character-set=utf8mb4', `--result-file=${file}`, cfg.DB_NAME],
     { MYSQL_PWD: cfg.DB_PASSWORD },
   );
   return { name: path.basename(file), size: fs.statSync(file).size };

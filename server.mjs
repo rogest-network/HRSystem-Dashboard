@@ -781,6 +781,50 @@ async function setAutostart(inst, which, on) {
   return autostartState(inst, true);
 }
 
+// ---- Live (owner, 2026-10-22: "100% live") ----
+// The page keeps one Server-Sent Events connection (/api/live). While at least one page is open the dashboard takes ONE light pulse every 3 s: a single
+// /api/health request to the application per installation (not the 3 samples of the full status), the job (progress and log) and a signature of
+// what changes (job, backups, installed version). The pulse goes to every open page; when the signature changes a "changed" event makes the page
+// reload the full status at once. With no page open nothing runs, so the application feels no difference.
+const liveClients = new Set();
+const liveLast = new Map(); // inst.id -> signature
+let liveTimer = null;
+async function pulseOnce() {
+  return Promise.all(instances().map(async (inst) => {
+    const t0 = performance.now();
+    let ok = false, ms = 0, database = null;
+    try {
+      const r = await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(2500), cache: 'no-store' });
+      const j = await r.json().catch(() => null);
+      ok = r.status === 200 && !!j && j.ok === true; ms = Math.max(1, Math.round(performance.now() - t0)); database = (j && j.database) || null;
+    } catch { ok = false; }
+    const job = jobs.get(inst.id) || null;
+    let backups = [];
+    try { backups = inst.data ? listBackups(inst) : []; } catch { backups = []; }
+    const inst2 = inst.root ? installed(inst) : null;
+    const sig = [job && job.state, job && job.ended, backups.length, backups[0] && backups[0].name, inst2 && inst2.name, quickUrlOf(inst)].join('|');
+    return { id: inst.id, ok, ms: ok ? ms : 0, database, sig, job: job ? { title: job.title, state: job.state, started: job.started, ended: job.ended || null, lines: job.lines.slice(-80) } : null };
+  }));
+}
+function liveStart() {
+  if (liveTimer) return;
+  const tick = async () => {
+    if (!liveClients.size) { liveTimer = null; return; }
+    try {
+      const list = await pulseOnce();
+      let changed = false;
+      for (const p of list) { if (liveLast.has(p.id) && liveLast.get(p.id) !== p.sig) changed = true; liveLast.set(p.id, p.sig); }
+      const body = JSON.stringify({ at: new Date().toISOString(), instances: list.map(({ sig, ...rest }) => rest) });
+      for (const res of liveClients) {
+        try { res.write('event: pulse\ndata: ' + body + '\n\n'); if (changed) res.write('event: changed\ndata: {}\n\n'); } catch { liveClients.delete(res); }
+      }
+    } catch { /* next pulse */ }
+    liveTimer = setTimeout(tick, 3000);
+  };
+  liveTimer = setTimeout(tick, 0);
+}
+setInterval(() => { for (const res of liveClients) { try { res.write(': keep-alive\n\n'); } catch { liveClients.delete(res); } } }, 20000).unref();
+
 const statusShared = { at: 0, promise: null };
 const send = (res, code, data, type = 'application/json') => {
   res.writeHead(code, { 'Content-Type': type + '; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -817,6 +861,15 @@ const server = http.createServer(async (req, res) => {
         return send(res, 500, '<!doctype html><meta charset="utf-8"><body style="font:16px system-ui;padding:24px"><h2>Dashboard-i nuk lexon skedaret e veta</h2><p>' + String(e.code || e.message).replace(/[<>&]/g, '') + '</p><p>Mbylle dhe hape perseri me <b>Dashboard.bat</b> (kerkon Administrator), ose ekzekuto ne PowerShell Administrator:<br><code>icacls C:\\HRSystem\\manager /grant "*S-1-5-32-545:(OI)(CI)RX" /T</code></p></body>', 'text/html');
       }
       return send(res, 200, page.replace('__KEY__', SESSION_KEY), 'text/html');
+    }
+    if (req.method === 'GET' && url.pathname === '/api/live') {
+      if (liveClients.size >= 8) return send(res, 429, { error: 'too_many_pages' });
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Content-Type-Options': 'nosniff' });
+      res.write('retry: 3000\n\n');
+      liveClients.add(res);
+      req.on('close', () => liveClients.delete(res));
+      liveStart();
+      return;
     }
     if (req.method === 'GET' && url.pathname === '/api/status') {
       if (!statusShared.promise || Date.now() - statusShared.at > 3000) {

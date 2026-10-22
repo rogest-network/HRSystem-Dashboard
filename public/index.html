@@ -133,6 +133,10 @@
   .progress.indet i { width:35%; animation:slide 1.3s infinite ease-in-out; }
   @keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
   .banner.run { border-color:var(--accent); background:var(--accent-soft); }
+  .live { display:inline-flex; align-items:center; gap:7px; font-size:11px; letter-spacing:.6px; color:var(--side-text); }
+  .live i { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 0 0 rgba(52,211,153,.6); animation:livepulse 1.8s infinite; }
+  .live.off i { background:#f87171; animation:none; } .live.off { color:#fca5a5; }
+  @keyframes livepulse { 0% { box-shadow:0 0 0 0 rgba(52,211,153,.55); } 70% { box-shadow:0 0 0 7px rgba(52,211,153,0); } 100% { box-shadow:0 0 0 0 rgba(52,211,153,0); } }
   /* --- polish (22.10.2026): domains stay on one line, the address card gets the wider column, softer details */
   a.dom { word-break:normal; overflow-wrap:normal; white-space:nowrap; font-weight:600; }
   table.kv td.k { width:1%; padding-right:28px; }
@@ -312,8 +316,9 @@ function view(s) {
     el('tr', {}, el('td', { class: 'k' }, 'Adresa e përkohshme'), el('td', {}, a.quickUrl ? link(a.quickUrl) : el('span', { style: 'color:var(--muted)' }, 'pa')), el('td', { class: 'a' }, quickBtn)),
     el('tr', {}, el('td', { class: 'k' }, 'Tuneli Cloudflare'), el('td', {}, !a.tunnel ? 'nuk është lidhur' : a.tunnelOk ? 'lidhur' : 'procesi punon, asnjë adresë nuk hapet'), el('td', { class: 'a' }, a.tunnel ? (a.tunnelOk ? pill('ok', 'aktiv') : pill('bad', 'nuk hapet')) : pill('warn', 'jo aktiv'), ' ', tunBtn, a.tunnel ? [' ', rmTunBtn] : '')));
 
-  const max = Math.max(1, ...h.history);
-  const spark = () => el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%' } : { class: 'down' })));
+  const spark = () => { const max = Math.max(1, ...h.history); return el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%' } : { class: 'down' }))); };
+  const appKpi = () => el('div', { class: 'card kpi', id: 'kpi-app' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Ndalur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : pill('bad', 'pa përgjigje')), el('div', { class: 's' }, a.local), spark());
+  state.repaint = () => { const old = document.getElementById('kpi-app'); if (old) old.replaceWith(appKpi()); const dot = document.querySelector('.inst .dot'); if (dot) dot.className = 'dot ' + (h.ok ? 'on' : 'off'); };
 
   // ================= pages
   const pages = {};
@@ -328,7 +333,7 @@ function view(s) {
     updateNotice(),
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'kpis' },
-      el('div', { class: 'card kpi' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Ndalur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : pill('bad', 'pa përgjigje')), el('div', { class: 's' }, a.local), spark()),
+      appKpi(),
       el('div', { class: 'card kpi' }, el('h2', {}, 'Databaza'), el('div', { class: 'v' }, h.database === 'connected' ? 'Lidhur' : (h.database || '-')), el('div', { class: 's' }, s.database && s.database.name ? s.database.name + ' · porta ' + s.database.port : '-')),
       el('div', { class: 'card kpi' }, el('h2', {}, 'Versioni'), el('div', { class: 'v' }, verText, updPill || ''), el('div', { class: 's' }, 'I fundit (' + (s.channel || 'stable') + '): ' + latText + (s.repo ? ' · ' + s.repo : ''))),
       el('div', { class: 'card kpi' }, el('h2', {}, 'Adresa'), el('div', { class: 'v' }, publicUrl ? (a.domainOk ? 'Hapet' : 'Nuk hapet') : 'Pa domen', publicUrl ? pill(a.domainOk ? 'ok' : 'bad', a.domainOk ? 'online' : 'offline') : ''), el('div', { class: 's' }, publicUrl ? publicUrl.replace(/^https?:[/][/]/, '') : 'zbulohet vetë'))),
@@ -352,20 +357,38 @@ function view(s) {
     const cp = el('button', { type: 'button', class: 'iconbtn' }, 'Kopjo'); cp.onclick = () => copyText(value);
     return el('tr', {}, el('td', { class: 'k' }, label), el('td', {}, v), el('td', { class: 'a' }, eye, cp));
   };
+  const plainRow = (label, value, copy) => { const cp = el('button', { type: 'button', class: 'iconbtn' }, 'Kopjo'); cp.onclick = () => copyText(String(value)); return el('tr', {}, el('td', { class: 'k' }, label), el('td', {}, el('span', { class: 'val mono' }, String(value))), el('td', { class: 'a' }, copy === false ? '' : cp)); };
+  const installCard = () => {
+    const rows = [
+      plainRow('Emri i instalimit', s.name),
+      plainRow('Versioni i instaluar', verText),
+      plainRow('Versioni më i ri', latText),
+      plainRow('Kanali', s.channel || 'stable'),
+      plainRow('Repo i programit', s.repo || '-'),
+      plainRow('Dashboard-i (porta)', location.host),
+      plainRow('Databaza: emri', (s.database && s.database.name) || '-'),
+      plainRow('Databaza: serveri', (s.database && s.database.host) || '-'),
+      plainRow('Databaza: porta', (s.database && s.database.port) || '-'),
+      ...(s.paths || []).filter((e) => !String(e.key).startsWith('log:')).map((e) => plainRow(e.label, e.path + (e.exists ? '' : ' (nuk ekziston)'))),
+      plainRow('Token GitHub', s.tokenSet ? 'vendosur' : 'mungon', false),
+      plainRow('Backup-et', s.backups.length + ' kopje (të fundit)', false),
+    ];
+    return el('div', { class: 'card' }, el('h2', {}, 'Instalimi, folderët dhe databaza'), el('table', { class: 'kv' }, ...rows));
+  };
   pages.data = () => {
     const sec = state.secrets[s.id];
     const refresh = el('button', { type: 'button', class: 'btn ghost' }, 'Rifresko');
     refresh.onclick = () => { delete state.secrets[s.id]; render(); };
     const showAll = el('button', { type: 'button', class: 'btn ghost' }, 'Shfaq të gjitha');
     showAll.onclick = () => { const all = sec ? [...sec.env.filter((e) => SECRET.test(e.key)).map((e) => e.key), '#github', '#tunnel'] : []; const on = !all.every((x) => state.shown[s.id + ':' + x]); for (const x of all) state.shown[s.id + ':' + x] = on; render(); };
-    const top = header('Të dhënat', 'Adresat, cilësimet dhe sekretet (.env, të fshehura si parazgjedhje).', el('div', { class: 'row' }, showAll, refresh));
+    const top = header('Të dhënat', 'Gjithçka për këtë instalim: adresat, folderët, databaza, cilësimet dhe sekretet (.env, të fshehura si parazgjedhje).', el('div', { class: 'row' }, showAll, refresh));
     if (!sec) {
       if (sec === undefined) {
         state.secrets[s.id] = null;
         post('secrets').then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error === 'not_found' ? 'Dashboard-i u rinis: rifresko faqen.' : (j.error || 'Gabim')); state.secrets[s.id] = j; render(); })).catch((e) => { state.secrets[s.id] = false; state.secretsError = e.message; toast('GABIM: ' + e.message, true); render(); });
       }
       return el('div', {}, top,
-      el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable(), el('div', { class: 'desc', style: 'margin:10px 0 0' }, 'Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe harrohen pas 14 ditësh. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon çdo herë dhe punon sa punon procesi.')), el('div', { class: 'card' }, el('div', { class: 'empty' }, sec === false ? (state.secretsError || 'Të dhënat nuk u lexuan.') + ' Shtyp "Rifresko" për të provuar përsëri.' : 'Po lexohen të dhënat...')));
+      el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable(), el('div', { class: 'desc', style: 'margin:10px 0 0' }, 'Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe harrohen pas 14 ditësh. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon çdo herë dhe punon sa punon procesi.')), installCard(), el('div', { class: 'card' }, el('div', { class: 'empty' }, sec === false ? (state.secretsError || 'Të dhënat nuk u lexuan.') + ' Shtyp "Rifresko" për të provuar përsëri.' : 'Po lexohen të dhënat...')));
     }
     const envMap = Object.fromEntries(sec.env.map((e) => [e.key, e.value]));
     const group = (title, keys) => {
@@ -377,6 +400,7 @@ function view(s) {
     const conn = envMap.DB_NAME ? 'mysql -h ' + (envMap.DB_HOST || '127.0.0.1') + ' -P ' + (envMap.DB_PORT || '3306') + ' -u ' + (envMap.DB_USER || 'root') + ' -p ' + envMap.DB_NAME : '';
     return el('div', {}, top,
       el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable()),
+      installCard(),
       el('div', { class: 'grid2' },
         group('Aplikacioni', ['PORT', 'APP_ORIGIN']),
         group('Databaza', ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'])),
@@ -550,7 +574,7 @@ function render() {
     el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))),
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off') }), select),
     nav,
-    el('div', { class: 'foot' }, j.dashboard && j.dashboard.files ? (() => { const b = el('button', { type: 'button' }, 'Dashboard i ri: përditëso'); b.onclick = () => go('actions'); return b; })() : '', el('span', {}, j.at ? 'Përditësuar ' + fmtTime(j.at, true) : ''), el('span', {}, 'Rifreskim çdo 30 s'), refresh, un));
+    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, liveOn ? 'LIVE' : 'OFFLINE')), j.dashboard && j.dashboard.files ? (() => { const b = el('button', { type: 'button' }, 'Dashboard i ri: përditëso'); b.onclick = () => go('actions'); return b; })() : '', el('span', {}, j.at ? 'Përditësuar ' + fmtTime(j.at, true) : ''), el('span', {}, 'Rifreskim çdo 30 s'), refresh, un));
   // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.
   const job = s.job;
   let done = '';
@@ -596,6 +620,51 @@ function paintBar(job) {
   if (track) track.className = 'progress' + (pr.pct === null ? ' indet' : '');
   if (fill && pr.pct !== null) fill.style.width = pr.pct + '%';
 }
+// ---- live: one Server-Sent Events connection; the server pushes a light pulse every 3 s (health, job) and a "changed" event when a job ends, a backup
+// appears or the version changes. Targeted redraws only (the application card, the dot, the job bar and log); the full status is still reloaded every 30 s.
+let liveOn = false, liveAt = 0, live = null;
+const liveFresh = () => liveOn && Date.now() - liveAt < 9000;
+function liveBadge() {
+  const b = document.getElementById('livebadge'), t = document.getElementById('livetext');
+  if (!b || !t) return;
+  b.className = 'live' + (liveOn ? '' : ' off');
+  t.textContent = liveOn ? 'LIVE · ' + two(new Date().getHours()) + ':' + two(new Date().getMinutes()) + ':' + two(new Date().getSeconds()) : 'OFFLINE';
+}
+function applyPulse(d) {
+  if (!state.data) return;
+  let needFull = false;
+  for (const p of d.instances) {
+    const s = state.data.instances.find((i) => i.id === p.id);
+    if (!s) continue;
+    s.health.ok = p.ok; s.health.ms = p.ms; if (p.database) s.health.database = p.database;
+    s.health.history = [...(s.health.history || []).slice(-23), p.ok ? Math.max(1, p.ms) : null];
+    const was = s.job && s.job.state;
+    s.job = p.job ? { ...(s.job || {}), ...p.job } : s.job;
+    if (p.job && p.job.state === 'running' && was !== 'running') needFull = true; // a job has just started: draw its bar
+    if (p.job && p.job.state === 'running' && s.id === state.cur) {
+      paintBar(p.job);
+      const pre = document.querySelector('pre.log[data-id="' + s.id + '"]');
+      if (pre) { pre.textContent = p.job.lines.join(NL) || '...'; pre.scrollTop = pre.scrollHeight; }
+    }
+  }
+  if (needFull) render(); else if (state.repaint) state.repaint();
+}
+function startLive() {
+  if (live || typeof EventSource === 'undefined') return;
+  live = new EventSource('/api/live');
+  live.onopen = () => { liveOn = true; liveBadge(); };
+  live.onerror = () => { liveOn = false; liveBadge(); };
+  live.addEventListener('pulse', (e) => { liveOn = true; liveAt = Date.now(); try { applyPulse(JSON.parse(e.data)); } catch { /* bad pulse */ } liveBadge(); });
+  live.addEventListener('changed', () => load(true));
+}
+// What counts as a change: everything except the speed samples, the log lines and the clock.
+function stateSig(j) {
+  return JSON.stringify({ d: j.dashboard, i: j.instances.map((i) => ({ ...i, health: { ok: i.health.ok, database: i.health.database, status: i.health.status }, job: i.job ? { s: i.job.state, e: i.job.ended, t: i.job.title } : null })) });
+}
+document.addEventListener('focusout', () => setTimeout(() => {
+  const a = document.activeElement;
+  if (state.pendingRender && !(a && /^(SELECT|INPUT|TEXTAREA)$/.test(a.tagName))) { state.pendingRender = false; const y = window.scrollY; render(); window.scrollTo(0, y); }
+}, 300));
 let loading = false, again = false;
 async function load(quiet) {
   if (loading) { if (quiet !== true) again = true; return; }
@@ -605,22 +674,32 @@ async function load(quiet) {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Gabim');
     state.data = j;
+    // Quiet refresh (every 30 s): if nothing meaningful changed (the speed, the clock and the log do not count) the page is NOT redrawn, so reading,
+    // scrolling and an open list are never interrupted; a change while a field or list is in use waits until it is released.
+    const sig = stateSig(j), same = state.sig === sig; state.sig = sig;
+    if (quiet === true && same) { if (state.repaint) state.repaint(); return; }
     // A job (update, SQL, import, tunnel) that was running and has ended now: say so at once.
     for (const i of j.instances) {
       const prev = state.jobStates[i.id], cur = i.job && i.job.state;
       if (prev === 'running' && cur && cur !== 'running') toast(cur === 'ok' ? jobName(i.job.title) + ' u krye.' : jobName(i.job.title) + ' dështoi: shiko Log-un.', cur !== 'ok');
       state.jobStates[i.id] = cur;
     }
+    const busyField = quiet === true && document.activeElement && /^(SELECT|INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (busyField) { state.pendingRender = true; return; }
+    const y = window.scrollY;
     render();
+    window.scrollTo(0, y);
   } catch (e) { if (quiet !== true) toast('GABIM: ' + e.message, true); }
   finally { loading = false; if (again) { again = false; load(); } }
 }
 load();
+startLive();
 // Refresh every 30 s, but not while the tab is hidden; coming back to the tab refreshes at once.
 setInterval(() => { if (!document.hidden && !running().length) load(true); }, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !running().length) load(true); });
 // While an update / SQL / import / tunnel runs, only its log is refreshed (every 3 s); a full refresh would measure everything again.
 setInterval(async () => {
+  if (liveFresh()) return; // the live pulse already brings the job
   for (const id of running()) {
     try {
       const j = await (await fetch('/api/job?id=' + encodeURIComponent(id))).json();

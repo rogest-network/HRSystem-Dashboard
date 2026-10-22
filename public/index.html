@@ -318,7 +318,7 @@ const TR_LIST = [
   ["procesi punon, asnjë adresë nuk hapet", "process runs, no address opens", "proces radi, nijedna adresa se ne otvara"], ["aktiv", "active", "aktivan"], ["jo aktiv", "not active", "nije aktivan"],
   ["Shto tunel", "Add tunnel", "Dodaj tunel"], ["Ndrysho tunelin", "Change tunnel", "Promeni tunel"], ["Hiq", "Remove", "Ukloni"],
   ["Aplikacioni", "Application", "Aplikacija"], ["Ndalur", "Stopped", "Zaustavljeno"], ["pa përgjigje", "no answer", "nema odgovora"],
-  ["Përditëso tani", "Update now", "Ažuriraj sada"], ["Ka version të ri të programit", "A new version of the program is available", "Postoji nova verzija programa"],
+  ["Përditëso tani", "Update now", "Ažuriraj sada"], ["Përditëso në ", "Update to ", "Ažuriraj na "], ["Ka build të ri të versionit ", "New build of version ", "Novi build verzije "], [" · instaluar: ", " · installed: ", " · instalirano: "], ["Ka version të ri · ", "New version · ", "Nova verzija · "], ["Ka build të ri · ", "New build · ", "Novi build · "], ["Ka version të ri të programit", "A new version of the program is available", "Postoji nova verzija programa"],
   ["Databaza", "Database", "Baza"], ["Lidhur", "Connected", "Povezano"], ["Versioni", "Version", "Verzija"], ["Adresa", "Address", "Adresa"], ["Hapet", "Opens", "Otvara se"], ["Nuk hapet", "Does not open", "Ne otvara se"],
   ["Pa domen", "No domain", "Bez domena"], ["Adresat", "Addresses", "Adrese"], ["Gjendja", "Status", "Stanje"], ["Instaluar", "Installed", "Instalirano"], ["Repo i programit", "Program repo", "Repo programa"],
   ["Token GitHub", "GitHub token", "GitHub token"], ["mungon", "missing", "nedostaje"], ["vendosur", "set", "postavljen"], ["Backup-e", "Backups", "Backup-i"], ["Veprimi i fundit", "Last action", "Poslednja akcija"],
@@ -642,7 +642,8 @@ function view(s) {
   const inst = s.installed, lat = s.latest;
   const verText = !inst ? '-' : inst.error ? inst.error : inst.name;
   const latText = !lat ? '-' : lat.error ? lat.error : lat.version + (lat.prerelease ? ' (pre-release)' : '');
-  const updPill = s.update === 'version' ? pill('warn', 'Ka version të ri') : s.update === 'build' ? pill('warn', 'Ka build të ri') : inst && !inst.error && lat && !lat.error ? pill('ok', 'I përditësuar') : null;
+  const newV = lat && !lat.error ? lat.version : '';
+  const updPill = s.update === 'version' ? pill('warn', 'Ka version të ri · ' + newV) : s.update === 'build' ? pill('warn', 'Ka build të ri · ' + newV) : inst && !inst.error && lat && !lat.error ? pill('ok', 'I përditësuar') : null;
 
   const sysBtn = (label, action, ask, cls = 'btn ghost') => {
     const b = el('button', { type: 'button', class: cls }, label);
@@ -807,8 +808,8 @@ function view(s) {
 
   const updateNotice = () => {
     if (!s.update) return '';
-    const go2 = el('button', { type: 'button', class: 'btn' }, 'Përditëso tani'); go2.disabled = busy; go2.onclick = () => updBtn.onclick();
-    return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, 'Ka version të ri të programit'), ' · ' + latText), el('div', { class: 'row' }, go2));
+    const go2 = el('button', { type: 'button', class: 'btn' }, 'Përditëso në ' + newV); go2.disabled = busy; go2.onclick = () => updBtn.onclick();
+    return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, s.update === 'build' ? 'Ka build të ri të versionit ' + newV : 'Ka version të ri të programit: ' + newV), ' · instaluar: ' + verText), el('div', { class: 'row' }, go2));
   };
   pages.home = () => el('div', {},
     header(s.name, 'Pasqyra', controls),
@@ -900,7 +901,7 @@ function view(s) {
   };
 
   // ---- actions
-  const updBtn = el('button', { type: 'button', class: s.update ? 'btn' : 'btn ghost' }, s.update ? 'Përditëso' : 'Përditësuar');
+  const updBtn = el('button', { type: 'button', class: s.update ? 'btn' : 'btn ghost' }, s.update ? 'Përditëso në ' + newV : 'Përditësuar');
   updBtn.disabled = busy || !s.update;
   updBtn.title = s.update ? '' : 'Nuk ka version të ri.';
   updBtn.onclick = async () => {

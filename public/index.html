@@ -151,6 +151,9 @@
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
   html.a11y-font body, html.a11y-font button, html.a11y-font input, html.a11y-font select, html.a11y-font textarea { font-family:"Segoe UI", Arial, Verdana, sans-serif !important; letter-spacing:.2px; }
   html.a11y-links a { text-decoration:underline !important; }
+  .gear { position:fixed; top:12px; right:14px; z-index:20; width:38px; height:38px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); display:grid; place-items:center; cursor:pointer; }
+  .gear:hover { border-color:var(--accent); color:var(--accent); } .gear:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .page .top { padding-right:48px; }
   .a11y-overlay { position:fixed; inset:0; background:rgba(2,6,23,.55); z-index:50; display:grid; place-items:center; padding:16px; }
   .a11y-panel { width:min(460px,100%); max-height:92vh; overflow:auto; background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px; padding:18px 20px; box-shadow:0 20px 50px rgba(0,0,0,.35); }
   .a11y-panel h2 { margin:0 0 12px; font-size:15px; text-transform:none; letter-spacing:0; color:var(--text); }
@@ -198,7 +201,7 @@
 <a class="skip" href="#page" id="skip">Kalo te përmbajtja</a>
 <div class="app">
   <aside class="side" id="side" aria-label="Menu"></aside>
-  <main class="main" id="main"><div class="page" id="page" tabindex="-1"></div><footer class="credit">Krijuar nga <b>Rogest Network</b></footer></main>
+  <main class="main" id="main"><div class="page" id="page" tabindex="-1"></div><footer class="credit"><span id="credit0">Krijuar nga</span> <b>Rogest Network</b></footer></main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
@@ -225,10 +228,110 @@ const two = (n) => String(n).padStart(2, '0');
 const fmtTime = (s, secs) => { const d = new Date(s); return isNaN(d) ? '-' : two(d.getDate()) + '.' + two(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()) + (secs ? ':' + two(d.getSeconds()) : ''); };
 const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private window */ } } };
 
+// ---- Language of the whole dashboard (sq default, en, sr): [Albanian, English, Serbian]. Exact strings first, then longer fragments (so dynamic texts are translated too).
+const TR_LIST = [
+  ["Pasqyra", "Overview", "Pregled"], ["Të dhënat", "Data", "Podaci"], ["Veprime", "Actions", "Akcije"], ["Backup-et", "Backups", "Backup-i"],
+  ["Ku është instaluar", "Where it is installed", "Gde je instalirano"], ["Log-u", "Log", "Log"], ["Rrugët e instalimit", "Installation paths", "Putanje instalacije"],
+  ["Rifresko", "Refresh", "Osveži"], ["Çinstalo HRSystem...", "Uninstall HRSystem...", "Deinstaliraj HRSystem..."], ["Mbyll", "Close", "Zatvori"], ["Shiko log-un", "See the log", "Vidi log"],
+  ["Hap aplikacionin", "Open the app", "Otvori aplikaciju"], ["Hap /developer", "Open /developer", "Otvori /developer"], ["Hap", "Open", "Otvori"],
+  ["Ndaloj aplikacionin?", "Stop the application?", "Zaustaviti aplikaciju?"], ["Rinis aplikacionin?", "Restart the application?", "Restartovati aplikaciju?"],
+  ["Krijo pronarin (/setup)", "Create the owner (/setup)", "Napravi vlasnika (/setup)"], ["Pronari nuk është krijuar.", "The owner has not been created.", "Vlasnik nije napravljen."],
+  ["Krijo pronarin me /setup, ose importo databazën e vjetër (jo të dyja).", "Create the owner with /setup, or import the old database (not both).", "Napravi vlasnika preko /setup ili uvezi staru bazu (ne oboje)."],
+  ["Importo databazën...", "Import the database...", "Uvezi bazu..."], ["Ekzekuto SQL...", "Run SQL...", "Izvrši SQL..."], ["Ndale", "Stop", "Zaustavi"], ["Krijo", "Create", "Napravi"],
+  ["Lokale", "Local", "Lokalno"], ["në këtë PC", "on this PC", "na ovom računaru"], ["Domeni", "Domain", "Domen"], ["hapet", "opens", "otvara se"], ["nuk hapet", "does not open", "ne otvara se"],
+  ["zbulohet vetë", "found automatically", "otkriva se sam"], ["pa domen", "no domain", "bez domena"], ["Adresa e përkohshme", "Temporary address", "Privremena adresa"], ["pa", "none", "nema"],
+  ["Tuneli Cloudflare", "Cloudflare tunnel", "Cloudflare tunel"], ["nuk është lidhur", "not connected", "nije povezan"], ["lidhur", "connected", "povezan"],
+  ["procesi punon, asnjë adresë nuk hapet", "process runs, no address opens", "proces radi, nijedna adresa se ne otvara"], ["aktiv", "active", "aktivan"], ["jo aktiv", "not active", "nije aktivan"],
+  ["Shto tunel", "Add tunnel", "Dodaj tunel"], ["Ndrysho tunelin", "Change tunnel", "Promeni tunel"], ["Hiq", "Remove", "Ukloni"],
+  ["Aplikacioni", "Application", "Aplikacija"], ["Ndalur", "Stopped", "Zaustavljeno"], ["pa përgjigje", "no answer", "nema odgovora"],
+  ["Përditëso tani", "Update now", "Ažuriraj sada"], ["Ka version të ri të programit", "A new version of the program is available", "Postoji nova verzija programa"],
+  ["Databaza", "Database", "Baza"], ["Lidhur", "Connected", "Povezano"], ["Versioni", "Version", "Verzija"], ["Adresa", "Address", "Adresa"], ["Hapet", "Opens", "Otvara se"], ["Nuk hapet", "Does not open", "Ne otvara se"],
+  ["Pa domen", "No domain", "Bez domena"], ["Adresat", "Addresses", "Adrese"], ["Gjendja", "Status", "Stanje"], ["Instaluar", "Installed", "Instalirano"], ["Repo i programit", "Program repo", "Repo programa"],
+  ["Token GitHub", "GitHub token", "GitHub token"], ["mungon", "missing", "nedostaje"], ["vendosur", "set", "postavljen"], ["Backup-e", "Backups", "Backup-i"], ["Veprimi i fundit", "Last action", "Poslednja akcija"],
+  ["nuk është lidhur me asnjë repo (update.json mungon)", "not linked to any repo (update.json is missing)", "nije povezano ni sa jednim repozitorijumom (nedostaje update.json)"],
+  ["Shfaq", "Show", "Prikaži"], ["Fshih", "Hide", "Sakrij"], ["Kopjo", "Copy", "Kopiraj"], ["Shfaq të gjitha", "Show all", "Prikaži sve"],
+  ["Emri i instalimit", "Installation name", "Naziv instalacije"], ["Versioni i instaluar", "Installed version", "Instalirana verzija"], ["Versioni më i ri", "Newest version", "Najnovija verzija"],
+  ["Kanali", "Channel", "Kanal"], ["Dashboard-i (porta)", "Dashboard (port)", "Dashboard (port)"], ["Databaza: emri", "Database: name", "Baza: naziv"], ["Databaza: serveri", "Database: server", "Baza: server"],
+  ["Databaza: porta", "Database: port", "Baza: port"], ["Databaza: përdoruesi", "Database: user", "Baza: korisnik"], ["Databaza: fjalëkalimi", "Database: password", "Baza: lozinka"],
+  ["Instalimi, folderët dhe databaza", "Installation, folders and database", "Instalacija, fascikle i baza"], ["Porta e aplikacionit", "Application port", "Port aplikacije"],
+  ["Adresa e aplikacionit", "Application address", "Adresa aplikacije"], ["Çelësi i aplikacionit (APP_SECRET)", "Application key (APP_SECRET)", "Ključ aplikacije (APP_SECRET)"], ["Token i /setup", "/setup token", "/setup token"],
+  ["Çelësat e aplikacionit", "Application keys", "Ključevi aplikacije"], ["Tokenët", "Tokens", "Tokeni"], ["Lidhja me databazën", "Database connection", "Veza sa bazom"],
+  ["Cilësime të tjera (.env)", "Other settings (.env)", "Ostala podešavanja (.env)"], ["GitHub (vetëm-lexim, për përditësime)", "GitHub (read-only, for updates)", "GitHub (samo čitanje, za ažuriranja)"],
+  ["nuk ka tunel të përhershëm", "no permanent tunnel", "nema stalnog tunela"],
+  ["Gjithçka për këtë instalim: adresat, folderët, databaza, cilësimet dhe sekretet (.env, të fshehura si parazgjedhje).", "Everything about this installation: addresses, folders, database, settings and secrets (.env, hidden by default).", "Sve o ovoj instalaciji: adrese, fascikle, baza, podešavanja i tajne (.env, podrazumevano skrivene)."],
+  ["Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe harrohen pas 14 ditësh. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon çdo herë dhe punon sa punon procesi.", "Domains are found automatically when the app receives a request from the internet and are forgotten after 14 days. The temporary address is a quick Cloudflare tunnel (trycloudflare.com): it changes every time and works as long as the process runs.", "Domeni se otkrivaju sami kada aplikacija primi zahtev sa interneta i zaboravljaju se posle 14 dana. Privremena adresa je brzi Cloudflare tunel (trycloudflare.com): menja se svaki put i radi dok proces radi."],
+  ["Komanda për t'u lidhur me databazën nga terminali (fjalëkalimi kërkohet pasi ta ekzekutosh):", "Command to connect to the database from the terminal (the password is asked after you run it):", "Komanda za povezivanje sa bazom iz terminala (lozinka se traži nakon pokretanja):"],
+  ["Përditëso", "Update", "Ažuriraj"], ["Përditësuar", "Up to date", "Ažurirano"], ["Përditësim, databazë, lidhje", "Update, database, connections", "Ažuriranje, baza, veze"], ["Përditësimi", "Update", "Ažuriranje"],
+  ["Përditëso aplikacionin", "Update the application", "Ažuriraj aplikaciju"], ["Paneli /developer", "/developer panel", "/developer panel"], ["Branding, module, databazë. Hapet pa token.", "Branding, modules, database. Opens without a token.", "Branding, moduli, baza. Otvara se bez tokena."],
+  ["Ndalo, nise, rinis", "Stop, start, restart", "Zaustavi, pokreni, restartuj"], ["Detyra e aplikacionit në këtë PC.", "The application task on this PC.", "Zadatak aplikacije na ovom računaru."],
+  ["Backup tani", "Backup now", "Backup sada"], ["Kopje e databazës.", "A copy of the database.", "Kopija baze."], ["Automatik në natë", "Automatic at night", "Automatski noću"],
+  ["Një orar i përbashkët: backup dhe përditësim nuk dyfishohen (përditësimi përfshin backup-in).", "One shared schedule: backup and update are not doubled (the update includes the backup).", "Jedan zajednički raspored: backup i ažuriranje se ne udvostručuju (ažuriranje uključuje backup)."],
+  ["Ora", "Hour", "Sat"], ["Mbaj", "Keep", "Čuvaj"], ["Backup i databazës", "Database backup", "Backup baze"], ["Përditëso programin", "Update the program", "Ažuriraj program"],
+  ["Nisja me Windows", "Start with Windows", "Pokretanje sa Windows-om"], ["Çfarë niset vetë kur ndizet kompjuteri. Ato që punojnë tani nuk ndalen.", "What starts by itself when the computer is switched on. What runs now is not stopped.", "Šta se pokreće samo kada se računar upali. Ono što sada radi se ne zaustavlja."],
+  ["Aktivizo të gjitha", "Enable all", "Uključi sve"], ["Ndalo të gjitha", "Stop all", "Zaustavi sve"], ["Ekzekuto SQL", "Run SQL", "Izvrši SQL"], ["Skedar .sql (backup para).", ".sql file (a backup first).", ".sql datoteka (prvo backup)."],
+  ["Importo databazën", "Import the database", "Uvezi bazu"], ["Zëvendëson databazën me një dump (backup automatik).", "Replaces the database with a dump (automatic backup).", "Zamenjuje bazu dump-om (automatski backup)."],
+  ["Lidhjet", "Connections", "Veze"], ["Ndrysho tokenin GitHub...", "Change the GitHub token...", "Promeni GitHub token..."], ["Vendos tokenin GitHub...", "Set the GitHub token...", "Postavi GitHub token..."],
+  ["I vendosur (ruhet i enkriptuar).", "Set (stored encrypted).", "Postavljen (čuva se šifrovano)."], ["Mungon: pa të nuk bëhen përditësime.", "Missing: without it no updates are made.", "Nedostaje: bez njega nema ažuriranja."],
+  ["Nuk është i lidhur.", "Not connected.", "Nije povezan."], ["I lidhur dhe punon.", "Connected and working.", "Povezan i radi."], ["Procesi punon por asnjë adresë nuk hapet.", "The process runs but no address opens.", "Proces radi ali nijedna adresa se ne otvara."],
+  ["Shkarko", "Download", "Preuzmi"], ["Fshi", "Delete", "Obriši"], ["Nuk ka backup ende.", "No backups yet.", "Još nema backup-a."],
+  ["Veprimi i fundit", "Last action", "Poslednja akcija"], ["Asnjë veprim ende (përditësim, SQL, import, tunel).", "No action yet (update, SQL, import, tunnel).", "Još nema akcije (ažuriranje, SQL, uvoz, tunel)."],
+  ["Asnjë instalim nuk u gjet në këtë kompjuter.", "No installation was found on this computer.", "Na ovom računaru nije pronađena nijedna instalacija."], ["Hap Install.bat për të instaluar HRSystem.", "Open Install.bat to install HRSystem.", "Otvori Install.bat da instaliraš HRSystem."],
+  ["Instalimi", "Installation", "Instalacija"], ["Krijuar nga", "Created by", "Napravio"],
+  ["U kopjua.", "Copied.", "Kopirano."], ["U ruajt.", "Saved.", "Sačuvano."], ["Dashboard-i u rinis: rifresko faqen.", "The dashboard restarted: refresh the page.", "Dashboard je restartovan: osveži stranicu."],
+  ["Dashboard-i u rinis: po rifreskohet...", "The dashboard restarted: refreshing...", "Dashboard je restartovan: osvežavanje..."], ["Gabim", "Error", "Greška"],
+  ["Përditësimi i aplikacionit", "Application update", "Ažuriranje aplikacije"], ["Lidhja e tunelit", "Tunnel connection", "Povezivanje tunela"], ["Heqja e tunelit", "Removing the tunnel", "Uklanjanje tunela"],
+  ["Po nis", "Starting", "Pokretanje"], ["Kontroll", "Check", "Provera"], ["Kontroll në GitHub", "Checking GitHub", "Provera GitHub-a"], ["Shkarkim", "Download", "Preuzimanje"], ["Skedarët e versionit", "Version files", "Datoteke verzije"],
+  ["Migrimet", "Migrations", "Migracije"], ["Ndërrimi i versionit", "Switching the version", "Zamena verzije"], ["Build u krye", "Build done", "Build završen"], ["U krye", "Done", "Završeno"], ["Dështoi", "Failed", "Neuspešno"], ["Po vazhdon", "In progress", "U toku"],
+  ["Ka version të ri", "New version available", "Postoji nova verzija"], ["Ka build të ri", "New build available", "Postoji novi build"], ["I përditësuar", "Up to date", "Ažurirano"],
+  ["Progres", "Progress", "Napredak"], ["Ora e backup-it", "Backup hour", "Sat backup-a"], ["Sa backup të mbahen", "How many backups to keep", "Koliko backup-a se čuva"],
+  ["Shpejtësia e fundit (ms)", "Latest speed (ms)", "Poslednja brzina (ms)"], ["Nuk ka version të ri.", "There is no new version.", "Nema nove verzije."],
+  ["Punon nga folderi i zhvillimit.", "Runs from the development folder.", "Radi iz razvojne fascikle."],
+  // fragments (dynamic texts)
+  ["Po krijohet adresa e përkohshme (deri në 40 sekonda)...", "Creating the temporary address (up to 40 seconds)...", "Pravi se privremena adresa (do 40 sekundi)..."], ["Adresa e përkohshme u ndal.", "The temporary address was stopped.", "Privremena adresa je zaustavljena."],
+  ["Gati: ", "Ready: ", "Spremno: "], ["Ka version të ri: ", "New version: ", "Nova verzija: "], [" (instaluar: ", " (installed: ", " (instalirano: "], ["Versioni ", "Version ", "Verzija "], [" · i përditësuar.", " · up to date.", " · ažurirano."],
+  ["I fundit (", "Latest (", "Poslednja ("], ["kanali: ", "channel: ", "kanal: "], [" · porta ", " · port ", " · port "], [" skedar", " file(s)", " datoteka"],
+  [" kopje (të fundit)", " copies", " kopija"], [" kopje", " copies", " kopija"], [" · gjithsej ", " · total ", " · ukupno "], [" · e fundit ", " · latest ", " · poslednji "],
+  ["po vazhdon...", "in progress...", "u toku..."], ["SUKSES", "SUCCESS", "USPEH"], ["GABIM", "ERROR", "GREŠKA"], [" u krye", " done", " završeno"], [" dështoi", " failed", " nije uspelo"], [" · versioni ", " · version ", " · verzija "],
+  ["Ende pa ekzekutim.", "Not run yet.", "Još nije pokrenuto."], ["Hera e fundit: ", "Last time: ", "Poslednji put: "], ["backup u ruajt", "backup saved", "backup sačuvan"], ["përditësimi filloi", "update started", "ažuriranje je počelo"],
+  ["përditësim i kryer (me backup)", "update done (with backup)", "ažuriranje završeno (sa backup-om)"], ["përditësimi dështoi (shiko Log-un)", "update failed (see the Log)", "ažuriranje nije uspelo (vidi Log)"], ["Të dyja fikura. ", "Both are off. ", "Oba su isključena. "],
+  ["Përditësimi filloi...", "The update started...", "Ažuriranje je počelo..."], ["Po bëhet backup...", "Making a backup...", "Pravi se backup..."], ["Backup u ruajt: ", "Backup saved: ", "Backup sačuvan: "],
+  ["Bëj backup të databazës së ", "Make a backup of the database of ", "Napravi backup baze za "], [" tani?", " now?", " sada?"],
+  ["Ndaloj nisjen automatike të të gjitha? Pas rinisjes së kompjuterit asgjë nuk niset vetë (ato që punojnë tani vazhdojnë).", "Stop automatic start of all? After the computer restarts nothing starts by itself (what runs now keeps running).", "Zaustaviti automatsko pokretanje svega? Posle restarta računara ništa se ne pokreće samo (ono što sada radi nastavlja)."],
+  ["Token GitHub vetëm-lexim (Contents: read), ruhet i enkriptuar:", "Read-only GitHub token (Contents: read), stored encrypted:", "GitHub token samo za čitanje (Contents: read), čuva se šifrovano:"], ["Tokeni nuk u ruajt", "The token was not saved", "Token nije sačuvan"], ["Tokeni u ruajt.", "The token was saved.", "Token je sačuvan."],
+  ["Tuneli i vjetër hiqet dhe vendoset ky i ri. ", "The old tunnel is removed and this new one is set. ", "Stari tunel se uklanja i postavlja se ovaj novi. "], ["Token i Cloudflare Tunnel (ose komanda \"cloudflared service install ...\"):", "Cloudflare Tunnel token (or the command \"cloudflared service install ...\"):", "Cloudflare Tunnel token (ili komanda \"cloudflared service install ...\"):"],
+  ["Po lidhet tuneli...", "Connecting the tunnel...", "Povezuje se tunel..."], ["Heq tunelin nga ky PC?", "Remove the tunnel from this PC?", "Ukloniti tunel sa ovog računara?"], ["Adresat e tij nuk do të hapen nga interneti. Adresa e përkohshme mbetet.", "Its addresses will not open from the internet. The temporary address stays.", "Njegove adrese se neće otvarati sa interneta. Privremena adresa ostaje."],
+  ["Po po kontrollohet...", "Checking...", "Provera..."], ["Po kontrollohet...", "Checking...", "Provera..."], ["Ka version të ri të dashboard-it.", "There is a new version of the dashboard.", "Postoji nova verzija dashboard-a."], ["Dashboard-i është i përditësuar.", "The dashboard is up to date.", "Dashboard je ažuriran."],
+  ["Po përditësohet dashboard-i...", "Updating the dashboard...", "Ažurira se dashboard..."], ["Dashboard-i ishte i përditësuar.", "The dashboard was up to date.", "Dashboard je bio ažuriran."], ["U përditësua (", "Updated (", "Ažurirano ("], ["). Rifreskohet...", "). Refreshing...", "). Osvežava se..."],
+  ["Nuk u kontrollua (", "Not checked (", "Nije provereno ("], ["Ka version të ri (", "New version (", "Nova verzija ("], ["): përditësohet brenda 10 min.", "): updates within 10 min.", "): ažurira se u roku od 10 min."], [" · kodi i ", " · code of ", " · kod od "],
+  ["Përditësoj dashboard-in nga repo i dashboard-it (", "Update the dashboard from the dashboard repo (", "Ažurirati dashboard iz repozitorijuma dashboard-a ("], ["Skedarët e vjetër ruhen te manager\\.previous; faqja rifreskohet vetë.", "The old files are kept in manager\\.previous; the page refreshes itself.", "Stare datoteke se čuvaju u manager\\.previous; stranica se sama osvežava."],
+  ["Nuk shfaqet version i ri. Ta kontrolloj dhe ta përditësoj gjithsesi?", "No new version is shown. Check and update anyway?", "Nova verzija nije prikazana. Proveriti i ipak ažurirati?"], ["Përditësoj ", "Update ", "Ažuriraj "], ["Bëhet backup, pastaj build dhe migrimet; në dështim kthehet vetë te versioni i vjetër.", "A backup is made, then the build and the migrations; on failure it goes back to the old version by itself.", "Pravi se backup, zatim build i migracije; ako ne uspe, sam se vraća na staru verziju."],
+  ["Ekzekutoj ", "Run ", "Izvrši "], ["Fillimisht bëhet backup automatik. Ndalet te gabimi i parë.", "A backup is made first. It stops at the first error.", "Prvo se pravi automatski backup. Staje na prvoj grešci."], ["SQL filloi...", "SQL started...", "SQL je počeo..."],
+  ["IMPORT I PLOTË në ", "FULL IMPORT into ", "PUN UVOZ u "], ["- bëhet backup automatik;", "- an automatic backup is made;", "- pravi se automatski backup;"], ["- FSHIHEN të gjitha tabelat që ekzistojnë tani;", "- ALL tables that exist now are DELETED;", "- BRIŠU se SVE tabele koje sada postoje;"], ["- ngarkohet ", "- loaded: ", "- učitava se: "], ["- ekzekutohen migrimet që mungojnë.", "- the missing migrations are run.", "- izvršavaju se migracije koje nedostaju."], ["Vazhdoj?", "Continue?", "Nastaviti?"], ["Importi filloi...", "The import started...", "Uvoz je počeo..."],
+  ["Fshij backup-in ", "Delete the backup ", "Obrisati backup "], ["Është i vetmi backup. ", "It is the only backup. ", "To je jedini backup. "], ["Kjo nuk kthehet pas.", "This cannot be undone.", "Ovo se ne može poništiti."], ["Backup-i u fshi (mbeten ", "The backup was deleted (", "Backup je obrisan ("], [" (nuk ekziston)", " (does not exist)", " (ne postoji)"],
+  ["Çinstaloj HRSystem nga ky kompjuter?", "Uninstall HRSystem from this computer?", "Deinstalirati HRSystem sa ovog računara?"], ["Ruhet një backup në Desktop dhe fshihet gjithçka (aplikacioni, databaza, dashboard-i, tuneli).", "A backup is saved on the Desktop and everything is deleted (application, database, dashboard, tunnel).", "Backup se čuva na Desktop-u i sve se briše (aplikacija, baza, dashboard, tunel)."], ["Dritarja e çinstalimit u hap. Vazhdo atje.", "The uninstall window opened. Continue there.", "Prozor za deinstalaciju je otvoren. Nastavi tamo."],
+  ["U krye.", "Done.", "Završeno."], [": u krye.", ": done.", ": završeno."], [" dështoi: shiko Log-un.", " failed: see the Log.", " nije uspelo: vidi Log."],
+  ["Folderi kryesor (aplikacioni, skriptet)", "Main folder (application, scripts)", "Glavna fascikla (aplikacija, skripte)"], ["Kodi qe po punon (versioni ", "Running code (version ", "Kod koji radi (verzija "], ["Cilesimet (.env: porta, databaza, adresa)", "Settings (.env: port, database, address)", "Podešavanja (.env: port, baza, adresa)"],
+  ["Nisesi i aplikacionit (start-hrsystem.ps1)", "Application starter (start-hrsystem.ps1)", "Pokretač aplikacije (start-hrsystem.ps1)"], ["Te dhenat (databaza, backup-et)", "Data (database, backups)", "Podaci (baza, backup-i)"], ["Skedaret e databazes MySQL", "MySQL database files", "MySQL datoteke baze"], ["Backup-et e databazes", "Database backups", "Backup-i baze"],
+  ["Aplikacioni + databaza", "Application + database", "Aplikacija + baza"], ["Dashboard-i", "Dashboard", "Dashboard"], ["Databaza (MySQL)", "Database (MySQL)", "Baza (MySQL)"], ["ky PC", "this PC", "ovaj računar"],
+  ["Backup", "Backup", "Backup"], ["Instalimi i vjetër", "Old installation", "Stara instalacija"],
+];
+const TR_EXACT = {}, TR_FRAG = { en: [], sr: [] };
+for (const [sq, en, sr] of TR_LIST) { TR_EXACT[sq] = { en, sr }; if (sq.length >= 5) { TR_FRAG.en.push([sq, en]); TR_FRAG.sr.push([sq, sr]); } }
+for (const k of ['en', 'sr']) TR_FRAG[k].sort((a, b) => b[0].length - a[0].length);
+function t(s) {
+  if (typeof s !== 'string' || !s) return s;
+  const lang = store.get('lang', 'sq');
+  if (lang === 'sq' || !TR_FRAG[lang]) return s;
+  const hit = TR_EXACT[s]; if (hit && hit[lang]) return hit[lang];
+  let out = s;
+  for (const [a, b] of TR_FRAG[lang]) if (out.includes(a)) out = out.split(a).join(b);
+  return out;
+}
+
 function el(tag, props = {}, ...kids) {
   const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n[k] = v; else n.setAttribute(k, v); }
-  for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) n.append(kid); // lists are flattened (a list used to show as [object HTMLButtonElement])
+  for (const [k, v] of Object.entries(props)) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n[k] = v; else n.setAttribute(k, k === 'title' || k === 'aria-label' || k === 'placeholder' ? t(v) : v); }
+  for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) n.append(typeof kid === 'string' ? t(kid) : kid); // lists are flattened (a list used to show as [object HTMLButtonElement])
   return n;
 }
 const pill = (cls, text) => el('span', { class: 'pill ' + cls }, text);
@@ -248,9 +351,10 @@ const ICONS = {
 const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('width', '18'); s.setAttribute('height', '18'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.8'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p); return s; };
 
 let toastTimer = null;
+{ const c = window.confirm.bind(window), q = window.prompt.bind(window); window.confirm = (m) => c(t(m)); window.prompt = (m, d) => q(t(m), d); }
 function toast(msg, err) {
-  const t = $('toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'toast' + (err ? ' err' : ''); }, err ? 8000 : 4500);
+  const tt = $('toast'); tt.textContent = t(msg); tt.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { tt.className = 'toast' + (err ? ' err' : ''); }, err ? 8000 : 4500);
 }
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); }
@@ -302,17 +406,17 @@ const helpLang = () => { const l = store.get('lang', 'sq'); return HELP[l] ? l :
 
 // ---- Appearance and accessibility: the choices live in localStorage; <html> carries them as data-theme and a11y-* classes (also set by a tiny script in <head> so nothing flashes).
 const A11Y = {
-  sq: { open: 'Pamja & Qasja', title: 'Pamja & Qasja', theme: 'Tema', system: 'Sistemi', light: 'Drita', dark: 'Errët', size: 'Madhësia e shkrimit', s0: 'Normale', s1: 'Më e madhe', s2: 'Shumë e madhe', contrast: 'Kontrast i lartë', motion: 'Pa animacione', font: 'Shkrim i lexueshëm (jo monospace)', links: 'Lidhjet me nënvizim', reset: 'Rivendos', close: 'Mbyll', skip: 'Kalo te përmbajtja' },
-  en: { open: 'Appearance & Access', title: 'Appearance & Access', theme: 'Theme', system: 'System', light: 'Light', dark: 'Dark', size: 'Text size', s0: 'Normal', s1: 'Larger', s2: 'Largest', contrast: 'High contrast', motion: 'No animations', font: 'Readable font (not monospace)', links: 'Underline links', reset: 'Reset', close: 'Close', skip: 'Skip to content' },
-  sr: { open: 'Izgled & Pristup', title: 'Izgled & Pristup', theme: 'Tema', system: 'Sistem', light: 'Svetla', dark: 'Tamna', size: 'Veličina teksta', s0: 'Normalna', s1: 'Veća', s2: 'Najveća', contrast: 'Visok kontrast', motion: 'Bez animacija', font: 'Čitljiv font (ne monospace)', links: 'Podvuci linkove', reset: 'Vrati', close: 'Zatvori', skip: 'Idi na sadržaj' },
+  sq: { open: 'Cilësimet', title: 'Cilësimet', lang: 'Gjuha', theme: 'Tema', system: 'Sistemi', light: 'Drita', dark: 'Errët', size: 'Madhësia e shkrimit', s0: 'Normale', s1: 'Më e madhe', s2: 'Shumë e madhe', contrast: 'Kontrast i lartë', motion: 'Pa animacione', font: 'Shkrim i lexueshëm (jo monospace)', links: 'Lidhjet me nënvizim', reset: 'Rivendos', close: 'Mbyll', skip: 'Kalo te përmbajtja' },
+  en: { open: 'Settings', title: 'Settings', lang: 'Language', theme: 'Theme', system: 'System', light: 'Light', dark: 'Dark', size: 'Text size', s0: 'Normal', s1: 'Larger', s2: 'Largest', contrast: 'High contrast', motion: 'No animations', font: 'Readable font (not monospace)', links: 'Underline links', reset: 'Reset', close: 'Close', skip: 'Skip to content' },
+  sr: { open: 'Podešavanja', title: 'Podešavanja', lang: 'Jezik', theme: 'Tema', system: 'Sistem', light: 'Svetla', dark: 'Tamna', size: 'Veličina teksta', s0: 'Normalna', s1: 'Veća', s2: 'Najveća', contrast: 'Visok kontrast', motion: 'Bez animacija', font: 'Čitljiv font (ne monospace)', links: 'Podvuci linkove', reset: 'Vrati', close: 'Zatvori', skip: 'Idi na sadržaj' },
 };
 const prefs = {
   get theme() { return store.get('theme', 'system'); }, set theme(v) { store.set('theme', v); },
 };
 function applyPrefs() {
   const r = document.documentElement;
-  const t = store.get('theme', 'system');
-  r.setAttribute('data-theme', t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+  const th = store.get('theme', 'system');
+  r.setAttribute('data-theme', th === 'dark' || (th === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
   const z = store.get('textsize', '0');
   r.classList.toggle('a11y-t1', z === '1'); r.classList.toggle('a11y-t2', z === '2');
   r.classList.toggle('a11y-contrast', store.get('contrast', '0') === '1');
@@ -321,6 +425,8 @@ function applyPrefs() {
   r.classList.toggle('a11y-links', store.get('links', '0') === '1');
   r.lang = helpLang();
   const sk = document.getElementById('skip'); if (sk) sk.textContent = A11Y[helpLang()].skip;
+  const cr = document.getElementById('credit0'); if (cr) cr.textContent = t('Krijuar nga');
+  const g = document.getElementById('gear'); if (g) { g.setAttribute('aria-label', A11Y[helpLang()].open); g.title = A11Y[helpLang()].open; }
 }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (store.get('theme', 'system') === 'system') applyPrefs(); }); } catch { /* old browser */ }
 let a11yReturn = null;
@@ -339,6 +445,11 @@ function openA11y() {
   const closeBtn = el('button', { type: 'button', class: 'btn' }, L.close); closeBtn.onclick = close;
   const panel = el('div', { class: 'a11y-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'a11yTitle' },
     el('h2', { id: 'a11yTitle' }, L.title),
+    el('fieldset', {}, el('legend', {}, L.lang), el('div', { class: 'opts' }, ...Object.keys(HELP).map((k) => {
+      const input = el('input', { type: 'radio', name: 'lang', value: k }); input.checked = helpLang() === k;
+      input.onchange = () => { store.set('lang', k); applyPrefs(); close(); openA11y(); render(); };
+      return el('label', { class: 'opt' }, input, HELP[k].name);
+    }))),
     radios(L.theme, 'theme', [['system', L.system], ['light', L.light], ['dark', L.dark]], 'system'),
     radios(L.size, 'textsize', [['0', L.s0], ['1', L.s1], ['2', L.s2]], '0'),
     el('div', { class: 'switches' }, sw(L.contrast, 'contrast'), sw(L.motion, 'motion'), sw(L.font, 'font'), sw(L.links, 'links')),
@@ -358,6 +469,13 @@ function openA11y() {
   document.addEventListener('keydown', onKey);
   document.body.append(overlay);
   (panel.querySelector('input:checked') || closeBtn).focus();
+}
+{ // the settings gear: always at the top right, outside the redrawn page
+  const g = el('button', { type: 'button', class: 'gear', id: 'gear', 'aria-haspopup': 'dialog' });
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [k, v] of [['width', '20'], ['height', '20'], ['viewBox', '0 0 24 24'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '1.8'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']]) svg.setAttribute(k, v);
+  for (const d of ['M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z']) { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); svg.append(p); }
+  g.append(svg); g.onclick = openA11y; document.body.append(g);
 }
 applyPrefs();
 
@@ -716,7 +834,7 @@ function render() {
     el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))),
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off'), role: 'img', 'aria-label': s.health.ok ? 'Online' : 'Offline' }), select),
     nav,
-    el('div', { class: 'foot' }, (() => { const b = el('button', { type: 'button', 'aria-haspopup': 'dialog' }, A11Y[helpLang()].open); b.onclick = openA11y; return b; })(), el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, liveOn ? 'LIVE' : 'OFFLINE')), refresh, un));
+    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, liveOn ? 'LIVE' : 'OFFLINE')), refresh, un));
   // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.
   const job = s.job;
   let done = '';
@@ -758,7 +876,7 @@ function paintBar(job) {
   if (!bar || !job) return;
   const pr = progressOf(job);
   const txt = bar.querySelector('.bartext'), fill = bar.querySelector('.progress i'), track = bar.querySelector('.progress');
-  if (txt) txt.textContent = jobName(job.title) + ' · ' + pr.label + (pr.pct === null ? '' : ' · ' + pr.pct + '%');
+  if (txt) txt.textContent = t(jobName(job.title) + ' · ' + pr.label + (pr.pct === null ? '' : ' · ' + pr.pct + '%'));
   if (track) track.className = 'progress' + (pr.pct === null ? ' indet' : '');
   if (fill && pr.pct !== null) fill.style.width = pr.pct + '%';
 }

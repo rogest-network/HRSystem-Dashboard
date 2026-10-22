@@ -1513,6 +1513,41 @@ async function setAutostart(inst, which, on) {
   return autostartState(inst, true);
 }
 
+// Self-repair of the start with Windows (owner, 2026-10-23: after a restart of the PC nothing opened because the tasks were missing): once after each start of
+// an INSTALLED dashboard, a MISSING task of the application (at start-up, as SYSTEM) or of the dashboard (at sign-in) is created, and the desktop shortcut
+// "HRSystem Dashboard" (it runs Dashboard.bat, which starts the dashboard when it is off, so it works at any time) is made when absent. A task that EXISTS but
+// is switched off is never touched: that is the owner's choice (Veprime -> Nisja me Windows).
+async function repairAutostart(inst) {
+  if (!inst.root || !inst.local) return;
+  const root = path.resolve(inst.root), launcher = path.join(root, 'start-hrsystem.ps1'), task = inst.task || 'HRSystem';
+  const hasLauncher = fs.existsSync(launcher), bat = path.join(root, 'Dashboard.bat');
+  const dashCommand = `Set-Location '${HERE.replace(/'/g, "''")}'; & '${process.execPath.replace(/'/g, "''")}' server.mjs *>> '${path.join(root, 'Dashboard.log').replace(/'/g, "''")}'`;
+  const script = [
+    "$ErrorActionPreference = 'Stop'; $done = @()",
+    hasLauncher ? `if (-not (Get-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue)) {
+  $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ${q('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + launcher + '"')}
+  $t = New-ScheduledTaskTrigger -AtStartup; $p = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+  $s = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
+  Register-ScheduledTask -TaskName ${q(task)} -Action $a -Trigger $t -Principal $p -Settings $s -Description 'HRSystem self-hosted server' -Force | Out-Null; $done += 'aplikacioni' }` : '',
+    `if (-not (Get-ScheduledTask -TaskName 'HRSystem-Dashboard' -ErrorAction SilentlyContinue)) {
+  $me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+  $a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ${q('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "' + dashCommand + '"')}
+  $t = New-ScheduledTaskTrigger -AtLogOn -User $me; $p = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Highest
+  $s = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
+  Register-ScheduledTask -TaskName 'HRSystem-Dashboard' -Action $a -Trigger $t -Principal $p -Settings $s -Description 'HRSystem Dashboard' -Force | Out-Null; $done += 'dashboard-i' }`,
+    fs.existsSync(bat) ? `$desk = [Environment]::GetFolderPath('Desktop'); $pub = Join-Path $env:PUBLIC 'Desktop'
+if (-not (Test-Path (Join-Path $desk 'HRSystem Dashboard.lnk')) -and -not (Test-Path (Join-Path $pub 'HRSystem Dashboard.lnk'))) {
+  $w = New-Object -ComObject WScript.Shell; $l = $w.CreateShortcut((Join-Path $desk 'HRSystem Dashboard.lnk')); $l.TargetPath = ${q(bat)}; $l.WorkingDirectory = ${q(root)}; $l.WindowStyle = 7; $l.Description = 'HRSystem Dashboard'; $l.IconLocation = 'shell32.dll,13'; $l.Save(); $done += 'shortcut' }
+Get-ChildItem $desk, $pub -Filter 'HRSystem Dashboard.url' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue` : '',
+    "$done -join ','",
+  ].filter(Boolean).join('\n');
+  try {
+    const out = (await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script])).trim();
+    if (out) { addHistory(inst, { title: 'Nisja me Windows u rregullua', ok: true, detail: out }); notify(inst, 'Nisja me Windows u rregullua', 'U krijua: ' + out + '. Pas rinisjes së kompjuterit hapet vetë.', 'info'); }
+  } catch (e) { logError('Nisja me Windows', e); }
+}
+setTimeout(() => { if (INSTALLED_EARLY()) for (const inst of instances()) repairAutostart(inst).catch(() => {}); }, 45000).unref();
+
 // ---- Live (owner, 2026-10-22: "100% live") ----
 // The page keeps one Server-Sent Events connection (/api/live). While at least one page is open the dashboard takes ONE light pulse every 3 s: a single
 // /api/health request to the application per installation (not the 3 samples of the full status), the job (progress and log) and a signature of

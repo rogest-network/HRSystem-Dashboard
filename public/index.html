@@ -309,8 +309,14 @@ function view(s) {
   // ================= pages
   const pages = {};
 
+  const updateNotice = () => {
+    if (!s.update) return '';
+    const go2 = el('button', { type: 'button', class: 'btn' }, 'Përditëso tani'); go2.disabled = busy; go2.onclick = () => updBtn.onclick();
+    return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, 'Ka version të ri të programit'), ' · ' + latText), el('div', { class: 'row' }, go2));
+  };
   pages.home = () => el('div', {},
     header(s.name, 'Pasqyra', controls),
+    updateNotice(),
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'kpis' },
       el('div', { class: 'card kpi' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Ndalur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : pill('bad', 'pa përgjigje')), el('div', { class: 's' }, a.local), spark()),
@@ -448,9 +454,9 @@ function view(s) {
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
-        item('Përditëso aplikacionin', s.update ? 'Ka version të ri në GitHub (' + latText + ').' : 'Je në versionin e fundit (' + verText + ').', updBtn),
+        ...(s.update ? [item('Përditëso aplikacionin', 'Ka version të ri (' + latText + ').', updBtn)] : []),
         item('Përditësim automatik natën', (au.on ? 'Çdo natë në ' + String(au.hour).padStart(2, '0') + ':00 · backup, pastaj përditësim nëse ka version të ri. ' : 'Fikur. ') + autoLast, hourSel, autoBtn),
-        item('Përditëso dashboard-in', dashText, dash ? dashBtn : ''))),
+        ...(dash && dash.files ? [item('Përditëso dashboard-in', dashText, dashBtn)] : []))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Branding, module, databazë. Hapet pa token.', devBtn),
         item('Ndalo, nise, rinis', 'Detyra e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin?'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),

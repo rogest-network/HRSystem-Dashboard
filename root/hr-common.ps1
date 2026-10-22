@@ -211,7 +211,8 @@ function Get-TargetRelease([string]$Repo, [string]$Token, [string]$Channel) {
   return $best
 }
 function Find-AppAsset($Release) {
-  return $Release.assets | Where-Object { $_.name -like '*-Hostinger.zip' } | Select-Object -First 1
+  # The app zip is HRSystem-<version>.zip (from 1.0.2) or, in the older Releases, HRSystemV<version>-Hostinger.zip.
+  return $Release.assets | Where-Object { $_.name -match '^HRSystem-\d+\.\d+\.\d+\.zip$' -or $_.name -like '*-Hostinger.zip' } | Select-Object -First 1
 }
 
 # GitHub sends the file from another address; the token must not follow it, so the redirect is followed by hand.

@@ -54,7 +54,7 @@ try {
       try { Stop-Transcript | Out-Null } catch { }
       exit 0
     }
-    if (-not $asset) { throw "Release $($release.tag_name) nuk ka skedar *-Hostinger.zip." }
+    if (-not $asset) { throw "Release $($release.tag_name) nuk ka skedarin e aplikacionit (HRSystem-<versioni>.zip)." }
     $tempZip = Join-Path $env:TEMP $asset.name
     Write-Host "Po shkarkohet $($asset.name) ($([Math]::Round($asset.size / 1MB, 1)) MB)..."
     Save-ReleaseAsset $asset.url $token $tempZip

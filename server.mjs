@@ -112,6 +112,8 @@ async function token(inst) {
   return tokens.get(key);
 }
 
+// The app zip of a Release: HRSystem-<version>.zip (from 1.0.2) or, in the older Releases, HRSystemV<version>-Hostinger.zip.
+const isAppAsset = (a) => /^HRSystem-\d+\.\d+\.\d+\.zip$/.test(a.name) || /-Hostinger\.zip$/.test(a.name);
 async function latest(inst) {
   if (!inst.repo) return null;
   const t = await token(inst);
@@ -123,7 +125,7 @@ async function latest(inst) {
   const releases = (await res.json()).filter((r) => !r.draft && /^v\d+\.\d+\.\d+$/.test(r.tag_name));
   const pick = inst.channel === 'test' ? releases[0] : releases.find((r) => !r.prerelease);
   if (!pick) return { error: 'Nuk ka Release' };
-  const asset = pick.assets.find((a) => a.name.endsWith('-Hostinger.zip'));
+  const asset = pick.assets.find(isAppAsset);
   return {
     version: pick.tag_name.slice(1),
     prerelease: pick.prerelease,
@@ -306,7 +308,7 @@ async function repoReleases(inst) {
   const res = await fetch(`https://api.github.com/repos/${inst.repo}/releases?per_page=30`, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'regina-manager', ...(t ? { Authorization: `Bearer ${t}` } : {}) }, signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error('GitHub ' + res.status);
   return (await res.json()).filter((r) => !r.draft && /^v\d+\.\d+\.\d+$/.test(r.tag_name)).map((r) => {
-    const a = r.assets.find((x) => x.name.endsWith('-Hostinger.zip'));
+    const a = r.assets.find(isAppAsset);
     return a ? { version: r.tag_name.slice(1), prerelease: r.prerelease, url: a.url, name: a.name, size: a.size } : null;
   }).filter(Boolean);
 }

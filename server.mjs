@@ -1282,11 +1282,11 @@ async function diagnostics(inst) {
 // A new GitHub token also brings the repository it is allowed to read (owner, 2026-10-22): a fine-grained token is made for one repo, so the repo of
 // the installation follows it. `list` = the full names the token can see; only the dashboard's own repo is never the program's repo.
 function pickRepo(list, current) {
-  const candidates = list.filter((n) => !/HRSystem-Dashboard$/i.test(n));
+  const candidates = list.filter((n) => !/HRSystem-(Dashboard|Setup)$/i.test(n)); // the dashboard's and the setup's own repos are never the program's
   if (!candidates.length) return { repo: current, changed: false, choices: [] };
   if (candidates.includes(current)) return { repo: current, changed: false, choices: [] };
   if (candidates.length === 1) return { repo: candidates[0], changed: true, choices: [] };
-  if (!current) { const best = candidates.find((n) => /\/HRSystem-/i.test(n) && !/-(Template|Test)$/i.test(n)) || candidates[0]; return { repo: best, changed: true, choices: [] }; } // no repo saved yet: the token decides
+  if (!current) { const best = candidates.find((n) => /\/HRSystem-/i.test(n) && !/-(Template|Test|Setup)$/i.test(n)) || candidates[0]; return { repo: best, changed: true, choices: [] }; } // no repo saved yet: the token decides
   return { repo: current, changed: false, choices: candidates }; // several: the owner's current repo stays, the choices are told
 }
 async function followTokenRepo(inst, token) {

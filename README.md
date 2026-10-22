@@ -46,6 +46,8 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **Vendndodhja e serverit** (faqja Të dhënat): shteti, qendra Cloudflare, IP publike dhe emri i kompjuterit.
 - **Alarme:** backup i vjetër (mbi 36 orë), adresa publike nuk hapet / u kthye, dhe **raporti i ditës** (një përmbledhje në telefon, ora e zgjedhur (parazgjedhje 08:00); ndizet/fiket te njoftimet).
 - **Testo backup-in** (faqja Backup-et): kontrollon strukturën e kopjes (tabelat, përdoruesit) pa e prekur databazën; backup-i shënohet "I provuar".
+- **Adresa e dashboard-it:** është e fiksuar te `http://127.0.0.1:3500` (nuk ndryshon më pas rinisjes; vetëm nëse 3500 është e zënë, merr 3501...).
+- **Njoftime për përditësime:** vjen mesazh kur del një version i ri i programit (një herë për version), kur përditësimi mbaron, dhe kur vetë dashboard-i përditësohet.
 - **Njoftimet:** çdo njoftim ka nivel (info, sukses, kujdes, gabim), titull dhe tekst të qartë.
 
 > Për Claude/zhvillues: shih `ARCHITECTURE.md` (si është ndërtuar, rregullat e ndryshimit, testimi).

@@ -37,11 +37,11 @@ Last updated: 2026-10-22. If you change behaviour, update this file in the same 
 | `manager/dashboard-errors.log` | Dashboard's own runtime errors, JSON lines (about 1500 kept). |
 | `manager/dashboard.key` | Optional sign-in password (hash). Delete it = no password. |
 | `manager/.previous/` | Files kept by the last self-update, for rollback. |
-| `Setup/Claude Studio/installer/` | Windows setup scripts (`Install.bat`, `installer.ps1`, `wizard.ps1`, `updater.ps1`, `sql-import.ps1`, `uninstall.ps1`, `hr-common.ps1`). PowerShell 5.1: **a script with non-ASCII text must have a UTF-8 BOM** (wizard/installer/uninstall have it). |
+| `Setup/Claude Studio/installer/` | Windows setup scripts (`Install.bat`, `installer.ps1`, `wizard.ps1`, `updater.ps1`, `sql-import.ps1`, `uninstall.ps1`, `uninstall-wizard.ps1`, `hr-common.ps1`). PowerShell 5.1: **a script with non-ASCII text must have a UTF-8 BOM** (wizard/installer/uninstall have it). |
 | `Setup/Claude Studio/scripts/pack.py` | Builds release zips (program, not dashboard). |
 | `Setup/Versions/`, `Regina Center SHPK/` | Program releases and the client project (not dashboard). |
 
-Ports: the installed dashboard picks a random port (stored in `dashboard-url.txt`, e.g. 56308). `Dashboard.bat` and tests use `MANAGER_PORT` (3500 for tests). The real app listens on 3000. The test MySQL used by program tests is 3399 (scratchpad datadir, root pw `x`).
+Ports: the installed dashboard has a FIXED port (since 2026-10-22): the saved one if it is in 3500-3599, otherwise 3500; a taken port is retried for ~10 s (the previous process of a self-restart is still closing) and then 3501, 3502 … (a random system port used to be chosen and the address changed at every start). The address is written to `dashboard-url.txt` and to the desktop shortcut. A development copy (not installed) and tests use 3700 (`MANAGER_PORT=3700`). The real app listens on 3000. The test MySQL used by program tests is 3399 (scratchpad datadir, root pw `x`).
 
 ---------------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
 1. Edit with the **Edit tool** (or byte-safe writes). Files may contain CRLF and `\\` sequences; shell here-docs/Python text mode have corrupted backslashes and line endings before. After a Python rewrite check `git diff`-style that nothing else moved.
 2. New UI text → TR_LIST row (en + sr) and, if it is in a guide, the three `HELP` texts. New server message → TR_LIST row.
 3. Syntax checks: `node --check server.mjs`; extract the last `<script>…</script>` of `index.html` to a temp file and `node --check` it.
-4. Run a **test dashboard**: in `manager/` run `MANAGER_PORT=3500 node server.mjs` (hidden/background), restart it after every edit. Open it in the Browser pane. Note: a test dashboard needs the real install root to show an instance, otherwise it says "no installation found".
+4. Run a **test dashboard**: in `manager/` run `MANAGER_PORT=3700 node server.mjs` (hidden/background), restart it after every edit. Open it in the Browser pane. Note: a test dashboard needs the real install root to show an instance, otherwise it says "no installation found".
 5. UI QA: every page × `sq`/`en`/`sr` × light/dark × phone width (resize_window mobile) ; read the console (no errors) and the Gabimet page; in `en`/`sr` scan the page text for leftover Albanian words.
 6. API QA for new routes: no key → 403, bad id → 404, malformed JSON → 400, oversized body → 413/400, never a stack trace to the client.
 7. **Tests send real phone notifications** unless `notify.on` is false. Afterwards restore `dashboard-settings.json` (notify on, no fake domains such as `no-such-host.invalid`, no test keys), delete test `dashboard.key`, stop test servers (the dashboard on 3500, `mysqld` on 3399), and confirm the real app on 3000 is up.
@@ -163,4 +163,8 @@ State on 2026-10-22 (Dashboard repo `main`, installed copy equal):
 - Owner's standing preferences: short Albanian replies; no live-site (staff) reminders in the closing list; dashboard stays local-only; names in the UI without "HRSystem" prefix; keep the password "Show" behaviour as it is.
 - Open ideas, none started: none requested.
 
-History (newest first): daily-report hour setting · ARCHITECTURE.md · QA + translation boundary fix · error logs/location/alerts/backup test/daily report/notifications · password rework · hidden quick tunnel · app zip name `HRSystem-<x>.zip` · version log per backup · dashboard self-update repo.
+- 2026-10-22 (late): notifications also for **a new program version** (`updateAvailableCheck`, one message per version, `lastUpdateNotified`) and **the dashboard's own self-update**; "Përditësimi u krye" already existed (`jobDone`). Uninstall is now a window with **Keep: Database Po/Jo** (see `docs/WINDOWS_SETUP.md`); setup and uninstall windows show the brand "HRSystem". Not tested: the window on a real uninstall of a full installation (engine tested in a sandbox only).
+
+- 2026-10-22 (late): **fixed dashboard port 3500** (see section on ports); tests now use `MANAGER_PORT=3700`.
+
+History (newest first): fixed dashboard port · new-version + dashboard-update notifications, uninstall wizard · daily-report hour setting · ARCHITECTURE.md · QA + translation boundary fix · error logs/location/alerts/backup test/daily report/notifications · password rework · hidden quick tunnel · app zip name `HRSystem-<x>.zip` · version log per backup · dashboard self-update repo.

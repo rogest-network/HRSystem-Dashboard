@@ -9,7 +9,7 @@ import { execFile, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-// The port is chosen by the system (port 0 = any free port) in an installation; MANAGER_PORT forces one, and on a development PC it is 3500.
+// In an installation the port is fixed (3500, see pickPort); MANAGER_PORT forces one, and on a development PC (not installed) it is 3700.
 const PORT_FORCED = process.env.MANAGER_PORT ? Number(process.env.MANAGER_PORT) : null;
 const CONFIG = path.join(HERE, fs.existsSync(path.join(HERE, 'instances.json')) ? 'instances.json' : 'instances.example.json');
 // Sign-in key: OPTIONAL (owner, 2026-10-21: the dashboard is installed locally and opens with no sign-in). It is asked for only
@@ -860,7 +860,13 @@ function startGuard() {
 }
 // Automatic: first check 2 minutes after the start, then every 10 minutes.
 async function autoUpdateDashboard() {
-  try { const s = await dashboardState(true); if (s && s.files > 0) await updateDashboard(); } catch { /* next round */ }
+  try {
+    const s = await dashboardState(true);
+    if (s && s.files > 0) {
+      const r = await updateDashboard();
+      if (r && r.files) for (const inst of instances()) if (inst.local) { notify(inst, 'Dashboard-i u përditësua', 'U instaluan ' + r.files + ' skedarë të rinj të dashboard-it.', 'ok'); addHistory(inst, { title: 'Dashboard-i u përditësua', ok: true, detail: r.files + ' skedarë' }); }
+    }
+  } catch { /* next round */ }
 }
 function INSTALLED_EARLY() { return fs.existsSync(path.join(path.dirname(HERE), 'current.txt')); }
 if (INSTALLED_EARLY()) { setTimeout(autoUpdateDashboard, 120000).unref(); setInterval(autoUpdateDashboard, 600000).unref(); }
@@ -1006,6 +1012,17 @@ function setNotify(inst, on, target, daily, hour) {
   return notifyOf(inst);
 }
 // Watcher: the app is down for 1 minute -> a message; it is back -> a message. Not while an update / rollback runs. Low disk: once a day.
+// A new version of the program on GitHub: ONE message per version (owner, 2026-10-22), not one every 30 s. The end of the update is announced by jobDone().
+async function updateAvailableCheck(inst) {
+  const l = await latestCached(inst).catch(() => null), i = installed(inst);
+  if (!l || l.error || !updateKindPinned(inst, i, l)) return;
+  const key = l.version + '|' + (l.build || ''), cur = readSettings(inst);
+  if (cur.lastUpdateNotified === key) return;
+  cur.lastUpdateNotified = key; settingsWrite(inst, cur);
+  const a = autoBackupOf(inst);
+  notify(inst, 'Ka version të ri', 'Versioni ' + l.version + ' është gati (instaluar: ' + ((i && i.name) || '?') + ').' + (a.updateToo ? ' Do të instalohet vetë në orën ' + String(a.hour).padStart(2, '0') + ':00.' : ' Përditësoje nga dashboard-i.'), 'info');
+  addHistory(inst, { title: 'Ka version të ri', ok: true, detail: l.version });
+}
 const watch = new Map();
 async function watchTick() {
   for (const inst of instances()) {
@@ -1038,6 +1055,7 @@ async function watchTick() {
     }
     try { staleBackupCheck(inst); } catch { /* next time */ }
     try { await addressCheck(inst); } catch { /* next time */ }
+    try { await updateAvailableCheck(inst); } catch { /* next time */ }
     try { await dailyReportCheck(inst); } catch { /* next time */ }
     const d = diskOf(inst.data || inst.root);
     if (d && d.total && d.free / d.total < 0.1) {
@@ -1837,13 +1855,20 @@ const URL_FILE = path.join(path.dirname(HERE), 'dashboard-url.txt');
 function savedPort() {
   try { return Number(new URL(fs.readFileSync(URL_FILE, 'utf8').trim()).port) || 0; } catch { return 0; }
 }
-function listen(port) {
+// The address must stay the same (owner, 2026-10-22: it changed at every start). A random system port (port 0) lies in Windows' dynamic range, which is also
+// used by outgoing connections and by the previous process of a self-restart, so it was lost again and again. Now: the saved port if it is in 3500-3599,
+// otherwise 3500; a taken port is retried for ~10 s (the old process is still closing), then the next one (3501 ... 3599); only then the system picks one.
+function pickPort() { const s = savedPort(); return s >= 3500 && s <= 3599 ? s : 3500; }
+function listen(port, tries = 0) {
   const onError = (e) => {
-    if (e.code === 'EADDRINUSE' && port !== 0) listen(0);
+    server.removeListener('listening', onListening); // a failed try must not leave its callback behind (it would run once per try)
+    if (e.code === 'EADDRINUSE' && port !== 0 && !PORT_FORCED) {
+      if (tries < 10) setTimeout(() => listen(port, tries + 1), 1000);
+      else listen(port < 3599 ? port + 1 : 0);
+    } else if (e.code === 'EADDRINUSE' && port !== 0) listen(0);
     else { console.error('HRSystem Dashboard: ' + e.message); process.exit(1); }
   };
-  server.once('error', onError);
-  server.listen(port, '127.0.0.1', () => {
+  const onListening = () => {
     server.removeListener('error', onError);
     const address = `http://127.0.0.1:${server.address().port}`;
     if (INSTALLED) {
@@ -1855,9 +1880,12 @@ function listen(port) {
       }
     }
     console.log(`HRSystem Dashboard: ${address}  (${path.basename(CONFIG)}); sign-in: ${SIGN_IN ? 'on (key file)' : 'off'}`);
-  });
+  };
+  server.once('error', onError);
+  server.once('listening', onListening);
+  server.listen(port, '127.0.0.1');
 }
-listen(PORT_FORCED ?? (INSTALLED ? savedPort() : 3500));
+listen(PORT_FORCED ?? (INSTALLED ? pickPort() : 3700));
 
 // An update of this file (a new dashboard from update/setup) must not leave the old code running: when server.mjs changes on disk the
 // dashboard starts itself again (same user and rights, same port) and ends. Checked every 5 s.

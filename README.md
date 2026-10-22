@@ -31,6 +31,7 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 
 ## Veçoritë profesionale
 - **Pasqyra:** hapësira që zë HR (programi, databaza, backup-et), CPU dhe RAM vetëm të sistemit HR (aplikacioni + databaza), sa kohë punon aplikacioni, backup-i i fundit me kontrollin OK / Dëmtuar. Kur aplikacioni është **Fikur** nuk matet çdo 3 sekonda (kontrollohet çdo 15 s).
+- **Download / Upload (HR):** sa të dhëna lexon (download) dhe shkruan (upload) vetëm sistemi HR (aplikacioni + databaza): shpejtësia tani, totali i sotëm dhe që nga ndezja. Windows nuk e jep rrjetin e një programi të vetëm pa mjete shtesë, prandaj matet leximi/shkrimi i proceseve HR.
 - **Historiku:** 200 veprimet e fundit (backup, përditësim, rikthim, probleme, kopje jashtë PC-së).
 - **Kopje jashtë PC-së** (Veprime): çdo backup kopjohet automatikisht te një folder i zgjedhur (disk i jashtëm, rrjet, folder cloud); kontrollohet çdo 5 minuta.
 - **Njoftime në telefon** (Veprime): ntfy.sh (emër teme) ose webhook; kur aplikacioni bie 1 minutë, backup/përditësim dështon, pak hapësirë, përditësim i kryer. Opsionale, fikur si parazgjedhje.

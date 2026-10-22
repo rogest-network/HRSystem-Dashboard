@@ -225,6 +225,7 @@ function withVersions(inst, list) {
   });
 }
 setInterval(() => { for (const inst of instances()) { if (inst.root) { try { recordVersion(inst); } catch { /* next time */ } } } }, 60000).unref();
+setInterval(() => { for (const inst of instances()) if (inst.root) procStats(inst).catch(() => {}); }, 20000).unref(); // keeps the totals of the day even when no page is open
 
 // ---- Jobs (update, SQL): run in the background, the page polls their output ----
 const jobs = new Map(); // instance id -> { title, state: 'running' | 'ok' | 'error', lines, started }
@@ -1032,7 +1033,7 @@ const procSeen = new Map();
 async function procStats(inst) {
   const c = procSeen.get(inst.id);
   if (c && Date.now() - c.at < 15000) return c.value;
-  let value = { appSince: null, cpu: 0, ram: 0, appRam: 0, dbRam: 0 };
+  let value = { appSince: null, cpu: 0, ram: 0, appRam: 0, dbRam: 0, io: null, readBps: 0, writeBps: 0, todayR: 0, todayW: 0, totalR: 0, totalW: 0 };
   try {
     let env = {}; try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
     const appPort = Number(env.PORT) || 3000, dbPort = Number(env.DB_PORT) || 3306;
@@ -1043,23 +1044,38 @@ async function procStats(inst) {
     const out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
       `$ErrorActionPreference='SilentlyContinue'; $cores=[Environment]::ProcessorCount; $appPid=${appPid}; $dbPid=${dbPid}; ` +
       `if ($appPid) { 'since|' + (Get-Process -Id $appPid).StartTime.ToUniversalTime().ToString('o') }; ` +
+      `foreach ($x in @($appPid, $dbPid)) { if ($x -gt 0) { $q = Get-CimInstance Win32_Process -Filter "ProcessId=$x"; if ($q) { 'io|' + $q.ReadTransferCount + '|' + $q.WriteTransferCount } } }; ` +
       `foreach ($pp in (Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.IDProcess -gt 0 -and $_.IDProcess -in @($appPid, $dbPid) })) { ($(if ($pp.IDProcess -eq $appPid) { 'app' } else { 'db' })) + '|' + $pp.PercentProcessorTime + '|' + $pp.WorkingSetPrivate }; "cores|$cores"`]);
-    let cores = 1, cpu = 0;
+    let cores = 1, cpu = 0, ioR = 0, ioW = 0;
     for (const l of out.split(/\r?\n/)) {
       const p = l.trim().split('|');
       if (p[0] === 'since') value.appSince = p[1];
       else if (p[0] === 'cores') cores = Number(p[1]) || 1;
+      else if (p[0] === 'io') { ioR += Number(p[1]) || 0; ioW += Number(p[2]) || 0; }
       else if (p[0] === 'app') { cpu += Number(p[1]) || 0; value.appRam = Number(p[2]) || 0; }
       else if (p[0] === 'db') { cpu += Number(p[1]) || 0; value.dbRam = Number(p[2]) || 0; }
     }
     value.cpu = Math.min(100, Math.round((cpu / cores) * 10) / 10); value.ram = value.appRam + value.dbRam;
+    // Data moved by the HR processes (reads and writes: the network, the database and the disk of the application and its MySQL), speed since the last look and the total of today.
+    const now = Date.now(), prev = c && c.value && c.value.io;
+    value.io = { t: now, r: ioR, w: ioW }; value.totalR = ioR; value.totalW = ioW;
+    if (prev && now > prev.t) {
+      const dr = ioR >= prev.r ? ioR - prev.r : ioR, dw = ioW >= prev.w ? ioW - prev.w : ioW, secs = Math.max(1, (now - prev.t) / 1000);
+      value.readBps = dr / secs; value.writeBps = dw / secs;
+      if (dr + dw > 0) {
+        const cur = readSettings(inst), day = new Date().toISOString().slice(0, 10);
+        const d = cur.ioDay && cur.ioDay.date === day ? cur.ioDay : { date: day, r: 0, w: 0 };
+        d.r = (d.r || 0) + dr; d.w = (d.w || 0) + dw; cur.ioDay = d; settingsWrite(inst, cur);
+      }
+    }
+    const dd = readSettings(inst).ioDay, same = dd && dd.date === new Date().toISOString().slice(0, 10); value.todayR = same ? dd.r || 0 : 0; value.todayW = same ? dd.w || 0 : 0;
   } catch { /* leave zeros */ }
   procSeen.set(inst.id, { at: Date.now(), value });
   return value;
 }
 async function systemOf(inst) {
-  const hr = inst.root ? await procStats(inst) : { appSince: null, cpu: 0, ram: 0, appRam: 0, dbRam: 0 };
-  return { cpu: hr.cpu, ram: hr.ram, appRam: hr.appRam, dbRam: hr.dbRam, memTotal: os.totalmem(), up: os.uptime(), appSince: hr.appSince, disk: { data: diskOf(inst.data || inst.root || '.'), root: inst.root ? diskOf(inst.root) : null } };
+  const hr = inst.root ? await procStats(inst) : { appSince: null, cpu: 0, ram: 0, appRam: 0, dbRam: 0, readBps: 0, writeBps: 0, todayR: 0, todayW: 0, totalR: 0, totalW: 0 };
+  return { readBps: Math.round(hr.readBps || 0), writeBps: Math.round(hr.writeBps || 0), todayR: Math.round(hr.todayR || 0), todayW: Math.round(hr.todayW || 0), totalR: Math.round(hr.totalR || 0), totalW: Math.round(hr.totalW || 0), cpu: hr.cpu, ram: hr.ram, appRam: hr.appRam, dbRam: hr.dbRam, memTotal: os.totalmem(), up: os.uptime(), appSince: hr.appSince, disk: { data: diskOf(inst.data || inst.root || '.'), root: inst.root ? diskOf(inst.root) : null } };
 }
 
 // ---- the sign-in password: optional, set from the settings (manager/dashboard.key; DASHBOARD_KEY in the environment cannot be changed here)

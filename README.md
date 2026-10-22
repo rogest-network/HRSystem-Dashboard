@@ -37,6 +37,7 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **Historiku:** 200 veprimet e fundit (backup, përditësim, rikthim, probleme, kopje jashtë PC-së).
 - **Kopje jashtë PC-së** (Veprime): çdo backup kopjohet automatikisht te një folder i zgjedhur (disk i jashtëm, rrjet, folder cloud); kontrollohet çdo 5 minuta.
 - **Njoftime në telefon** (Veprime): ntfy.sh (emër teme) ose webhook; kur aplikacioni bie 1 minutë, backup/përditësim dështon, pak hapësirë, përditësim i kryer. Opsionale, fikur si parazgjedhje.
+- **Qasja (Cilësimet → Shtesë):** hapësirë teksti sipas WCAG 1.4.12, butona dhe objekte 44 px (WCAG 2.5.8), ngjyra të sigurta për verbëri ngjyrash me simbole në çdo status (WCAG 1.4.1), fokus i fortë, mesazhe që qëndrojnë derisa i mbyll (WCAG 2.2.1), pauzë e përditësimit LIVE (WCAG 2.2.2) dhe shkrim deri në 150%. Mbështet edhe ngjyrat e detyruara të Windows.
 - **Fjalëkalimi** (Cilësimet, ingranazhi): opsional; ruhet te `manager\dashboard.key`; harrova = fshi atë skedar.
 - **Diagnostika** (faqja Log-u): një skedar .txt me gjendjen dhe fundin e log-eve, sekretet të fshehura.
 - Kur dashboard-i rindizet, faqja e hapur rifreskohet vetë një herë (pa "forbidden").

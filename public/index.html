@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HRSystem Dashboard</title>
-<script>(function(){try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.setAttribute('data-theme',d?'dark':'light');var z=localStorage.getItem('textsize');if(z==='1')r.classList.add('a11y-t1');if(z==='2')r.classList.add('a11y-t2');if(localStorage.getItem('contrast')==='1')r.classList.add('a11y-contrast');if(localStorage.getItem('motion')==='1')r.classList.add('a11y-motion');if(localStorage.getItem('font')==='1')r.classList.add('a11y-font');if(localStorage.getItem('links')==='1')r.classList.add('a11y-links');}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.setAttribute('data-theme',d?'dark':'light');var z=localStorage.getItem('textsize');if(z==='1')r.classList.add('a11y-t1');if(z==='2')r.classList.add('a11y-t2');if(z==='3')r.classList.add('a11y-t3');['spacing','targets','cb','focus'].forEach(function(k){if(localStorage.getItem(k)==='1')r.classList.add('a11y-'+k);});if(localStorage.getItem('contrast')==='1')r.classList.add('a11y-contrast');if(localStorage.getItem('motion')==='1')r.classList.add('a11y-motion');if(localStorage.getItem('font')==='1')r.classList.add('a11y-font');if(localStorage.getItem('links')==='1')r.classList.add('a11y-links');}catch(e){}})();</script>
 <style>
   :root {
     --bg:#f3f5f9; --card:#ffffff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --soft:#f1f5f9;
@@ -79,6 +79,7 @@
   .pill.ok { background:var(--okbg); color:var(--ok); } .pill.warn { background:var(--warnbg); color:var(--warn); } .pill.bad { background:var(--badbg); color:var(--bad); } .pill.mute { background:var(--soft); color:var(--muted); }
 
   .kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+  .stack { display:grid; gap:16px; align-content:start; min-width:0; } .stack > .card { margin-bottom:0; }
   .grid2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
   .grid3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
   @media (max-width:1280px) { .kpis { grid-template-columns:repeat(2, minmax(0,1fr)); } .grid3 { grid-template-columns:repeat(2, minmax(0,1fr)); } }
@@ -144,7 +145,22 @@
   /* --- accessibility (owner, 2026-10-22): theme, text size, contrast, motion, readable font, underlined links; strong focus ring */
   .skip { position:absolute; left:-9999px; top:8px; z-index:60; background:var(--accent); color:var(--accent-text); padding:8px 14px; border-radius:8px; }
   .skip:focus { left:12px; }
-  html.a11y-t1 body { zoom:1.15; } html.a11y-t2 body { zoom:1.3; }
+  html.a11y-t1 body { zoom:1.15; } html.a11y-t2 body { zoom:1.3; } html.a11y-t3 body { zoom:1.5; }
+  /* text spacing as in WCAG 1.4.12: line 1.5+, letters .12em, words .16em, paragraphs 2x */
+  html.a11y-spacing body, html.a11y-spacing button, html.a11y-spacing input, html.a11y-spacing select { line-height:1.7 !important; letter-spacing:.12em !important; word-spacing:.16em !important; }
+  html.a11y-spacing ul.guide li, html.a11y-spacing .card p, html.a11y-spacing .desc { margin-bottom:1em; }
+  /* targets of at least 44 px (WCAG 2.5.8 asks 24 px; 44 px is the comfortable size) */
+  html.a11y-targets button, html.a11y-targets select, html.a11y-targets .iconbtn, html.a11y-targets a.btn, html.a11y-targets label.opt, html.a11y-targets label.sw { min-height:44px; } html.a11y-targets .nav button { min-height:44px; } html.a11y-targets button.btn.sm, html.a11y-targets .iconbtn { min-width:44px; }
+  html.a11y-focus :focus-visible { outline:3px solid #f59e0b !important; outline-offset:3px !important; border-radius:4px; }
+  /* colour-blind safe: blue / orange / red-orange (never red-green) and a symbol in every status, so colour is not the only sign (WCAG 1.4.1) */
+  html.a11y-cb { --ok:#0b5c85; --okbg:#d6ebf5; --warn:#7a4300; --warnbg:#ffe3bd; --bad:#9c2a00; --badbg:#fbd6c8; }
+  html.a11y-cb[data-theme='dark'] { --ok:#7cc4ee; --okbg:#0c3350; --warn:#ffc56b; --warnbg:#4a2f06; --bad:#ff9a78; --badbg:#4d1a0b; }
+  html.a11y-cb .pill.ok::before, html.a11y-cb .pill.warn::before, html.a11y-cb .pill.bad::before { width:auto; height:auto; border-radius:0; background:none; font-weight:800; }
+  html.a11y-cb .pill.ok::before { content:'✓'; } html.a11y-cb .pill.warn::before { content:'!'; } html.a11y-cb .pill.bad::before { content:'✕'; }
+  html.a11y-cb .dot.on { background:#38bdf8; box-shadow:0 0 0 3px rgba(56,189,248,.2); } html.a11y-cb .dot.off { background:#fb923c; }
+  /* Windows forced colours and the system's own 'more contrast' */
+  @media (forced-colors: active) { .pill { border:1px solid CanvasText; } .nav button.on { outline:2px solid Highlight; } .card { border:1px solid CanvasText; } }
+  .toast { cursor:pointer; }
   html.a11y-contrast { --muted:#1e293b; --line:#475569; --ok:#065f46; --warn:#7c2d12; --bad:#991b1b; --accent:#3730a3; --text:#000; }
   html.a11y-contrast[data-theme='dark'] { --muted:#e2e8f0; --line:#94a3b8; --text:#fff; --ok:#6ee7b7; --warn:#fde68a; --bad:#fca5a5; --accent:#a5b4fc; }
   html.a11y-contrast .card, html.a11y-contrast .item, html.a11y-contrast .val, html.a11y-contrast button, html.a11y-contrast select { border-color:var(--text) !important; }
@@ -165,6 +181,7 @@
   .a11y-panel label.opt:has(input:checked) { border-color:var(--accent); background:var(--accent-soft); }
   .a11y-panel input[type=radio] { accent-color:var(--accent); }
   .a11y-panel .switches { display:grid; gap:10px; margin-bottom:14px; }
+  .a11y-panel details.extras { border:1px solid var(--line); border-radius:10px; padding:8px 12px; margin-bottom:14px; } .a11y-panel details.extras summary { cursor:pointer; font-weight:600; padding:4px 0; } .a11y-panel details.extras .switches { margin:10px 0 4px; }
   .progress { height:6px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:8px; }
   .progress i { display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .6s ease; }
   .progress.indet i { width:35%; animation:slide 1.3s infinite ease-in-out; }
@@ -198,6 +215,52 @@
     .nav { flex-direction:row; flex-wrap:wrap; } .nav button { width:auto; } .main { padding:16px; }
     .kpis, .grid2, .grid3 { grid-template-columns:1fr; }
   }
+  /* --- professional refresh (22.10.2026): a calmer navigation, a clear type scale, even spacing and consistent controls */
+  body { font-size:14px; font-variant-numeric:tabular-nums; letter-spacing:-.003em; }
+  .side { background:linear-gradient(180deg, var(--side) 0%, #0a1124 100%); border-right:1px solid rgba(255,255,255,.04); padding:20px 14px; gap:4px; }
+  .brand { padding:2px 8px 16px; margin-bottom:8px; border-bottom:1px solid var(--side-2); }
+  .logo { border-radius:10px; box-shadow:0 1px 0 rgba(255,255,255,.18) inset, 0 6px 14px rgba(67,56,202,.35); }
+  .inst { background:rgba(255,255,255,.04); border:1px solid var(--side-2); }
+  .nav { gap:1px; margin-top:4px; }
+  .nav button { position:relative; padding:9px 12px; border-radius:8px; font-weight:500; color:var(--side-text); transition:background .12s, color .12s; }
+  .nav button:hover { background:rgba(255,255,255,.06); color:#fff; }
+  .nav button.on { background:rgba(129,140,248,.16); color:#fff; font-weight:600; }
+  .nav button.on::before { content:""; position:absolute; left:-14px; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:#818cf8; }
+  .nav button.on svg { color:#a5b4fc; opacity:1; }
+  .nav .count { background:rgba(255,255,255,.1); }
+  .side .foot { border-top:1px solid var(--side-2); padding-top:12px; }
+  .side .foot button { border-radius:8px; padding:7px 10px; }
+  .main { padding:28px 36px 20px; }
+  .top { padding-bottom:16px; margin-bottom:20px; border-bottom:1px solid var(--line); align-items:center; }
+  .top h1 { font-size:22px !important; font-weight:650; letter-spacing:-.02em; line-height:1.2; }
+  .top p { font-size:13px; margin-top:4px; }
+  .card { padding:18px 20px; border-radius:12px; box-shadow:var(--shadow); }
+  .card h2 { font-size:11px; font-weight:600; letter-spacing:.09em; margin-bottom:14px; }
+  .kpi .v { font-size:22px !important; font-weight:600; letter-spacing:-.02em; gap:10px; }
+  .kpi .s { font-size:12.5px; line-height:1.45; margin-top:6px; }
+  button.btn { height:32px; padding:0 14px; display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:8px; font-size:13px; font-weight:500; box-shadow:0 1px 1px rgba(15,23,42,.1); transition:background .15s, border-color .15s, filter .15s; }
+  button.btn.sm { height:28px; padding:0 10px; font-size:12.5px; border-radius:7px; }
+  button.btn.ghost, button.btn.danger { box-shadow:none; }
+  .iconbtn { height:26px; border-radius:7px; padding:0 9px; }
+  .row { gap:8px; }
+  .pill { gap:6px; font-size:11.5px; font-weight:600; padding:2px 9px; }
+  .pill.ok::before, .pill.warn::before, .pill.bad::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  table.kv td { padding:11px 6px !important; font-size:13.5px; }
+  table.kv td.k { font-size:13px; }
+  table.kv tr:hover td { background:var(--soft); }
+  .val { border-radius:7px; font-size:12.5px; }
+  .act { gap:10px; }
+  .act .item { padding:12px 14px; border-radius:10px; }
+  .act .item b { font-size:13.5px; } .act .item span { font-size:12.5px; line-height:1.45; }
+  ul.list li { padding:12px 4px; }
+  .banner { border-radius:12px; }
+  .grid2, .grid3, .kpis { gap:16px; }
+  select { border-radius:8px; }
+  *::-webkit-scrollbar { width:10px; height:10px; } *::-webkit-scrollbar-track { background:transparent; }
+  *::-webkit-scrollbar-thumb { background:var(--line); border-radius:8px; border:2px solid var(--bg); } *::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+  .gear { border-radius:10px; box-shadow:var(--shadow); }
+  .toast { border-radius:10px; }
+  @media (max-width:980px) { .main { padding:18px 16px; } .nav button.on::before { display:none; } .top { margin-bottom:16px; } }
 </style>
 </head>
 <body>
@@ -235,7 +298,7 @@ const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch {
 // ---- Language of the whole dashboard (sq default, en, sr): [Albanian, English, Serbian]. Exact strings first, then longer fragments (so dynamic texts are translated too).
 const TR_LIST = [
   ["Pasqyra", "Overview", "Pregled"], ["Të dhënat", "Data", "Podaci"], ["Veprime", "Actions", "Akcije"], ["Backup-et", "Backups", "Backup-i"],
-  ["Ku është instaluar", "Where it is installed", "Gde je instalirano"], ["Log-u", "Log", "Log"], ["Rrugët e instalimit", "Installation paths", "Putanje instalacije"],
+  ["Vendndodhja", "Location", "Lokacija"], ["Log-u", "Log", "Log"], ["Rrugët e instalimit", "Installation paths", "Putanje instalacije"],
   ["Rifresko", "Refresh", "Osveži"], ["Çinstalo HRSystem...", "Uninstall HRSystem...", "Deinstaliraj HRSystem..."], ["Mbyll", "Close", "Zatvori"], ["Shiko log-un", "See the log", "Vidi log"],
   ["Hap aplikacionin", "Open the app", "Otvori aplikaciju"], ["Hap /developer", "Open /developer", "Otvori /developer"], ["Hap", "Open", "Otvori"],
   ["Ndaloj aplikacionin?", "Stop the application?", "Zaustaviti aplikaciju?"], ["Rinis aplikacionin?", "Restart the application?", "Restartovati aplikaciju?"],
@@ -263,19 +326,19 @@ const TR_LIST = [
   ["Cilësime të tjera (.env)", "Other settings (.env)", "Ostala podešavanja (.env)"], ["GitHub (vetëm-lexim, për përditësime)", "GitHub (read-only, for updates)", "GitHub (samo čitanje, za ažuriranja)"],
   ["nuk ka tunel të përhershëm", "no permanent tunnel", "nema stalnog tunela"],
   ["Gjithçka për këtë instalim: adresat, folderët, databaza, cilësimet dhe sekretet (.env, të fshehura si parazgjedhje).", "Everything about this installation: addresses, folders, database, settings and secrets (.env, hidden by default).", "Sve o ovoj instalaciji: adrese, fascikle, baza, podešavanja i tajne (.env, podrazumevano skrivene)."],
-  ["Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe harrohen pas 14 ditësh. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon çdo herë dhe punon sa punon procesi.", "Domains are found automatically when the app receives a request from the internet and are forgotten after 14 days. The temporary address is a quick Cloudflare tunnel (trycloudflare.com): it changes every time and works as long as the process runs.", "Domeni se otkrivaju sami kada aplikacija primi zahtev sa interneta i zaboravljaju se posle 14 dana. Privremena adresa je brzi Cloudflare tunel (trycloudflare.com): menja se svaki put i radi dok proces radi."],
+  ["Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe mbeten në listë derisa të shtypësh Hiq. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon sa herë krijohet dhe punon sa punon procesi.", "Domains are found automatically when the app receives a request from the internet and stay in the list until you press Remove. The temporary address is a quick Cloudflare tunnel (trycloudflare.com): it changes each time it is created and works as long as the process runs.", "Domeni se otkrivaju sami kada aplikacija primi zahtev sa interneta i ostaju na listi dok ne pritisneš Ukloni. Privremena adresa je brzi Cloudflare tunel (trycloudflare.com): menja se svaki put kada se napravi i radi dok proces radi."],
   ["Komanda për t'u lidhur me databazën nga terminali (fjalëkalimi kërkohet pasi ta ekzekutosh):", "Command to connect to the database from the terminal (the password is asked after you run it):", "Komanda za povezivanje sa bazom iz terminala (lozinka se traži nakon pokretanja):"],
   ["Përditëso", "Update", "Ažuriraj"], ["Përditësuar", "Up to date", "Ažurirano"], ["Përditësim, databazë, lidhje", "Update, database, connections", "Ažuriranje, baza, veze"], ["Përditësimi", "Update", "Ažuriranje"],
   ["Përditëso aplikacionin", "Update the application", "Ažuriraj aplikaciju"], ["Paneli /developer", "/developer panel", "/developer panel"], ["Branding, module, databazë. Hapet pa token.", "Branding, modules, database. Opens without a token.", "Branding, moduli, baza. Otvara se bez tokena."],
-  ["Ndalo, nise, rinis", "Stop, start, restart", "Zaustavi, pokreni, restartuj"], ["Detyra e aplikacionit në këtë PC.", "The application task on this PC.", "Zadatak aplikacije na ovom računaru."],
-  ["Backup tani", "Backup now", "Backup sada"], ["Kopje e databazës.", "A copy of the database.", "Kopija baze."], ["Automatik", "Automatic", "Automatski"],
-  ["Një orar i përbashkët: backup dhe përditësim nuk dyfishohen (përditësimi përfshin backup-in).", "One shared schedule: backup and update are not doubled (the update includes the backup).", "Jedan zajednički raspored: backup i ažuriranje se ne udvostručuju (ažuriranje uključuje backup)."],
+  ["Ndalo, nise, rinis", "Stop, start, restart", "Zaustavi, pokreni, restartuj"], ["Kontrollon aplikacionin në këtë kompjuter.", "The application task on this PC.", "Zadatak aplikacije na ovom računaru."],
+  ["Backup tani", "Backup now", "Backup sada"], ["Krijon një kopje të databazës.", "A copy of the database.", "Kopija baze."], ["Automatik", "Automatic", "Automatski"],
+  ["Një orar për të dyja. Kur ka përditësim, backup-i i databazës bëhet brenda tij, ndaj ruhet vetëm një herë.", "One schedule for both. When there is an update, the database backup is made inside it, so it is saved only once.", "Jedan raspored za oba. Kada postoji ažuriranje, backup baze se pravi u okviru njega, pa se čuva samo jednom."],
   ["Ora", "Hour", "Sat"], ["Mbaj", "Keep", "Čuvaj"], ["Backup i databazës", "Database backup", "Backup baze"], ["Përditëso programin", "Update the program", "Ažuriraj program"],
-  ["Nisja me Windows", "Start with Windows", "Pokretanje sa Windows-om"], ["Çfarë niset vetë kur ndizet kompjuteri. Ato që punojnë tani nuk ndalen.", "What starts by itself when the computer is switched on. What runs now is not stopped.", "Šta se pokreće samo kada se računar upali. Ono što sada radi se ne zaustavlja."],
-  ["Aktivizo të gjitha", "Enable all", "Uključi sve"], ["Ndalo të gjitha", "Stop all", "Zaustavi sve"], ["Ekzekuto SQL", "Run SQL", "Izvrši SQL"], ["Skedar .sql (backup para).", ".sql file (a backup first).", ".sql datoteka (prvo backup)."],
-  ["Importo databazën", "Import the database", "Uvezi bazu"], ["Zëvendëson databazën me një dump (backup automatik).", "Replaces the database with a dump (automatic backup).", "Zamenjuje bazu dump-om (automatski backup)."],
+  ["Nisja me Windows", "Start with Windows", "Pokretanje sa Windows-om"], ["Cilat pjesë niset automatikisht kur ndizet kompjuteri. Ato që punojnë tani nuk ndalen.", "What starts by itself when the computer is switched on. What runs now is not stopped.", "Šta se pokreće samo kada se računar upali. Ono što sada radi se ne zaustavlja."],
+  ["Aktivizo të gjitha", "Enable all", "Uključi sve"], ["Ndalo të gjitha", "Stop all", "Zaustavi sve"], ["Ekzekuto SQL", "Run SQL", "Izvrši SQL"], ["Ekzekuton një skedar .sql; para tij bëhet backup.", ".sql file (a backup first).", ".sql datoteka (prvo backup)."],
+  ["Importo databazën", "Import the database", "Uvezi bazu"], ["Zëvendëson databazën me një skedar dump; para tij bëhet backup automatik.", "Replaces the database with a dump (automatic backup).", "Zamenjuje bazu dump-om (automatski backup)."],
   ["Lidhjet", "Connections", "Veze"], ["Ndrysho tokenin GitHub...", "Change the GitHub token...", "Promeni GitHub token..."], ["Vendos tokenin GitHub...", "Set the GitHub token...", "Postavi GitHub token..."],
-  ["I vendosur (ruhet i enkriptuar).", "Set (stored encrypted).", "Postavljen (čuva se šifrovano)."], ["Mungon: pa të nuk bëhen përditësime.", "Missing: without it no updates are made.", "Nedostaje: bez njega nema ažuriranja."],
+  ["I vendosur (ruhet i enkriptuar).", "Set (stored encrypted).", "Postavljen (čuva se šifrovano)."], ["Mungon: pa token nuk merren përditësime.", "Missing: without it no updates are made.", "Nedostaje: bez njega nema ažuriranja."],
   ["Nuk është i lidhur.", "Not connected.", "Nije povezan."], ["I lidhur dhe punon.", "Connected and working.", "Povezan i radi."], ["Procesi punon por asnjë adresë nuk hapet.", "The process runs but no address opens.", "Proces radi ali nijedna adresa se ne otvara."],
   ["Shkarko", "Download", "Preuzmi"], ["Rikthe", "Restore", "Vrati"], ["Rikthej databazën nga ", "Restore the database from ", "Vratiti bazu iz "], ["Bëhet fillimisht një backup i gjendjes së tanishme; pastaj FSHIHEN të gjitha tabelat dhe ngarkohet ky backup.", "A backup of the current state is made first; then ALL tables are DELETED and this backup is loaded.", "Prvo se pravi backup trenutnog stanja; zatim se BRIŠU sve tabele i učitava se ovaj backup."], ["Rikthimi filloi...", "The restore started...", "Vraćanje je počelo..."], ["Fshi", "Delete", "Obriši"], ["Nuk ka backup ende.", "No backups yet.", "Još nema backup-a."],
   ["Veprimi i fundit", "Last action", "Poslednja akcija"], ["Asnjë veprim ende (përditësim, SQL, import, tunel).", "No action yet (update, SQL, import, tunnel).", "Još nema akcije (ažuriranje, SQL, uvoz, tunel)."],
@@ -296,8 +359,8 @@ const TR_LIST = [
   ["I fundit (", "Latest (", "Poslednja ("], ["kanali: ", "channel: ", "kanal: "], [" · porta ", " · port ", " · port "], [" skedar", " file(s)", " datoteka"],
   [" kopje (të fundit)", " copies", " kopija"], [" kopje", " copies", " kopija"], [" · gjithsej ", " · total ", " · ukupno "], [" · e fundit ", " · latest ", " · poslednji "],
   ["po vazhdon...", "in progress...", "u toku..."], ["SUKSES", "SUCCESS", "USPEH"], ["GABIM", "ERROR", "GREŠKA"], [" u krye", " done", " završeno"], [" dështoi", " failed", " nije uspelo"], [" · versioni ", " · version ", " · verzija "],
-  ["Ende pa ekzekutim.", "Not run yet.", "Još nije pokrenuto."], ["Hera e fundit: ", "Last time: ", "Poslednji put: "], ["backup u ruajt", "backup saved", "backup sačuvan"], ["përditësimi filloi", "update started", "ažuriranje je počelo"],
-  ["përditësim i kryer (me backup)", "update done (with backup)", "ažuriranje završeno (sa backup-om)"], ["përditësimi dështoi (shiko Log-un)", "update failed (see the Log)", "ažuriranje nije uspelo (vidi Log)"], ["Të dyja fikura. ", "Both are off. ", "Oba su isključena. "],
+  ["Ende nuk ka ekzekutim.", "Not run yet.", "Još nije pokrenuto."], ["Hera e fundit: ", "Last time: ", "Poslednji put: "], ["backup u ruajt", "backup saved", "backup sačuvan"], ["përditësimi filloi", "update started", "ažuriranje je počelo"],
+  ["përditësim i kryer (me backup)", "update done (with backup)", "ažuriranje završeno (sa backup-om)"], ["përditësimi dështoi (shiko Log-un)", "update failed (see the Log)", "ažuriranje nije uspelo (vidi Log)"], ["Të dyja janë të fikura. ", "Both are off. ", "Oba su isključena. "],
   ["Përditësimi filloi...", "The update started...", "Ažuriranje je počelo..."], ["Po bëhet backup...", "Making a backup...", "Pravi se backup..."], ["Backup u ruajt: ", "Backup saved: ", "Backup sačuvan: "],
   ["Bëj backup të databazës së ", "Make a backup of the database of ", "Napravi backup baze za "], [" tani?", " now?", " sada?"],
   ["Ndaloj nisjen automatike të të gjitha? Pas rinisjes së kompjuterit asgjë nuk niset vetë (ato që punojnë tani vazhdojnë).", "Stop automatic start of all? After the computer restarts nothing starts by itself (what runs now keeps running).", "Zaustaviti automatsko pokretanje svega? Posle restarta računara ništa se ne pokreće samo (ono što sada radi nastavlja)."],
@@ -381,7 +444,9 @@ let toastTimer = null;
 { const c = window.confirm.bind(window), q = window.prompt.bind(window); window.confirm = (m) => c(t(m)); window.prompt = (m, d) => q(t(m), d); }
 function toast(msg, err) {
   const tt = $('toast'); tt.textContent = t(msg); tt.className = 'toast show' + (err ? ' err' : '');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { tt.className = 'toast' + (err ? ' err' : ''); }, err ? 8000 : 4500);
+  clearTimeout(toastTimer);
+  tt.onclick = () => { tt.className = 'toast' + (err ? ' err' : ''); };
+  if (store.get('toastStay', '0') !== '1') toastTimer = setTimeout(() => { tt.className = 'toast' + (err ? ' err' : ''); }, err ? 8000 : 4500);
 }
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); }
@@ -389,42 +454,66 @@ async function copyText(text) {
   toast('U kopjua.');
 }
 
-// ---- How to use (Shqip default, English, Srpski): the guide of the dashboard
+// ---- How to use (Shqip default, English, Srpski): the full guide of the dashboard
 const HELP = {
   sq: {
-    name: 'Shqip', nav: 'Si ta përdorësh', title: 'Si ta përdorësh dashboard-in', sub: 'Udhëzues i shkurtër.',
+    name: 'Shqip', nav: 'Si ta përdorësh', title: 'Si ta përdorësh dashboard-in', sub: 'Udhëzuesi i plotë: çdo faqe dhe çdo veçori.',
     sections: [
-      ['Çfarë është', ['Dashboard-i menaxhon këtë instalim të HRSystem në këtë kompjuter: tregon gjendjen LIVE, bën backup, përditëson programin dhe të jep adresat dhe të dhënat.', 'Hapet me Dashboard.bat dhe punon vetëm në këtë PC (127.0.0.1), nuk del në internet.']],
-      ['Pasqyra', ['Tregon nëse aplikacioni është online, sa shpejt përgjigjet (ms), databazën, versionin dhe adresën.', 'Pika LIVE në menu pulson kur lidhja është e gjallë. Kur ka version të ri të programit, këtu del njoftimi me butonin "Përditëso tani".', 'Butonat lart: Hap aplikacionin, Hap /developer, Stop, Start, Restart.']],
-      ['Të dhënat', ['Adresat: lokale, domenet (zbulohen vetë kur hapet aplikacioni nga interneti), adresa e përkohshme (Krijo/Ndale) dhe tuneli Cloudflare (Shto, Ndrysho, Hiq).', 'Instalimi: versioni, repo, folderët, databaza, portat. Çelësat dhe fjalëkalimet janë të fshehura: shtyp Shfaq ose Kopjo.']],
-      ['Veprime', ['Përditëso aplikacionin: aktiv vetëm kur ka version të ri. Bën backup, pastaj build dhe migrimet; nëse dështon kthehet vetë te versioni i vjetër. Ndiqe me shiritin e progresit.', 'Automatik: zgjedh orën dhe sa backup të mbahen. Dy çelësa: Backup i databazës dhe Përditëso programin. Nëse ka version të ri bëhet përditësimi (ai fillon me backup: një backup, jo dy), përndryshe bëhet backup.', 'Nisja me Windows: çfarë niset vetë kur ndizet kompjuteri (aplikacioni + databaza, dashboard-i, tuneli). Aktivizo ose ndalo të gjitha.', 'Backup tani, Ekzekuto SQL (pas backup-it), Importo databazën (zëvendëson databazën me një dump), Token GitHub dhe Cloudflare Tunnel.']],
-      ['Backup-et', ['Emri është Emri-Data-Ora.sql (emri i databazës, data dhe ora). Janë vetëm databaza.', 'Për secilin: Shkarko, Hap (folderi) ose Fshi. Ruhen te folderi i të dhënave, nën Backups.']],
-      ['Dashboard-i përditësohet vetë', ['Çdo 10 minuta kontrollon repo-n e dashboard-it dhe merr ndryshimet. Pas përditësimit faqja rifreskohet një herë vetë. Nuk duhet bërë asgjë.']],
-      ['Probleme të zakonshme', ['Dashboard-i nuk hapet: hap Dashboard.bat (kërkon Administrator).', 'Aplikacioni del "Ndalur": shtyp Start te Veprime ose Pasqyra.', 'Pas rinisjes së dashboard-it faqja rifreskohet vetë; nëse del "forbidden", rifresko me F5.', 'Log-u i veprimit të fundit (përditësim, SQL, import) është te faqja Log-u.']],
+      ['Çfarë është', ['Dashboard-i menaxhon instalimin e HRSystem në këtë kompjuter: ndjek gjendjen LIVE, bën backup, përditëson dhe rikthen programin, jep adresat dhe të dhënat, dhe të njofton në telefon.', 'Hapet me Dashboard.bat dhe punon vetëm në këtë PC (127.0.0.1). Nuk është i arritshëm nga interneti.', 'Ingranazhi lart djathtas hap Cilësimet. Pika LIVE në menu tregon që lidhja është e gjallë.']],
+      ['Pasqyra', ['Aplikacioni: Online ose Fikur, me shpejtësinë në milisekonda. Kur është i fikur nuk matet vazhdimisht.', 'Databaza, Versioni (kur ka version të ri del njoftimi me "Përditëso tani") dhe Adresa publike.', 'Hapësira që zë HR: sa disk zë programi, databaza dhe backup-et, plus sa disk i lirë ka mbetur.', 'Sistemi HR: CPU dhe RAM vetëm të aplikacionit dhe databazës (jo të gjithë kompjuterit), dhe sa kohë punon aplikacioni.', 'Download / Upload (HR): sa të dhëna lexon dhe shkruan sistemi HR, me shpejtësinë tani, totalin e sotëm dhe totalin që nga ndezja.', 'Backup i fundit, me versionin e programit dhe shenjën OK ose Dëmtuar.', 'Butonat lart: Hap aplikacionin, Hap /developer, Stop, Start, Restart. Stop është aktiv vetëm kur aplikacioni punon, Start vetëm kur është i fikur.']],
+      ['Të dhënat', ['Adresat, instalimi (versioni, repo, folderët, databaza, portat) dhe cilësimet me sekretet (.env, token-at). Sekretet janë të fshehura: shtyp Shfaq ose Kopjo.', 'Komanda për t\'u lidhur me databazën nga terminali.']],
+      ['Adresat dhe tuneli', ['Adresat janë një listë e vetme: domenet që i mëson vetë aplikacioni dhe adresa e përkohshme janë njësoj adresa. Secila tregon nëse hapet.', 'Asnjë adresë nuk hiqet vetë, as kur nuk hapet. Heqet vetëm kur shtyp Hiq.', 'Ndrysho tani: zgjedh adresë të përkohshme (pa domen, krijohet menjëherë, por ndryshon sa herë krijohet përsëri) ose lidh domenin tënd me tunel Cloudflare (token). Mund ta heqësh edhe tunelin e domenit.', 'Adresa e përkohshme mbijeton rindezjes dhe përditësimit të dashboard-it.']],
+      ['Veprime: përditësimi dhe rikthimi i versionit', ['Përditëso aplikacionin: aktiv vetëm kur ka version të ri. Bën backup, instalon, ekzekuton migrimet SQL të versionit dhe kalon; nëse dështon, kthehet vetë te versioni i vjetër. Ndiqe me shiritin e progresit.', 'Rikthe një version: kthen kodin (formularët, dizajnin) te një version më i vjetër, nga versionet që janë në këtë PC (pa shkarkim) ose nga GitHub. "Rikthe + databazën" kthen edhe databazën e backup-it të atij versioni.', 'Pas rikthimit versioni ngjitet: përditësimi automatik dhe njoftimi injorojnë versionet deri te ai që kishte GitHub. Përditësimi vazhdon kur del një version më i ri, ose kur shtyp "Hiq ngjitjen".', 'Rikthimi i kodit nuk e ndryshon databazën; nëse versioni i vjetër e kërkon, përdor "Rikthe + databazën".']],
+      ['Veprime: backup dhe Automatik', ['Backup tani bën një kopje të databazës (vetëm databaza).', 'Automatik: një orar i vetëm për backup-in dhe përditësimin; zgjedh orën dhe sa backup të mbahen. Dy çelësa të pavarur: Backup i databazës dhe Përditëso programin.', 'Kur ka version të ri dhe përditësimi është i ndezur, bëhet përditësimi (ai fillon me backup), ndaj databaza ruhet një herë, jo dy. Përndryshe bëhet vetëm backup-i.', 'Fshihen vetëm backup-et e bëra nga ky orar. Ato që bën ti, ato të përditësimit dhe ato të sigurisë para rikthimit nuk fshihen kurrë.', 'Ekzekuto SQL (me backup para) dhe Importo databazën (zëvendëson databazën me një dump, me backup automatik para).']],
+      ['Veprime: nisja me Windows dhe vetëndezja', ['Nisja me Windows: cilat pjesë niset vetë kur ndizet kompjuteri: aplikacioni + databaza, dashboard-i, tuneli.', 'Kur aplikacioni bie vetë (jo me Stop) dhe çelësi i aplikacionit është i ndezur, dashboard-i e ndez përsëri pas 1 minute dhe të njofton.', 'Nëse e ndal me butonin Stop, ose çelësi është i fikur, nuk ndizet vetë; ndizet vetëm kur shtyp Start.']],
+      ['Veprime: kopje jashtë PC-së', ['Zgjidh një folder (disk i jashtëm, folder rrjeti ose folder cloud, p.sh. OneDrive). Çdo backup kopjohet aty automatikisht; kontrollohet çdo 5 minuta.', 'Kopjo tani kopjon çdo backup që mungon. Nëse kopja dështon, të vjen njoftim. Kështu backup-et mbeten edhe nëse prishet ky PC.']],
+      ['Veprime: njoftime në telefon (ntfy)', ['1) Instalo aplikacionin falas ntfy në telefon. 2) Shtyp + dhe abonohu te një emër teme që e zgjedh ti (i gjatë dhe i fshehtë, p.sh. hrsystem-dyqan-k7x2). 3) Te Veprime shtyp Vendos temën dhe shkruaj saktësisht të njëjtin emër. 4) Shtyp Dërgo provë.', 'Njoftimi vjen kur: aplikacioni u ndal, u ndez ose u rindez manualisht; u mbyll vetë (pas 1 minute) ose u ndez vetë; backup-i ose përditësimi dështon; përditësimi kryhet; kopja jashtë PC-së dështon; ka pak hapësirë në disk.', 'Emri i temës është si fjalëkalim: mos e ndaj. Mesazhet nuk kanë të dhëna personale.']],
+      ['Veprime: lidhjet', ['Token GitHub (vetëm-lexim) për të marrë përditësime, ruhet i enkriptuar. Cloudflare Tunnel për adresën publike.']],
+      ['Backup-et', ['Emri është Emri-Data-Ora.sql. Çdo backup tregon versionin e programit që punonte kur u bë dhe kontrollin OK ose Dëmtuar (skedar i plotë ose jo).', 'Shkarko, Rikthe, Hap (folderi), Fshi. Rikthe bën para një backup të gjendjes së tanishme, pastaj zëvendëson databazën me atë backup.', 'Backup-i ruan vetëm databazën. Programi (kodi, formularët) vjen nga GitHub dhe nga versionet në këtë PC.']],
+      ['Historiku dhe diagnostika', ['Historiku: 200 veprimet e fundit (backup, përditësime, rikthime, ndalime, probleme, kopje jashtë PC-së).', 'Log-u: rezultati i veprimit të fundit. Shkarko diagnostikën jep një skedar .txt me gjendjen dhe fundin e log-eve (sekretet janë të fshehura), për t\'ia dërguar dikujt kur ka problem.']],
+      ['Cilësimet (ingranazhi)', ['Gjuha e gjithë dashboard-it: Shqip, English ose Srpski. Tema: Sistemi, Drita ose Errët. Madhësia e shkrimit, kontrast i lartë, pa animacione, shkrim i lexueshëm, lidhje me nënvizim.', 'Fjalëkalimi i dashboard-it është opsional: vendose nëse kompjuteri përdoret nga disa persona. Harrove? Fshi skedarin manager\\dashboard.key.']],
+      ['Dashboard-i përditësohet vetë', ['Çdo 10 minuta kontrollon repo-n e dashboard-it dhe merr ndryshimet; pas përditësimit faqja rifreskohet një herë. Kur dashboard-i rindizet, faqja e hapur rifreskohet vetë (nuk del "forbidden").']],
+      ['Probleme të zakonshme', ['Dashboard-i nuk hapet: hap Dashboard.bat (kërkon Administrator).', 'Aplikacioni del Fikur: shtyp Start. Nëse kishte rënë vetë, shih Historikun.', 'Kalendari ose faqja nuk ngarkon në telefon: shih diagnostikën e rrjetit te aplikacioni.', 'Nuk të vijnë njoftimet: kontrollo që emri i temës është i njëjtë në telefon dhe në dashboard, pastaj Dërgo provë.']],
     ],
   },
   en: {
-    name: 'English', nav: 'How to use', title: 'How to use the dashboard', sub: 'A short guide.',
+    name: 'English', nav: 'How to use', title: 'How to use the dashboard', sub: 'The complete guide: every page and every feature.',
     sections: [
-      ['What it is', ['The dashboard manages this HRSystem installation on this computer: it shows the LIVE status, makes backups, updates the program and gives you the addresses and data.', 'It opens with Dashboard.bat and works only on this PC (127.0.0.1); it is not reachable from the internet.']],
-      ['Overview', ['Shows whether the application is online, how fast it answers (ms), the database, the version and the address.', 'The LIVE dot in the menu pulses while the connection is alive. When a new version of the program exists, a notice with an "Update now" style button appears here.', 'Buttons at the top: Open the app, Open /developer, Stop, Start, Restart.']],
-      ['Data', ['Addresses: local, domains (found automatically when the app is opened from the internet), the temporary address (Create/Stop) and the Cloudflare tunnel (Add, Change, Remove).', 'Installation: version, repo, folders, database, ports. Keys and passwords are hidden: press Show or Copy.']],
-      ['Actions', ['Update the application: active only when a new version exists. It makes a backup, then builds and runs the migrations; if it fails it goes back to the old version by itself. Follow it with the progress bar.', 'Automatic: choose the hour and how many backups to keep. Two switches: Database backup and Update the program. If there is a new version the update runs (it starts with a backup: one backup, not two); otherwise a backup is made.', 'Start with Windows: what starts by itself when the computer is switched on (application + database, dashboard, tunnel). Enable or stop all.', 'Backup now, Run SQL (after a backup), Import the database (replaces the database with a dump), GitHub token and Cloudflare Tunnel.']],
-      ['Backups', ['The name is Name-Date-Time.sql (database name, date and time). Database only.', 'For each one: Download, Open (folder) or Delete. They live in the data folder, under Backups.']],
-      ['The dashboard updates itself', ['Every 10 minutes it checks the dashboard repo and takes the changes. After an update the page reloads once by itself. Nothing to do.']],
-      ['Common problems', ['The dashboard does not open: run Dashboard.bat (needs Administrator).', 'The application shows "Stopped": press Start in Actions or Overview.', 'After the dashboard restarts the page reloads by itself; if you see "forbidden", press F5.', 'The log of the last action (update, SQL, import) is on the Log page.']],
+      ['What it is', ['The dashboard manages the HRSystem installation on this computer: it follows the LIVE status, makes backups, updates and rolls back the program, gives you the addresses and data, and notifies your phone.', 'It opens with Dashboard.bat and works only on this PC (127.0.0.1). It is not reachable from the internet.', 'The gear at the top right opens Settings. The LIVE dot in the menu shows that the connection is alive.']],
+      ['Overview', ['Application: Online or Off, with the answer time in milliseconds. While it is off it is not measured continuously.', 'Database, Version (a "Update now" notice appears when a new version exists) and the public Address.', 'Space used by HR: how much disk the program, the database and the backups use, plus the free disk left.', 'HR system: CPU and RAM of the application and its database only (not of the whole computer), and how long the application has been running.', 'Download / Upload (HR): how much data the HR system reads and writes, with the speed now, today\'s total and the total since it started.', 'Latest backup, with the program version and the OK or Damaged mark.', 'Buttons at the top: Open the app, Open /developer, Stop, Start, Restart. Stop is active only while the application runs, Start only while it is off.']],
+      ['Data', ['The addresses, the installation (version, repo, folders, database, ports) and the settings with the secrets (.env, tokens). Secrets are hidden: press Show or Copy.', 'The command to connect to the database from the terminal.']],
+      ['Addresses and the tunnel', ['The addresses are one list: the domains that the application learns by itself and the temporary address are all just addresses. Each one shows whether it opens.', 'No address is removed by itself, not even when it does not open. It is removed only when you press Remove.', 'Change now: choose a temporary address (no domain, created at once, but it changes each time it is created again) or connect your own domain with a Cloudflare tunnel (token). You can also remove the domain tunnel.', 'The temporary address survives the restart and the update of the dashboard.']],
+      ['Actions: update and version rollback', ['Update the application: active only when a new version exists. It makes a backup, installs, runs the SQL migrations of the version and switches; if it fails it goes back to the old version by itself. Follow it with the progress bar.', 'Go back to a version: puts the code (forms, design) back to an older version, from the versions on this PC (no download) or from GitHub. "Restore + database" also restores the database of that version\'s backup.', 'After a rollback the version is pinned: the automatic update and the notice ignore the versions up to the one GitHub had. The update resumes when a newer version appears, or when you press "Remove the pin".', 'Rolling the code back does not change the database; if the old version needs it, use "Restore + database".']],
+      ['Actions: backup and Automatic', ['Backup now makes a copy of the database (database only).', 'Automatic: one schedule for the backup and the update; choose the hour and how many backups to keep. Two independent switches: Database backup and Update the program.', 'When a new version exists and the update is on, the update runs (it starts with a backup), so the database is saved once, not twice. Otherwise only the backup is made.', 'Only the backups made by this schedule are deleted. The ones you make, the update\'s and the safety backups before a restore are never deleted.', 'Run SQL (after a backup) and Import the database (replaces the database with a dump, after an automatic backup).']],
+      ['Actions: start with Windows and self-start', ['Start with Windows: which parts start by themselves when the computer is switched on: application + database, the dashboard, the tunnel.', 'When the application falls by itself (not with Stop) and the application switch is on, the dashboard starts it again after 1 minute and notifies you.', 'If you stop it with the Stop button, or the switch is off, it does not start by itself; it starts only when you press Start.']],
+      ['Actions: copy outside this PC', ['Choose a folder (an external disk, a network folder or a cloud folder such as OneDrive). Every backup is copied there automatically; it is checked every 5 minutes.', 'Copy now copies every backup that is missing. If the copy fails you are notified. This way the backups survive even if this PC breaks.']],
+      ['Actions: phone notifications (ntfy)', ['1) Install the free ntfy app on your phone. 2) Press + and subscribe to a topic name that you choose (long and secret, e.g. hrsystem-shop-k7x2). 3) In Actions press Set the topic and type exactly the same name. 4) Press Send a test.', 'A notification arrives when: the application was stopped, started or restarted manually; it closed by itself (after 1 minute) or started by itself; a backup or update fails; an update completes; the copy outside this PC fails; the disk is nearly full.', 'The topic name is like a password: do not share it. Messages contain no personal data.']],
+      ['Actions: connections', ['GitHub token (read-only) to receive updates, stored encrypted. Cloudflare Tunnel for the public address.']],
+      ['Backups', ['The name is Name-Date-Time.sql. Each backup shows the program version that was running when it was made and the OK or Damaged check (a complete file or not).', 'Download, Restore, Open (folder), Delete. Restore first makes a backup of the current state, then replaces the database with that backup.', 'A backup holds only the database. The program (code, forms) comes from GitHub and from the versions on this PC.']],
+      ['History and diagnostics', ['History: the last 200 actions (backups, updates, rollbacks, stops, problems, copies outside this PC).', 'Log: the result of the last action. Download diagnostics gives a .txt file with the state and the end of the logs (secrets hidden), to send to someone when there is a problem.']],
+      ['Settings (the gear)', ['The language of the whole dashboard: Shqip, English or Srpski. Theme: System, Light or Dark. Text size, high contrast, no animations, readable font, underlined links.', 'The dashboard password is optional: set it if several people use the computer. Forgot it? Delete the file manager\\dashboard.key.']],
+      ['The dashboard updates itself', ['Every 10 minutes it checks the dashboard repo and takes the changes; after an update the page reloads once. When the dashboard restarts, an open page reloads by itself (no "forbidden").']],
+      ['Common problems', ['The dashboard does not open: run Dashboard.bat (needs Administrator).', 'The application shows Off: press Start. If it fell by itself, see the History.', 'The page does not load on the phone: see the network diagnostics in the application.', 'Notifications do not arrive: check that the topic name is the same on the phone and in the dashboard, then Send a test.']],
     ],
   },
   sr: {
-    name: 'Srpski', nav: 'Kako koristiti', title: 'Kako koristiti dashboard', sub: 'Kratko uputstvo.',
+    name: 'Srpski', nav: 'Kako koristiti', title: 'Kako koristiti dashboard', sub: 'Potpuno uputstvo: svaka stranica i svaka funkcija.',
     sections: [
-      ['Šta je ovo', ['Dashboard upravlja ovom instalacijom HRSystem-a na ovom računaru: prikazuje LIVE stanje, pravi rezervne kopije (backup), ažurira program i daje adrese i podatke.', 'Otvara se pomoću Dashboard.bat i radi samo na ovom računaru (127.0.0.1); nije dostupan sa interneta.']],
-      ['Pregled', ['Prikazuje da li je aplikacija online, koliko brzo odgovara (ms), bazu podataka, verziju i adresu.', 'LIVE tačka u meniju pulsira dok je veza živa. Kada postoji nova verzija programa, ovde se pojavljuje obaveštenje sa dugmetom za ažuriranje.', 'Dugmad na vrhu: Otvori aplikaciju, Otvori /developer, Stop, Start, Restart.']],
-      ['Podaci', ['Adrese: lokalna, domeni (otkrivaju se sami kada se aplikacija otvori sa interneta), privremena adresa (Napravi/Zaustavi) i Cloudflare tunel (Dodaj, Promeni, Ukloni).', 'Instalacija: verzija, repozitorijum, fascikle, baza, portovi. Ključevi i lozinke su skriveni: pritisni Prikaži ili Kopiraj.']],
-      ['Akcije', ['Ažuriraj aplikaciju: aktivno samo kada postoji nova verzija. Pravi backup, zatim build i migracije; ako ne uspe, sama se vraća na staru verziju. Prati je na traci napretka.', 'Automatski: izaberi sat i koliko backup-a da se čuva. Dva prekidača: Backup baze i Ažuriraj program. Ako postoji nova verzija radi se ažuriranje (počinje backup-om: jedan backup, ne dva); inače se pravi backup.', 'Pokretanje sa Windows-om: šta se pokreće samo kada se računar upali (aplikacija + baza, dashboard, tunel). Uključi ili zaustavi sve.', 'Backup sada, Izvrši SQL (posle backup-a), Uvezi bazu (zamenjuje bazu dump-om), GitHub token i Cloudflare Tunnel.']],
-      ['Backup-i', ['Naziv je Ime-Datum-Vreme.sql (ime baze, datum i vreme). Samo baza podataka.', 'Za svaki: Preuzmi, Otvori (fascikla) ili Obriši. Čuvaju se u fascikli sa podacima, u Backups.']],
-      ['Dashboard se ažurira sam', ['Na svakih 10 minuta proverava repozitorijum dashboard-a i preuzima izmene. Posle ažuriranja stranica se sama osveži jednom. Ništa ne treba raditi.']],
-      ['Česti problemi', ['Dashboard se ne otvara: pokreni Dashboard.bat (traži administratora).', 'Aplikacija prikazuje „Zaustavljeno": pritisni Start u Akcijama ili Pregledu.', 'Posle restarta dashboard-a stranica se sama osveži; ako vidiš „forbidden", pritisni F5.', 'Dnevnik poslednje akcije (ažuriranje, SQL, uvoz) nalazi se na stranici Log.']],
+      ['Šta je ovo', ['Dashboard upravlja HRSystem instalacijom na ovom računaru: prati LIVE stanje, pravi backup, ažurira i vraća program, daje adrese i podatke, i šalje obaveštenja na telefon.', 'Otvara se pomoću Dashboard.bat i radi samo na ovom računaru (127.0.0.1). Nije dostupan sa interneta.', 'Zupčanik gore desno otvara Podešavanja. LIVE tačka u meniju pokazuje da je veza živa.']],
+      ['Pregled', ['Aplikacija: Online ili Isključeno, sa vremenom odgovora u milisekundama. Dok je isključena ne meri se stalno.', 'Baza, Verzija (kada postoji nova verzija pojavljuje se obaveštenje "Ažuriraj sada") i javna Adresa.', 'Prostor koji zauzima HR: koliko diska zauzimaju program, baza i backup-i, plus koliko je slobodnog diska ostalo.', 'HR sistem: CPU i RAM samo aplikacije i njene baze (ne celog računara), i koliko dugo aplikacija radi.', 'Download / Upload (HR): koliko podataka HR sistem čita i piše, sa brzinom sada, današnjim ukupnim iznosom i ukupnim od pokretanja.', 'Poslednji backup, sa verzijom programa i oznakom OK ili Oštećen.', 'Dugmad gore: Otvori aplikaciju, Otvori /developer, Stop, Start, Restart. Stop je aktivan samo dok aplikacija radi, Start samo dok je isključena.']],
+      ['Podaci', ['Adrese, instalacija (verzija, repozitorijum, fascikle, baza, portovi) i podešavanja sa tajnama (.env, tokeni). Tajne su skrivene: pritisni Prikaži ili Kopiraj.', 'Komanda za povezivanje sa bazom iz terminala.']],
+      ['Adrese i tunel', ['Adrese su jedna lista: domeni koje aplikacija sama otkrije i privremena adresa su sve samo adrese. Svaka pokazuje da li se otvara.', 'Nijedna adresa se ne uklanja sama, čak ni kada se ne otvara. Uklanja se samo kada pritisneš Ukloni.', 'Promeni sada: izaberi privremenu adresu (bez domena, pravi se odmah, ali se menja svaki put kada se ponovo napravi) ili poveži svoj domen sa Cloudflare tunelom (token). Možeš ukloniti i tunel domena.', 'Privremena adresa preživljava restart i ažuriranje dashboard-a.']],
+      ['Akcije: ažuriranje i vraćanje verzije', ['Ažuriraj aplikaciju: aktivno samo kada postoji nova verzija. Pravi backup, instalira, izvršava SQL migracije verzije i prelazi; ako ne uspe, sama se vraća na staru verziju. Prati je na traci napretka.', 'Vrati verziju: vraća kod (obrasce, dizajn) na stariju verziju, sa verzija na ovom računaru (bez preuzimanja) ili sa GitHub-a. "Vrati + bazu" vraća i bazu iz backup-a te verzije.', 'Posle vraćanja verzija se zakiva: automatsko ažuriranje i obaveštenje ignorišu verzije do one koju je GitHub imao. Ažuriranje se nastavlja kada se pojavi novija verzija ili kada pritisneš "Ukloni zakivanje".', 'Vraćanje koda ne menja bazu; ako je stara verzija zahteva, koristi "Vrati + bazu".']],
+      ['Akcije: backup i Automatski', ['Backup sada pravi kopiju baze (samo baza).', 'Automatski: jedan raspored za backup i ažuriranje; izaberi sat i koliko backup-a da se čuva. Dva nezavisna prekidača: Backup baze i Ažuriraj program.', 'Kada postoji nova verzija i ažuriranje je uključeno, radi se ažuriranje (počinje backup-om), pa se baza čuva jednom, ne dvaput. Inače se pravi samo backup.', 'Brišu se samo backup-i koje je napravio ovaj raspored. Oni koje praviš ti, oni ažuriranja i sigurnosni backup-i pre vraćanja nikada se ne brišu.', 'Izvrši SQL (posle backup-a) i Uvezi bazu (zamenjuje bazu dump-om, posle automatskog backup-a).']],
+      ['Akcije: pokretanje sa Windows-om i samopokretanje', ['Pokretanje sa Windows-om: koji se delovi pokreću sami kada se računar upali: aplikacija + baza, dashboard, tunel.', 'Kada aplikacija padne sama (ne pomoću Stop) i prekidač aplikacije je uključen, dashboard je ponovo pokreće posle 1 minuta i obaveštava te.', 'Ako je zaustaviš dugmetom Stop, ili je prekidač isključen, ne pokreće se sama; pokreće se samo kada pritisneš Start.']],
+      ['Akcije: kopija van ovog računara', ['Izaberi fasciklu (spoljni disk, mrežna fascikla ili cloud fascikla kao OneDrive). Svaki backup se tamo automatski kopira; proverava se na svakih 5 minuta.', 'Kopiraj sada kopira svaki backup koji nedostaje. Ako kopiranje ne uspe, dobijaš obaveštenje. Tako backup-i ostaju čak i ako se ovaj računar pokvari.']],
+      ['Akcije: obaveštenja na telefonu (ntfy)', ['1) Instaliraj besplatnu ntfy aplikaciju na telefon. 2) Pritisni + i pretplati se na ime teme koje ti izabereš (dugo i tajno, npr. hrsystem-prodavnica-k7x2). 3) U Akcijama pritisni Postavi temu i upiši potpuno isto ime. 4) Pritisni Pošalji probu.', 'Obaveštenje stiže kada: je aplikacija zaustavljena, pokrenuta ili restartovana ručno; se zatvorila sama (posle 1 minuta) ili se pokrenula sama; backup ili ažuriranje ne uspe; ažuriranje se završi; kopija van računara ne uspe; disk je skoro pun.', 'Ime teme je kao lozinka: ne deli ga. Poruke ne sadrže lične podatke.']],
+      ['Akcije: veze', ['GitHub token (samo čitanje) za primanje ažuriranja, čuva se šifrovano. Cloudflare Tunnel za javnu adresu.']],
+      ['Backup-i', ['Naziv je Ime-Datum-Vreme.sql. Svaki backup pokazuje verziju programa koja je radila kada je napravljen i proveru OK ili Oštećen (potpuna datoteka ili ne).', 'Preuzmi, Vrati, Otvori (fascikla), Obriši. Vrati prvo pravi backup trenutnog stanja, zatim zamenjuje bazu tim backup-om.', 'Backup čuva samo bazu. Program (kod, obrasci) dolazi sa GitHub-a i iz verzija na ovom računaru.']],
+      ['Istorija i dijagnostika', ['Istorija: poslednjih 200 akcija (backup-i, ažuriranja, vraćanja, zaustavljanja, problemi, kopije van računara).', 'Log: rezultat poslednje akcije. Preuzmi dijagnostiku daje .txt datoteku sa stanjem i krajem log-ova (tajne su skrivene), da je pošalješ nekome kada ima problema.']],
+      ['Podešavanja (zupčanik)', ['Jezik celog dashboard-a: Shqip, English ili Srpski. Tema: Sistem, Svetla ili Tamna. Veličina teksta, visok kontrast, bez animacija, čitljiv font, podvučeni linkovi.', 'Lozinka dashboard-a je opciona: postavi je ako računar koristi više osoba. Zaboravljena? Obriši datoteku manager\\dashboard.key.']],
+      ['Dashboard se ažurira sam', ['Na svakih 10 minuta proverava repozitorijum dashboard-a i preuzima izmene; posle ažuriranja stranica se osveži jednom. Kada se dashboard restartuje, otvorena stranica se sama osveži (ne pojavljuje se "forbidden").']],
+      ['Česti problemi', ['Dashboard se ne otvara: pokreni Dashboard.bat (traži administratora).', 'Aplikacija prikazuje Isključeno: pritisni Start. Ako je pala sama, pogledaj Istoriju.', 'Stranica se ne učitava na telefonu: pogledaj mrežnu dijagnostiku u aplikaciji.', 'Obaveštenja ne stižu: proveri da je ime teme isto na telefonu i u dashboard-u, zatim Pošalji probu.']],
     ],
   },
 };
@@ -433,9 +522,9 @@ const helpLang = () => { const l = store.get('lang', 'sq'); return HELP[l] ? l :
 
 // ---- Appearance and accessibility: the choices live in localStorage; <html> carries them as data-theme and a11y-* classes (also set by a tiny script in <head> so nothing flashes).
 const A11Y = {
-  sq: { open: 'Cilësimet', title: 'Cilësimet', lang: 'Gjuha', theme: 'Tema', system: 'Sistemi', light: 'Drita', dark: 'Errët', size: 'Madhësia e shkrimit', s0: 'Normale', s1: 'Më e madhe', s2: 'Shumë e madhe', contrast: 'Kontrast i lartë', motion: 'Pa animacione', font: 'Shkrim i lexueshëm (jo monospace)', links: 'Lidhjet me nënvizim', reset: 'Rivendos', close: 'Mbyll', skip: 'Kalo te përmbajtja' },
-  en: { open: 'Settings', title: 'Settings', lang: 'Language', theme: 'Theme', system: 'System', light: 'Light', dark: 'Dark', size: 'Text size', s0: 'Normal', s1: 'Larger', s2: 'Largest', contrast: 'High contrast', motion: 'No animations', font: 'Readable font (not monospace)', links: 'Underline links', reset: 'Reset', close: 'Close', skip: 'Skip to content' },
-  sr: { open: 'Podešavanja', title: 'Podešavanja', lang: 'Jezik', theme: 'Tema', system: 'Sistem', light: 'Svetla', dark: 'Tamna', size: 'Veličina teksta', s0: 'Normalna', s1: 'Veća', s2: 'Najveća', contrast: 'Visok kontrast', motion: 'Bez animacija', font: 'Čitljiv font (ne monospace)', links: 'Podvuci linkove', reset: 'Vrati', close: 'Zatvori', skip: 'Idi na sadržaj' },
+  sq: { open: 'Cilësimet', title: 'Cilësimet', lang: 'Gjuha', theme: 'Tema', system: 'Sistemi', light: 'Drita', dark: 'Errët', size: 'Madhësia e shkrimit', s0: 'Normale', s1: 'Më e madhe', s2: 'Shumë e madhe', contrast: 'Kontrast i lartë', motion: 'Pa animacione', font: 'Shkrim i lexueshëm (jo monospace)', links: 'Lidhjet me nënvizim', extra: 'Shtesë', s3: 'Maksimale', spacing: 'Hapësirë më e madhe mes rreshtave dhe shkronjave', targets: 'Butona dhe objekte më të mëdha për klikim', cb: 'Ngjyra të sigurta për verbëri ngjyrash (me simbole)', focus: 'Fokus më i dukshëm te tastiera', pause: 'Ndalo përditësimin automatik (LIVE)', toastStay: 'Mesazhet qëndrojnë derisa t\'i mbyll', reset: 'Rivendos', close: 'Mbyll', skip: 'Kalo te përmbajtja' },
+  en: { open: 'Settings', title: 'Settings', lang: 'Language', theme: 'Theme', system: 'System', light: 'Light', dark: 'Dark', size: 'Text size', s0: 'Normal', s1: 'Larger', s2: 'Largest', contrast: 'High contrast', motion: 'No animations', font: 'Readable font (not monospace)', links: 'Underline links', extra: 'Extras', s3: 'Maximum', spacing: 'More space between lines and letters', targets: 'Larger buttons and click targets', cb: 'Colour-blind safe colours (with symbols)', focus: 'Stronger keyboard focus', pause: 'Pause automatic updates (LIVE)', toastStay: 'Messages stay until I close them', reset: 'Reset', close: 'Close', skip: 'Skip to content' },
+  sr: { open: 'Podešavanja', title: 'Podešavanja', lang: 'Jezik', theme: 'Tema', system: 'Sistem', light: 'Svetla', dark: 'Tamna', size: 'Veličina teksta', s0: 'Normalna', s1: 'Veća', s2: 'Najveća', contrast: 'Visok kontrast', motion: 'Bez animacija', font: 'Čitljiv font (ne monospace)', links: 'Podvuci linkove', extra: 'Dodatno', s3: 'Maksimalna', spacing: 'Veći razmak između redova i slova', targets: 'Veća dugmad i ciljevi za klik', cb: 'Boje bezbedne za daltonizam (sa simbolima)', focus: 'Jači fokus tastature', pause: 'Pauziraj automatsko ažuriranje (LIVE)', toastStay: 'Poruke ostaju dok ih ne zatvorim', reset: 'Vrati', close: 'Zatvori', skip: 'Idi na sadržaj' },
 };
 const prefs = {
   get theme() { return store.get('theme', 'system'); }, set theme(v) { store.set('theme', v); },
@@ -445,7 +534,8 @@ function applyPrefs() {
   const th = store.get('theme', 'system');
   r.setAttribute('data-theme', th === 'dark' || (th === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
   const z = store.get('textsize', '0');
-  r.classList.toggle('a11y-t1', z === '1'); r.classList.toggle('a11y-t2', z === '2');
+  r.classList.toggle('a11y-t1', z === '1'); r.classList.toggle('a11y-t2', z === '2'); r.classList.toggle('a11y-t3', z === '3');
+  for (const k of ['spacing', 'targets', 'cb', 'focus']) r.classList.toggle('a11y-' + k, store.get(k, '0') === '1');
   r.classList.toggle('a11y-contrast', store.get('contrast', '0') === '1');
   r.classList.toggle('a11y-motion', store.get('motion', '0') === '1');
   r.classList.toggle('a11y-font', store.get('font', '0') === '1');
@@ -467,7 +557,7 @@ function openA11y() {
   })));
   const sw = (label, key) => { const input = el('input', { type: 'checkbox' }); input.checked = store.get(key, '0') === '1'; input.onchange = () => { store.set(key, input.checked ? '1' : '0'); applyPrefs(); }; return el('label', { class: 'sw' }, input, el('i'), label); };
   const reset = el('button', { type: 'button', class: 'btn ghost' }, L.reset);
-  reset.onclick = () => { for (const k of ['theme', 'textsize', 'contrast', 'motion', 'font', 'links']) store.set(k, k === 'theme' ? 'system' : '0'); applyPrefs(); close(); openA11y(); };
+  reset.onclick = () => { for (const k of ['theme', 'textsize', 'contrast', 'motion', 'font', 'links', 'spacing', 'targets', 'cb', 'focus', 'toastStay']) store.set(k, k === 'theme' ? 'system' : '0'); if (store.get('pause', '0') === '1') setPause(false); applyPrefs(); close(); openA11y(); };
   const closeBtn = el('button', { type: 'button', class: 'btn' }, L.close); closeBtn.onclick = close;
   const panel = el('div', { class: 'a11y-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'a11yTitle' },
     el('h2', { id: 'a11yTitle' }, L.title),
@@ -491,8 +581,16 @@ function openA11y() {
         inp, el('div', { class: 'row', style: 'margin-top:8px' }, save, drop));
     })(),
     radios(L.theme, 'theme', [['system', L.system], ['light', L.light], ['dark', L.dark]], 'system'),
-    radios(L.size, 'textsize', [['0', L.s0], ['1', L.s1], ['2', L.s2]], '0'),
+    radios(L.size, 'textsize', [['0', L.s0], ['1', L.s1], ['2', L.s2], ['3', L.s3]], '0'),
     el('div', { class: 'switches' }, sw(L.contrast, 'contrast'), sw(L.motion, 'motion'), sw(L.font, 'font'), sw(L.links, 'links')),
+    // the further choices are kept apart as extras (opened by itself when one of them is on)
+    (() => {
+      const d = el('details', { class: 'extras' }, el('summary', {}, L.extra),
+        el('div', { class: 'switches' }, sw(L.cb, 'cb'), sw(L.spacing, 'spacing'), sw(L.targets, 'targets'), sw(L.focus, 'focus'), sw(L.toastStay, 'toastStay'),
+          (() => { const input = el('input', { type: 'checkbox' }); input.checked = store.get('pause', '0') === '1'; input.onchange = () => setPause(input.checked); return el('label', { class: 'sw' }, input, el('i'), L.pause); })()));
+      if (['cb', 'spacing', 'targets', 'focus', 'toastStay', 'pause'].some((k) => store.get(k, '0') === '1')) d.open = true;
+      return d;
+    })(),
     el('div', { class: 'row' }, closeBtn, reset));
   const overlay = el('div', { class: 'a11y-overlay' }, panel);
   overlay.onmousedown = (e) => { if (e.target === overlay) close(); };
@@ -519,7 +617,7 @@ function openA11y() {
 }
 applyPrefs();
 
-const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Ku është instaluar', 'folder'], ['log', 'Log-u', 'term'], ['history', 'Historiku', 'clock'], ['help', 'Si ta përdorësh', 'help']];
+const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['history', 'Historiku', 'clock'], ['help', 'Si ta përdorësh', 'help']];
 const state = { cur: store.get('cur', ''), section: store.get('section', 'home') === 'access' ? 'data' : store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
@@ -784,7 +882,7 @@ function view(s) {
         post('secrets').then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error === 'not_found' ? 'Dashboard-i u rinis: rifresko faqen.' : (j.error || 'Gabim')); state.secrets[s.id] = j; render(); })).catch((e) => { state.secrets[s.id] = false; state.secretsError = e.message; toast('GABIM: ' + e.message, true); render(); });
       }
       return el('div', {}, top,
-      el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable(), el('div', { class: 'desc', style: 'margin:10px 0 0' }, 'Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe harrohen pas 14 ditësh. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon çdo herë dhe punon sa punon procesi.')), installCard(), el('div', { class: 'card' }, el('div', { class: 'empty' }, sec === false ? (state.secretsError || 'Të dhënat nuk u lexuan.') + ' Shtyp "Rifresko" për të provuar përsëri.' : 'Po lexohen të dhënat...')));
+      el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable(), el('div', { class: 'desc', style: 'margin:10px 0 0' }, 'Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe mbeten në listë derisa të shtypësh Hiq. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon sa herë krijohet dhe punon sa punon procesi.')), installCard(), el('div', { class: 'card' }, el('div', { class: 'empty' }, sec === false ? (state.secretsError || 'Të dhënat nuk u lexuan.') + ' Shtyp "Rifresko" për të provuar përsëri.' : 'Po lexohen të dhënat...')));
     }
     const envMap = Object.fromEntries(sec.env.map((e) => [e.key, e.value]));
     const group = (title, keys) => {
@@ -834,7 +932,7 @@ function view(s) {
   asAllOff.onclick = () => { if (confirm('Ndaloj nisjen automatike të të gjitha? Pas rinisjes së kompjuterit asgjë nuk niset vetë (ato që punojnë tani vazhdojnë).')) asSet('all', false); };
   const abSwBackup = sw('Backup i databazës', ab.on, (v) => abSave(v, undefined));
   const abSwUpdate = sw('Përditëso programin', ab.updateToo, (v) => abSave(ab.on, v));
-  const abLast = !ab.last ? 'Ende pa ekzekutim.' : 'Hera e fundit: ' + ab.last.date + ' · ' + ({ ok: 'backup u ruajt', update_started: 'përditësimi filloi', update_ok: 'përditësim i kryer (me backup)', update_error: 'përditësimi dështoi (shiko Log-un)' }[ab.last.result] || ab.last.result) + (ab.last.name && ab.last.result === 'ok' ? ' ' + ab.last.name : '');
+  const abLast = !ab.last ? 'Ende nuk ka ekzekutim.' : 'Hera e fundit: ' + ab.last.date + ' · ' + ({ ok: 'backup u ruajt', update_started: 'përditësimi filloi', update_ok: 'përditësim i kryer (me backup)', update_error: 'përditësimi dështoi (shiko Log-un)' }[ab.last.result] || ab.last.result) + (ab.last.name && ab.last.result === 'ok' ? ' ' + ab.last.name : '');
   const backupBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Backup tani');
   backupBtn.disabled = busy;
   backupBtn.onclick = async () => {
@@ -912,25 +1010,26 @@ function view(s) {
         item('Rikthe një version', 'Kthe kodin (formularët, dizajni) te një version më i vjetër, nga ky PC ose nga GitHub.', versionsBtn))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Branding, module, databazë. Hapet pa token.', devBtn),
-        item('Ndalo, nise, rinis', 'Detyra e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin?'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),
+        item('Ndalo, nise, rinis', 'Kontrollon aplikacionin në këtë kompjuter.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin?'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Databaza'), el('div', { class: 'act' },
-        item('Backup tani', 'Kopje e databazës.', backupBtn),
+        item('Backup tani', 'Krijon një kopje të databazës.', backupBtn),
         el('div', { class: 'item' }, el('div', { class: 'sched' },
-          el('div', {}, el('b', {}, 'Automatik'), el('span', {}, 'Një orar i përbashkët: backup dhe përditësim nuk dyfishohen (përditësimi përfshin backup-in).')),
+          el('div', {}, el('b', {}, 'Automatik'), el('span', {}, 'Një orar për të dyja. Kur ka përditësim, backup-i i databazës bëhet brenda tij, ndaj ruhet vetëm një herë.')),
           el('div', { class: 'line' }, el('span', { class: 'hint' }, 'Ora'), abHour, el('span', { class: 'hint' }, 'Mbaj'), abKeep),
           el('div', { class: 'line' }, abSwBackup, abSwUpdate),
-          el('div', { class: 'hint' }, ((ab.on || ab.updateToo) ? '' : 'Të dyja fikura. ') + abLast))),
+          el('div', { class: 'hint' }, ((ab.on || ab.updateToo) ? '' : 'Të dyja janë të fikura. ') + abLast))),
         ...(asList.length ? [el('div', { class: 'item' }, el('div', { class: 'sched' },
-          el('div', {}, el('b', {}, 'Nisja me Windows'), el('span', {}, 'Çfarë niset vetë kur ndizet kompjuteri. Ato që punojnë tani nuk ndalen.')),
+          el('div', {}, el('b', {}, 'Nisja me Windows'), el('span', {}, 'Cilat pjesë niset automatikisht kur ndizet kompjuteri. Ato që punojnë tani nuk ndalen.')),
           el('div', { class: 'line' }, ...asRows),
           el('div', { class: 'line' }, asAllOn, asAllOff)))] : []),
-        item('Ekzekuto SQL', 'Skedar .sql (backup para).', sqlBtn, sqlInput),
-        s.ownerMissing ? '' : item('Importo databazën', 'Zëvendëson databazën me një dump (backup automatik).', importBtn, importInput))),
+        item('Ekzekuto SQL', 'Ekzekuton një skedar .sql; para tij bëhet backup.', sqlBtn, sqlInput),
+        s.ownerMissing ? '' : item('Importo databazën', 'Zëvendëson databazën me një skedar dump; para tij bëhet backup automatik.', importBtn, importInput))),
+      el('div', { class: 'stack' },
       el('div', { class: 'card' }, el('h2', {}, 'Lidhjet'), el('div', { class: 'act' },
-        item('Token GitHub', s.tokenSet ? 'I vendosur (ruhet i enkriptuar).' : 'Mungon: pa të nuk bëhen përditësime.', tokBtn),
-        item('Cloudflare Tunnel', !a.tunnel ? 'Nuk është i lidhur.' : a.tunnelOk ? 'I lidhur dhe punon.' : 'Procesi punon por asnjë adresë nuk hapet.', tunBtn, a.tunnel ? rmTunBtn : '')))),
-    el('div', { class: 'grid2' }, offsiteCard(), notifyCard()));
+        item('Token GitHub', s.tokenSet ? 'I vendosur (ruhet i enkriptuar).' : 'Mungon: pa token nuk merren përditësime.', tokBtn),
+        item('Cloudflare Tunnel', !a.tunnel ? 'Nuk është i lidhur.' : a.tunnelOk ? 'I lidhur dhe punon.' : 'Procesi punon por asnjë adresë nuk hapet.', tunBtn, a.tunnel ? rmTunBtn : ''))),
+      offsiteCard(), notifyCard())));
 
   // ---- backups
   pages.backup = () => el('div', {}, header('Backup-et', s.backups.length + ' kopje' + (s.backups.length ? ' · gjithsej ' + fmtSize(s.backups.reduce((n, b) => n + b.size, 0)) : ''), el('div', { class: 'row' }, backupBtn)),
@@ -954,7 +1053,7 @@ function view(s) {
       return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size) + (b.version ? ' · versioni ' + b.version : '')), el('span', {}, b.name)), el('div', { class: 'row' }, b.check ? pill('ok', 'OK') : pill('bad', 'Dëmtuar'), dl, restore, show, del));
     }) : [el('li', {}, el('span', { class: 'empty' }, 'Nuk ka backup ende.'))]))));
 
-  pages.files = () => el('div', {}, header('Ku është instaluar', 'Rrugët e instalimit', ''),
+  pages.files = () => el('div', {}, header('Vendndodhja', 'Rrugët e instalimit', ''),
     el('div', { class: 'card' }, el('ul', { class: 'list' }, ...s.paths.map((e) => {
       const b = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hap');
       b.disabled = !e.exists;
@@ -1011,7 +1110,7 @@ function render() {
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off'), role: 'img', 'aria-label': s.health.ok ? 'Online' : 'Offline' }), j.instances.length > 1 ? select : el('span', { class: 'instname' }, s.name)), // the list is only for several installations on one PC
     nav,
     el('div', { class: 'credit-side' }, el('span', {}, 'Krijuar nga'), ' ', el('b', {}, 'Rogest Network')),
-    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, liveOn ? 'LIVE' : 'OFFLINE')), refresh, un));
+    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, paused() ? 'NË PAUZË' : liveOn ? 'LIVE' : 'OFFLINE')), refresh, un));
   // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.
   const job = s.job;
   let done = '';
@@ -1061,11 +1160,17 @@ function paintBar(job) {
 // appears or the version changes. Targeted redraws only (the application card, the dot, the job bar and log); the full status is still reloaded every 30 s.
 let liveOn = false, liveAt = 0, live = null;
 const liveFresh = () => liveOn && Date.now() - liveAt < 9000;
+const paused = () => store.get('pause', '0') === '1';
+function setPause(on) {
+  store.set('pause', on ? '1' : '0');
+  if (on) { if (live) { live.close(); live = null; } liveOn = false; liveBadge(); }
+  else { startLive(); load(); }
+}
 function liveBadge() {
   const b = document.getElementById('livebadge'), t = document.getElementById('livetext');
   if (!b || !t) return;
-  b.className = 'live' + (liveOn ? '' : ' off');
-  t.textContent = liveOn ? 'LIVE' : 'OFFLINE';
+  b.className = 'live' + (liveOn || paused() ? '' : ' off');
+  t.textContent = paused() ? 'NË PAUZË' : liveOn ? 'LIVE' : 'OFFLINE';
 }
 function applyPulse(d) {
   // The dashboard updated itself (new files): reload ONCE so the changes show (a guard stops any loop).
@@ -1078,7 +1183,7 @@ function applyPulse(d) {
     let last = ''; try { last = sessionStorage.getItem('reloadedFor') || ''; } catch { /* no storage */ }
     if (last !== d.v) { try { sessionStorage.setItem('reloadedFor', d.v); } catch { /* no storage */ } location.reload(); return; }
   }
-  if (!state.data) return;
+  if (paused() || !state.data) return;
   let needFull = false;
   for (const p of d.instances) {
     const s = state.data.instances.find((i) => i.id === p.id);
@@ -1099,7 +1204,7 @@ function applyPulse(d) {
   if (needFull) render(); else if (state.repaint) state.repaint();
 }
 function startLive() {
-  if (live || typeof EventSource === 'undefined') return;
+  if (live || paused() || typeof EventSource === 'undefined') return;
   live = new EventSource('/api/live');
   live.onopen = () => { liveOn = true; liveBadge(); };
   live.onerror = () => { liveOn = false; liveBadge(); };
@@ -1144,7 +1249,7 @@ async function load(quiet) {
 load();
 startLive();
 // Refresh every 30 s, but not while the tab is hidden; coming back to the tab refreshes at once.
-setInterval(() => { if (!document.hidden && !running().length) load(true); }, 30000);
+setInterval(() => { if (!paused() && !document.hidden && !running().length) load(true); }, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !running().length) load(true); });
 // While an update / SQL / import / tunnel runs, only its log is refreshed (every 3 s); a full refresh would measure everything again.
 setInterval(async () => {

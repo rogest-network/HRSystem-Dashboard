@@ -566,7 +566,7 @@ async function systemAction(inst, action) {
     `Start-Sleep -Seconds 1; ` +
     `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine -like ${q('*' + root + '*server.mjs*')} -and $_.CommandLine -notlike '*\\manager\\*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
   const launcher = path.join(root, 'start-hrsystem.ps1');
-  const start = `if (Get-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskName ${q(task)} } else { ` +
+  const start = `$t = Get-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; if ($t -and $t.Settings.Enabled) { Start-ScheduledTask -TaskName ${q(task)} } else { ` + // a task switched off in "Nisja me Windows" must not stop a manual Start
     `$running = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*start-hrsystem.ps1*' -and $_.CommandLine -like ${q('*' + root + '*')} }; ` +
     `if (-not $running) { Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + launcher + '"')}; CurrentDirectory = ${q(root)} } | Out-Null } }`;
   const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;

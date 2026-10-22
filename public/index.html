@@ -119,6 +119,11 @@
   .pill { font-size:11px; padding:1px 8px; font-weight:500; }
   .act .item { padding:10px 12px; } .act .item span { font-size:12px; }
   .card:hover { border-color:var(--line) !important; }
+  .progress { height:6px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:8px; }
+  .progress i { display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .6s ease; }
+  .progress.indet i { width:35%; animation:slide 1.3s infinite ease-in-out; }
+  @keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
+  .banner.run { border-color:var(--accent); background:var(--accent-soft); }
   /* --- polish (22.10.2026): domains stay on one line, the address card gets the wider column, softer details */
   a.dom { word-break:normal; overflow-wrap:normal; white-space:nowrap; font-weight:600; }
   table.kv td.k { width:1%; padding-right:28px; }
@@ -535,11 +540,40 @@ function render() {
       el('p', {}, el('b', {}, jobName(job.title) + (ok ? ' u krye' : ' dështoi')), ' · ' + fmtTime(job.ended, true) + (ok && s.installed && s.installed.name ? ' · versioni ' + s.installed.name : '')),
       el('div', { class: 'row' }, see, close));
   }
+  if (job && job.state === 'running') {
+    const pr = progressOf(job);
+    done = el('div', { class: 'banner run', id: 'jobbar' }, el('p', {}, el('b', { class: 'bartext' }, jobName(job.title) + ' · ' + pr.label + (pr.pct === null ? '' : ' · ' + pr.pct + '%'))), el('div', { class: 'progress' + (pr.pct === null ? ' indet' : '') }, el('i', { style: 'width:' + (pr.pct === null ? 35 : pr.pct) + '%' })));
+  }
   page.replaceChildren(...(done ? [done] : []), v.html);
 }
 
 // One status request at a time (a slow measurement must not pile up), and background refreshes stay silent when the dashboard is briefly unreachable (e.g. while it restarts itself).
 const jobName = (t) => ({ Perditesim: 'Përditësimi i aplikacionit', 'Cloudflare Tunnel': 'Lidhja e tunelit', 'Heqja e tunelit': 'Heqja e tunelit' }[t] || t);
+// Progress of a running job. The updater prints a header "=== step ===" for each stage; each stage has a share of the bar. The build is the long one
+// (a few minutes), so inside it the bar creeps forward with the elapsed time until the next header arrives.
+const UPDATE_STEPS = [['Versioni i instaluar', 5, 'Kontroll'], ['GitHub', 10, 'Kontroll në GitHub'], ['Versioni i ri', 15, 'Shkarkim'], ['Backup i databazes', 28, 'Backup i databazës'], ['Skedaret e versionit', 38, 'Skedarët e versionit'], ['Paketat dhe build', 50, 'Build'], ['SQL i versionit', 82, 'Migrimet'], ['Ndrrimi i versionit', 92, 'Ndërrimi i versionit']];
+function progressOf(job) {
+  if (job.state === 'ok') return { pct: 100, label: 'U krye' };
+  if (job.state === 'error') return { pct: 100, label: 'Dështoi' };
+  if (job.title !== 'Perditesim') return { pct: null, label: 'Po vazhdon' };
+  let pct = 3, label = 'Po nis';
+  for (const l of job.lines || []) {
+    const m = /^=== (.+?) ===/.exec(l);
+    if (m) for (const [k, p, t] of UPDATE_STEPS) if (m[1].startsWith(k)) { pct = p; label = t; }
+    if (/Build-i u krye/.test(l)) { pct = Math.max(pct, 78); label = 'Build u krye'; }
+  }
+  if (label === 'Build') pct = Math.min(77, 50 + Math.floor((Date.now() - job.started) / 9000));
+  return { pct, label };
+}
+function paintBar(job) {
+  const bar = document.getElementById('jobbar');
+  if (!bar || !job) return;
+  const pr = progressOf(job);
+  const txt = bar.querySelector('.bartext'), fill = bar.querySelector('.progress i'), track = bar.querySelector('.progress');
+  if (txt) txt.textContent = jobName(job.title) + ' · ' + pr.label + (pr.pct === null ? '' : ' · ' + pr.pct + '%');
+  if (track) track.className = 'progress' + (pr.pct === null ? ' indet' : '');
+  if (fill && pr.pct !== null) fill.style.width = pr.pct + '%';
+}
 let loading = false, again = false;
 async function load(quiet) {
   if (loading) { if (quiet !== true) again = true; return; }
@@ -571,6 +605,7 @@ setInterval(async () => {
       if (!j) continue;
       if (j.state !== 'running') { load(); return; }
       const pre = document.querySelector('pre.log[data-id="' + id + '"]');
+      paintBar(j);
       if (pre) { pre.textContent = j.lines.join(NL) || '...'; pre.scrollTop = pre.scrollHeight; }
     } catch { /* next round */ }
   }

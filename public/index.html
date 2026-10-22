@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="sq">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HRSystem Dashboard</title>
+<style>
+  :root {
+    --bg:#f3f5f9; --card:#ffffff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --soft:#f1f5f9;
+    --accent:#4f46e5; --accent-soft:#eef2ff; --accent-text:#ffffff;
+    --ok:#047857; --okbg:#d1fae5; --warn:#92400e; --warnbg:#fef3c7; --bad:#b91c1c; --badbg:#fee2e2;
+    --side:#0f172a; --side-2:#1e293b; --side-text:#cbd5e1; --side-muted:#64748b;
+    --shadow:0 1px 2px rgba(15,23,42,.05), 0 1px 3px rgba(15,23,42,.06);
+    --font:"Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg:#0b1020; --card:#131a2e; --text:#e5e9f4; --muted:#8b97b1; --line:#222c47; --soft:#18213a;
+    --accent:#818cf8; --accent-soft:#1d2447; --accent-text:#0b1020;
+    --ok:#34d399; --okbg:#0d3a2e; --warn:#fbbf24; --warnbg:#3a2c0a; --bad:#f87171; --badbg:#3f1519;
+    --side:#070b17; --side-2:#111936; --side-text:#c3cbe0; --side-muted:#6b7794;
+    --shadow:none;
+  } }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--text); font:13px/1.55 var(--font); -webkit-font-smoothing:antialiased; }
+  button, input, select, textarea { font-family:var(--font); }
+  a { color:var(--accent); text-decoration:none; word-break:break-all; } a:hover { text-decoration:underline; }
+  .app { display:grid; grid-template-columns:252px minmax(0,1fr); min-height:100vh; }
+
+  /* --- side navbar */
+  .side { background:var(--side); color:var(--side-text); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; padding:18px 12px; gap:6px; }
+  .brand { display:flex; align-items:center; gap:10px; padding:2px 10px 14px; }
+  .logo { width:34px; height:34px; border-radius:9px; background:linear-gradient(135deg,#6366f1,#4338ca); display:grid; place-items:center; color:#fff; font-weight:800; letter-spacing:-.5px; }
+  .brand b { display:block; color:#fff; font-size:15px; letter-spacing:.2px; } .brand span { font-size:11.5px; color:var(--side-muted); }
+  .inst { margin:0 6px 10px; padding:9px 10px; background:var(--side-2); border-radius:10px; display:flex; align-items:center; gap:9px; }
+  .inst select { background:transparent; border:0; color:#fff; font:inherit; font-weight:600; width:100%; outline:none; }
+  .inst select option { color:#0f172a; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#64748b; flex:none; } .dot.on { background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.18); } .dot.off { background:#f87171; }
+  .nav { display:flex; flex-direction:column; gap:2px; }
+  .nav button { display:flex; align-items:center; gap:11px; width:100%; background:transparent; border:0; color:var(--side-text); padding:9px 12px; border-radius:9px; font:inherit; font-weight:500; cursor:pointer; text-align:left; }
+  .nav button:hover { background:var(--side-2); color:#fff; }
+  .nav button.on { background:var(--accent); color:var(--accent-text); font-weight:600; }
+  .nav button svg { flex:none; opacity:.9; }
+  .nav .count { margin-left:auto; font-size:11px; background:rgba(255,255,255,.12); padding:1px 8px; border-radius:99px; }
+  .nav .grow { flex:1; }
+  .side .foot { margin-top:auto; padding:10px 10px 0; border-top:1px solid var(--side-2); font-size:12px; color:var(--side-muted); display:grid; gap:8px; }
+  .side .foot button { background:transparent; border:1px solid var(--side-2); color:var(--side-text); border-radius:8px; padding:6px 10px; font:inherit; cursor:pointer; }
+  .side .foot button:hover { background:var(--side-2); }
+  .side .foot button.danger { color:#fca5a5; border-color:#4c1d24; } .side .foot button.danger:hover { background:#3f1519; }
+
+  /* --- main */
+  .main { padding:24px 32px 16px; min-width:0; display:flex; flex-direction:column; min-height:100vh; }
+  .page { max-width:1500px; width:100%; margin:0 auto; }
+  .credit { margin-top:auto; padding-top:28px; text-align:right; color:var(--muted); font-size:11.5px; letter-spacing:.4px; }
+  .credit b { color:var(--text); font-weight:600; }
+  .top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+  .top h1 { font-size:22px; margin:0; letter-spacing:-.2px; } .top p { margin:2px 0 0; color:var(--muted); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button.btn { font:inherit; font-weight:600; color:var(--accent-text); background:var(--accent); border:1px solid transparent; border-radius:9px; padding:8px 15px; cursor:pointer; box-shadow:var(--shadow); }
+  button.btn:hover { filter:brightness(1.07); }
+  button.btn.ghost { background:var(--card); color:var(--text); border-color:var(--line); }
+  button.btn.ghost:hover { background:var(--soft); }
+  button.btn.danger { background:var(--card); color:var(--bad); border-color:var(--bad); }
+  button.btn.sm { padding:3px 10px; font-size:12.5px; font-weight:500; border-radius:7px; }
+  button:disabled { opacity:.5; cursor:default; filter:none; }
+  .pill { display:inline-flex; align-items:center; gap:5px; padding:2px 10px; border-radius:99px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .pill.ok { background:var(--okbg); color:var(--ok); } .pill.warn { background:var(--warnbg); color:var(--warn); } .pill.bad { background:var(--badbg); color:var(--bad); } .pill.mute { background:var(--soft); color:var(--muted); }
+
+  .kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+  .grid2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+  @media (max-width:1280px) { .kpis { grid-template-columns:repeat(2, minmax(0,1fr)); } .grid3 { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; box-shadow:var(--shadow); margin-bottom:16px; }
+  .kpis .card, .grid2 .card, .grid3 .card { margin-bottom:0; }
+  .card h2 { margin:0 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); font-weight:700; }
+  .card h2 small { text-transform:none; letter-spacing:0; font-weight:400; margin-left:6px; }
+  .kpi .v { font-size:20px; font-weight:700; letter-spacing:-.4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .kpi .s { color:var(--muted); font-size:12.5px; margin-top:4px; word-break:break-all; }
+  .spark { display:flex; align-items:flex-end; gap:2px; height:26px; margin-top:10px; }
+  .spark i { flex:1; min-width:2px; background:var(--accent); border-radius:2px 2px 0 0; opacity:.65; }
+  .spark i.down { background:var(--bad); height:100% !important; opacity:.5; }
+
+  table.kv { width:100%; border-collapse:collapse; }
+  table.kv td { padding:9px 4px; border-top:1px solid var(--line); vertical-align:middle; }
+  table.kv tr:first-child td { border-top:0; }
+  table.kv td.k { width:34%; color:var(--muted); white-space:nowrap; padding-right:14px; }
+  table.kv td.a { text-align:right; white-space:nowrap; width:1%; }
+  code, .mono { font:12.5px/1.4 var(--font); }
+  .val { display:inline-block; max-width:100%; background:var(--soft); border:1px solid var(--line); border-radius:7px; padding:3px 9px; word-break:break-all; }
+  .val.secret { letter-spacing:1px; }
+  .iconbtn { background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:7px; padding:3px 8px; font:inherit; font-size:12px; cursor:pointer; margin-left:4px; }
+  .iconbtn:hover { color:var(--text); background:var(--soft); }
+  .desc { color:var(--muted); font-size:13px; margin:-4px 0 12px; }
+  .act { display:flex; flex-direction:column; gap:10px; }
+  .act .item { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 14px; border:1px solid var(--line); border-radius:11px; background:var(--soft); }
+  .act .item b { display:block; font-weight:600; } .act .item span { color:var(--muted); font-size:12.5px; }
+  .banner { border:1px solid var(--warn); background:var(--warnbg); color:var(--text); border-radius:12px; padding:14px 18px; margin-bottom:16px; display:grid; gap:10px; }
+  .banner p { margin:0; }
+  ul.list { list-style:none; margin:0; padding:0; }
+  ul.list li { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 2px; border-top:1px solid var(--line); }
+  ul.list li:first-child { border-top:0; }
+  ul.list .p { min-width:0; } ul.list .p b { display:block; font-weight:600; } ul.list .p span { color:var(--muted); font-size:12.5px; word-break:break-all; }
+  ul.list li.missing .p span { color:var(--bad); }
+  pre.log { margin:0; max-height:520px; overflow:auto; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font:12.5px/1.5 var(--font); white-space:pre-wrap; word-break:break-word; }
+  .empty { color:var(--muted); padding:16px 2px; }
+  .toast { position:fixed; right:22px; bottom:22px; max-width:520px; background:var(--side); color:#fff; padding:12px 16px; border-radius:11px; box-shadow:0 10px 30px rgba(0,0,0,.25); font-size:13.5px; opacity:0; transform:translateY(8px); transition:.2s; pointer-events:none; z-index:20; }
+  .toast.show { opacity:1; transform:none; } .toast.err { background:#991b1b; }
+
+  @media (max-width:980px) {
+    .app { grid-template-columns:1fr; } .side { position:static; height:auto; flex-direction:column; }
+    .nav { flex-direction:row; flex-wrap:wrap; } .nav button { width:auto; } .main { padding:16px; }
+    .kpis, .grid2, .grid3 { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side"></aside>
+  <main class="main"><div class="page" id="page"></div><footer class="credit">Krijuar nga <b>Rogest Network</b></footer></main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const KEY = '__KEY__';
+const NL = String.fromCharCode(10);
+const $ = (id) => document.getElementById(id);
+const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+// 24-hour clock everywhere (dd.mm.yyyy HH:MM[:SS]); built by hand so the browser's language settings cannot bring back AM/PM.
+const two = (n) => String(n).padStart(2, '0');
+const fmtTime = (s, secs) => { const d = new Date(s); return isNaN(d) ? '-' : two(d.getDate()) + '.' + two(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()) + (secs ? ':' + two(d.getSeconds()) : ''); };
+const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private window */ } } };
+
+function el(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n[k] = v; else n.setAttribute(k, v); }
+  for (const kid of kids) if (kid !== null && kid !== undefined && kid !== false) n.append(kid);
+  return n;
+}
+const pill = (cls, text) => el('span', { class: 'pill ' + cls }, text);
+const speedClass = (ms) => ms < 400 ? 'ok' : ms < 1200 ? 'warn' : 'bad';
+
+// Small line icons (24x24).
+const ICONS = {
+  home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+  globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
+  key: 'M14 10a4 4 0 1 1-3.5 6L4 22v-3H2v-2h3l5.5-5.5A4 4 0 0 1 14 10zM15.5 8.5h.01',
+  bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
+  box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
+  folder: 'M3 6a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z',
+  term: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM7 10l3 2-3 2M12 15h5',
+};
+const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('width', '18'); s.setAttribute('height', '18'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.8'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p); return s; };
+
+let toastTimer = null;
+function toast(msg, err) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'toast' + (err ? ' err' : ''); }, err ? 8000 : 4500);
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = el('textarea', { style: 'position:fixed;opacity:0' }); t.value = text; document.body.append(t); t.select(); try { document.execCommand('copy'); } catch { /* none */ } t.remove(); }
+  toast('U kopjua.');
+}
+
+const SECTIONS = [['home', 'Pasqyra', 'home'], ['access', 'Adresat', 'globe'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Ku është instaluar', 'folder'], ['log', 'Log-u', 'term']];
+const state = { cur: store.get('cur', ''), section: store.get('section', 'home'), data: null, secrets: {}, shown: {} };
+const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
+
+// ---------------------------------------------------------------- one installation
+function view(s) {
+  const h = s.health, a = s.access;
+  const busy = !!(s.job && s.job.state === 'running');
+  const post = (path, extra = '') => fetch('/api/' + path + '?id=' + encodeURIComponent(s.id) + extra, { method: 'POST', headers: { 'X-Manager-Key': KEY } });
+  const postJson = (path, body) => fetch('/api/' + path + '?id=' + encodeURIComponent(s.id), { method: 'POST', headers: { 'X-Manager-Key': KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const call = async (path, extra, okMsg) => {
+    try { const r = await post(path, extra); const j = await r.json(); if (!r.ok) throw new Error(j.error === 'not_found' ? 'Dashboard-i punon ende me kodin e vjetër: rinise (Dashboard.bat ose rinis PC-në).' : (j.error || 'Gabim')); if (okMsg) toast(okMsg); return j; }
+    catch (e) { toast('GABIM: ' + e.message, true); return null; }
+  };
+  const fileButton = (label, accept, onFile, cls = 'btn ghost') => {
+    const input = el('input', { type: 'file', accept, style: 'display:none' });
+    const b = el('button', { type: 'button', class: cls }, label);
+    b.disabled = busy;
+    b.onclick = () => input.click();
+    input.onchange = async () => { const f = input.files[0]; if (f) await onFile(f); input.value = ''; };
+    return [b, input];
+  };
+  const sendFile = async (path, f, started) => {
+    try {
+      const r = await fetch('/api/' + path + '?id=' + encodeURIComponent(s.id) + '&name=' + encodeURIComponent(f.name), { method: 'POST', headers: { 'X-Manager-Key': KEY }, body: await f.arrayBuffer() });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim');
+      go('log'); toast(started); load();
+    } catch (e) { toast('GABIM: ' + e.message, true); }
+  };
+
+  const publicUrl = a.domain || '';
+  const mainUrl = publicUrl || a.local;
+  const inst = s.installed, lat = s.latest;
+  const verText = !inst ? '-' : inst.error ? inst.error : inst.name;
+  const latText = !lat ? '-' : lat.error ? lat.error : lat.version + (lat.prerelease ? ' (pre-release)' : '');
+  const updPill = s.update === 'version' ? pill('warn', 'Ka version të ri') : s.update === 'build' ? pill('warn', 'Ka build të ri') : inst && !inst.error && lat && !lat.error ? pill('ok', 'I përditësuar') : null;
+
+  const sysBtn = (label, action, ask, cls = 'btn ghost') => {
+    const b = el('button', { type: 'button', class: cls }, label);
+    b.disabled = busy;
+    b.onclick = async () => {
+      if (ask && !confirm(ask)) return;
+      b.disabled = true; toast(label + '...');
+      await call('system', '&do=' + action, label + ': u krye.');
+      setTimeout(load, 4000);
+    };
+    return b;
+  };
+  const openBtn = el('button', { type: 'button', class: 'btn' }, 'Hap aplikacionin');
+  openBtn.onclick = () => window.open(mainUrl, '_blank');
+  const controls = el('div', { class: 'row' }, openBtn, sysBtn('Stop', 'stop', 'Ndaloj aplikacionin? Përdoruesit nuk do ta hapin deri sa ta nisësh.'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin? Mund të mos hapet për disa sekonda.'));
+  const header = (title, sub, extra) => el('div', { class: 'top' }, el('div', {}, el('h1', {}, title), el('p', {}, sub)), extra || '');
+
+  const [importBtn, importInput] = fileButton('Importo databazën...', '.sql', async (f) => {
+    const text = ['IMPORT I PLOTË në "' + s.name + '":', '- bëhet backup automatik;', '- FSHIHEN të gjitha tabelat që ekzistojnë tani;', '- ngarkohet "' + f.name + '" (' + fmtSize(f.size) + ');', '- ekzekutohen migrimet që mungojnë.', '', 'Vazhdoj?'].join(NL);
+    if (confirm(text)) await sendFile('import', f, 'Importi filloi...');
+  });
+  const ownerBanner = () => {
+    const setupBtn = el('button', { type: 'button', class: 'btn' }, 'Krijo pronarin (/setup)');
+    setupBtn.onclick = async () => { const j = await call('setup-link'); if (j) window.open(j.url, '_blank'); };
+    return el('div', { class: 'banner' },
+      el('p', {}, el('b', {}, 'Instalim i ri: pronari ende nuk është krijuar.')),
+      el('p', {}, 'Zgjidh një nga dy rrugët: (1) krijo pronarin e ri me /setup, ose (2) importo fillimisht databazën e vjetër dhe pastaj hap hyrjen (login) me përdoruesit e saj. Mos bëj të dyja.'),
+      el('div', { class: 'row' }, setupBtn, importBtn, importInput));
+  };
+
+  // ---- addresses (shared by "Pasqyra" and "Adresat")
+  const quickBtn = el('button', { type: 'button', class: 'btn ghost sm' }, a.quickUrl ? 'Ndale' : 'Krijo');
+  quickBtn.onclick = async () => {
+    quickBtn.disabled = true;
+    if (a.quickUrl) { if (await call('quick-tunnel', '&do=stop')) { toast('Adresa e përkohshme u ndal.'); load(); } else quickBtn.disabled = false; return; }
+    toast('Po krijohet adresa e përkohshme (deri në 40 sekonda)...');
+    const j = await call('quick-tunnel', '&do=start');
+    if (j) { toast('Gati: ' + j.url); load(); } else quickBtn.disabled = false;
+  };
+  const link = (u) => el('a', { href: u, target: '_blank', rel: 'noopener' }, u.replace(/^https?:[/][/]/, ''));
+  const addressTable = () => el('table', { class: 'kv' },
+    el('tr', {}, el('td', { class: 'k' }, 'Lokale'), el('td', {}, link(a.local)), el('td', { class: 'a' }, pill('ok', 'në këtë PC'))),
+    ...(a.domains && a.domains.length
+      ? a.domains.map((d, i) => el('tr', {}, el('td', { class: 'k' }, i === 0 ? 'Domeni' : ''), el('td', {}, link(d.url)), el('td', { class: 'a' }, d.ok ? pill('ok', 'hapet') : pill('bad', 'nuk hapet'), '')))
+      : [el('tr', {}, el('td', { class: 'k' }, 'Domeni'), el('td', {}, a.tunnel ? 'del vetë sapo ta hapësh adresën e tunelit një herë' : el('span', { style: 'color:var(--muted)' }, 'pa domen (shtoje një tunel, ose përdor adresën e përkohshme)')), el('td', { class: 'a' }))]),
+    el('tr', {}, el('td', { class: 'k' }, 'Adresa e përkohshme'), el('td', {}, a.quickUrl ? link(a.quickUrl) : el('span', { style: 'color:var(--muted)' }, 'pa (për provë nga telefoni)')), el('td', { class: 'a' }, quickBtn)),
+    el('tr', {}, el('td', { class: 'k' }, 'Tuneli Cloudflare'), el('td', {}, !a.tunnel ? 'nuk është i lidhur në këtë PC' : a.tunnelOk ? 'punon: adresa hapet nga interneti' : 'procesi punon, por asnjë adresë nuk hapet (tuneli mund të jetë fshirë në Cloudflare)'), el('td', { class: 'a' }, a.tunnel ? (a.tunnelOk ? pill('ok', 'aktiv') : pill('bad', 'nuk hapet')) : pill('warn', 'jo aktiv'), ' ', tunBtn, a.tunnel ? [' ', rmTunBtn] : '')));
+
+  const max = Math.max(1, ...h.history);
+  const spark = () => el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%' } : { class: 'down' })));
+
+  // ================= pages
+  const pages = {};
+
+  pages.home = () => el('div', {},
+    header(s.name, 'Pasqyra e instalimit në këtë kompjuter', controls),
+    s.ownerMissing ? ownerBanner() : '',
+    el('div', { class: 'kpis' },
+      el('div', { class: 'card kpi' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Ndalur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : pill('bad', 'pa përgjigje')), el('div', { class: 's' }, a.local), spark()),
+      el('div', { class: 'card kpi' }, el('h2', {}, 'Databaza'), el('div', { class: 'v' }, h.database === 'connected' ? 'Lidhur' : (h.database || '-')), el('div', { class: 's' }, s.database && s.database.name ? s.database.name + ' · porta ' + s.database.port : '-')),
+      el('div', { class: 'card kpi' }, el('h2', {}, 'Versioni'), el('div', { class: 'v' }, verText, updPill || ''), el('div', { class: 's' }, 'I fundit (' + (s.channel || 'stable') + '): ' + latText)),
+      el('div', { class: 'card kpi' }, el('h2', {}, 'Adresa'), el('div', { class: 'v' }, publicUrl ? (a.domainOk ? 'Hapet' : 'Nuk hapet') : 'Pa domen', publicUrl ? pill(a.domainOk ? 'ok' : 'bad', a.domainOk ? 'online' : 'offline') : ''), el('div', { class: 's' }, publicUrl ? publicUrl.replace(/^https?:[/][/]/, '') : 'del vetë kur hapet një tunel'))),
+    el('div', { class: 'grid2' },
+      el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable()),
+      el('div', { class: 'card' }, el('h2', {}, 'Gjendja'), el('table', { class: 'kv' },
+        el('tr', {}, el('td', { class: 'k' }, 'Instaluar'), el('td', {}, verText)),
+        el('tr', {}, el('td', { class: 'k' }, 'Kanali'), el('td', {}, (s.channel || 'stable') + (s.repo ? ' · ' + s.repo : ''))),
+        el('tr', {}, el('td', { class: 'k' }, 'Token GitHub'), el('td', {}, s.tokenSet ? pill('ok', 'vendosur') : pill('warn', 'mungon'))),
+        el('tr', {}, el('td', { class: 'k' }, 'Backup-e'), el('td', {}, s.backups.length + (s.backups.length ? ' · e fundit ' + fmtTime(s.backups[0].time) : ''))),
+        el('tr', {}, el('td', { class: 'k' }, 'Veprimi i fundit'), el('td', {}, s.job ? s.job.title + ' · ' + (s.job.state === 'running' ? 'po vazhdon...' : s.job.state === 'ok' ? 'SUKSES' : 'GABIM') : '-'))))));
+
+  pages.access = () => el('div', {}, header('Adresat', 'Si hapet aplikacioni: në këtë PC, nga interneti dhe për prova nga telefoni', controls),
+    el('div', { class: 'card' }, el('h2', {}, 'Adresat e aplikacionit'), addressTable()),
+    el('div', { class: 'card' }, el('h2', {}, 'Si funksionojnë'),
+      el('div', { class: 'desc' }, 'Domeni: dashboard-i i mëson vetë emrat me të cilët hapet aplikacioni nga interneti (pyet çdo 15 sekonda) dhe i harron pas 14 ditësh pa u parë. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): pa llogari dhe pa domen, ndryshon çdo herë, punon sa kohë punon procesi.')));
+
+  // ---- the settings and secrets page
+  const SECRET = /PASS|SECRET|TOKEN|KEY/i;
+  const FRIENDLY = { PORT: 'Porta e aplikacionit', APP_ORIGIN: 'Adresa e aplikacionit', DB_HOST: 'Databaza: serveri', DB_PORT: 'Databaza: porta', DB_NAME: 'Databaza: emri', DB_USER: 'Databaza: përdoruesi', DB_PASSWORD: 'Databaza: fjalëkalimi', APP_SECRET: 'Çelësi i aplikacionit (APP_SECRET)', SETUP_TOKEN: 'Token i /setup' };
+  const secretRow = (id, label, value, secret) => {
+    const k = s.id + ':' + id; const shown = !!state.shown[k];
+    const v = el('span', { class: 'val mono' + (secret && !shown ? ' secret' : '') }, !secret || shown ? value : '••••••••••');
+    const eye = secret ? el('button', { type: 'button', class: 'iconbtn' }, shown ? 'Fshih' : 'Shfaq') : '';
+    if (secret) eye.onclick = () => { state.shown[k] = !shown; render(); };
+    const cp = el('button', { type: 'button', class: 'iconbtn' }, 'Kopjo'); cp.onclick = () => copyText(value);
+    return el('tr', {}, el('td', { class: 'k' }, label), el('td', {}, v), el('td', { class: 'a' }, eye, cp));
+  };
+  pages.data = () => {
+    const sec = state.secrets[s.id];
+    const refresh = el('button', { type: 'button', class: 'btn ghost' }, 'Rifresko');
+    refresh.onclick = () => { delete state.secrets[s.id]; render(); };
+    const showAll = el('button', { type: 'button', class: 'btn ghost' }, 'Shfaq të gjitha');
+    showAll.onclick = () => { const all = sec ? [...sec.env.filter((e) => SECRET.test(e.key)).map((e) => e.key), '#github', '#tunnel'] : []; const on = !all.every((x) => state.shown[s.id + ':' + x]); for (const x of all) state.shown[s.id + ':' + x] = on; render(); };
+    const top = header('Të dhënat', 'Cilësimet, fjalëkalimet dhe tokenët e këtij instalimi (nga .env dhe skedarët e mbrojtur). Janë të fshehura derisa t\'i shfaqësh.', el('div', { class: 'row' }, showAll, refresh));
+    if (!sec) {
+      if (sec === undefined) {
+        state.secrets[s.id] = null;
+        post('secrets').then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error === 'not_found' ? 'Dashboard-i punon ende me kodin e vjetër: rinise (Dashboard.bat ose rinis PC-në).' : (j.error || 'Gabim')); state.secrets[s.id] = j; render(); })).catch((e) => { state.secrets[s.id] = false; state.secretsError = e.message; toast('GABIM: ' + e.message, true); render(); });
+      }
+      return el('div', {}, top, el('div', { class: 'card' }, el('div', { class: 'empty' }, sec === false ? (state.secretsError || 'Të dhënat nuk u lexuan.') + ' Shtyp "Rifresko" për të provuar përsëri.' : 'Po lexohen të dhënat...')));
+    }
+    const envMap = Object.fromEntries(sec.env.map((e) => [e.key, e.value]));
+    const group = (title, keys) => {
+      const rows = keys.filter((k) => envMap[k] !== undefined).map((k) => secretRow(k, FRIENDLY[k] || k, envMap[k], SECRET.test(k)));
+      return rows.length ? el('div', { class: 'card' }, el('h2', {}, title), el('table', { class: 'kv' }, ...rows)) : '';
+    };
+    const used = new Set(['PORT', 'APP_ORIGIN', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'APP_SECRET', 'SETUP_TOKEN']);
+    const others = sec.env.filter((e) => !used.has(e.key));
+    const conn = envMap.DB_NAME ? 'mysql -h ' + (envMap.DB_HOST || '127.0.0.1') + ' -P ' + (envMap.DB_PORT || '3306') + ' -u ' + (envMap.DB_USER || 'root') + ' -p ' + envMap.DB_NAME : '';
+    return el('div', {}, top,
+      el('div', { class: 'grid2' },
+        group('Aplikacioni', ['PORT', 'APP_ORIGIN']),
+        group('Databaza', ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'])),
+      el('div', { class: 'grid2' },
+        group('Çelësat e aplikacionit', ['APP_SECRET', 'SETUP_TOKEN']),
+        el('div', { class: 'card' }, el('h2', {}, 'Tokenët'), el('table', { class: 'kv' },
+          sec.github ? secretRow('#github', 'GitHub (vetëm-lexim, për përditësime)', sec.github, true) : el('tr', {}, el('td', { class: 'k' }, 'GitHub'), el('td', {}, pill('warn', 'mungon')), el('td', { class: 'a' })),
+          sec.tunnel ? secretRow('#tunnel', 'Cloudflare Tunnel', sec.tunnel, true) : el('tr', {}, el('td', { class: 'k' }, 'Cloudflare Tunnel'), el('td', {}, pill('mute', 'nuk ka tunel të përhershëm')), el('td', { class: 'a' }))))),
+      conn ? el('div', { class: 'card' }, el('h2', {}, 'Lidhja me databazën'), el('div', { class: 'desc' }, 'Komanda për t\'u lidhur me databazën nga terminali (fjalëkalimi kërkohet pasi ta ekzekutosh):'), el('span', { class: 'val mono' }, conn), ' ', (() => { const b = el('button', { type: 'button', class: 'iconbtn' }, 'Kopjo'); b.onclick = () => copyText(conn); return b; })()) : '',
+      others.length ? el('div', { class: 'card' }, el('h2', {}, 'Cilësime të tjera (.env)'), el('table', { class: 'kv' }, ...others.map((e) => secretRow(e.key, e.key, e.value, SECRET.test(e.key))))) : '');
+  };
+
+  // ---- actions
+  const updBtn = el('button', { type: 'button', class: 'btn' }, s.update ? 'Përditëso tani' : 'Përditëso');
+  updBtn.disabled = busy || !s.update;
+  updBtn.title = s.update ? '' : 'Nuk ka version të ri';
+  updBtn.onclick = async () => {
+    if (!confirm('Përditësoj "' + s.name + '" në ' + s.latest.version + '?' + NL + 'Bëhet backup, build, migrimet dhe kontrolli; nëse nuk përgjigjet, kthehet vetë te versioni i vjetër. Faqja mund të mos hapet disa minuta.')) return;
+    if (await call('update', '', 'Përditësimi filloi...')) { go('log'); load(); }
+  };
+  const backupBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Backup tani');
+  backupBtn.disabled = busy;
+  backupBtn.onclick = async () => {
+    if (!confirm('Bëj backup të databazës së "' + s.name + '" tani?')) return;
+    backupBtn.disabled = true; toast('Po bëhet backup...');
+    const j = await call('backup');
+    if (j) { toast('Backup u ruajt: ' + j.name + ' (' + fmtSize(j.size) + ')'); load(); } else backupBtn.disabled = false;
+  };
+  const [sqlBtn, sqlInput] = fileButton('Ekzekuto SQL...', '.sql', async (f) => {
+    if (confirm('Ekzekutoj "' + f.name + '" (' + fmtSize(f.size) + ') në databazën e "' + s.name + '"?' + NL + 'Fillimisht bëhet backup automatik. Ndalet te gabimi i parë.')) await sendFile('sql', f, 'SQL filloi...');
+  });
+  const tokBtn = el('button', { type: 'button', class: 'btn ghost' }, s.tokenSet ? 'Ndrysho tokenin GitHub...' : 'Vendos tokenin GitHub...');
+  tokBtn.onclick = async () => {
+    const t = prompt('Ngjit tokenin GitHub vetëm-lexim (Contents: read) për përditësime. Ai ruhet i enkriptuar në këtë kompjuter:');
+    if (!t) return;
+    try { const r = await postJson('github-token', { token: t.trim() }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Tokeni nuk u ruajt'); delete state.secrets[s.id]; toast('Tokeni u ruajt.'); load(); }
+    catch (e) { toast('GABIM: ' + e.message, true); }
+  };
+  const tunBtn = el('button', { type: 'button', class: 'btn ghost sm' }, a.tunnel ? 'Ndrysho tunelin' : 'Shto tunel');
+  const rmTunBtn = el('button', { type: 'button', class: 'btn danger sm' }, 'Hiq');
+  rmTunBtn.onclick = async () => {
+    if (!confirm('Heq tunelin nga ky PC?' + NL + 'Adresat e tij nuk do të hapen më nga interneti (tuneli te Cloudflare nuk fshihet). Adresa e përkohshme mbetet.')) return;
+    if (await call('tunnel-remove', '', 'Po hiqet tuneli...')) { go('log'); load(); }
+  };
+  tunBtn.disabled = busy;
+  tunBtn.onclick = async () => {
+    const t = prompt((a.tunnel ? 'Tuneli i vjetër hiqet dhe vendoset ky i ri. ' : '') + 'Ngjit Tunnel Token-in e Cloudflare (ose komandën "cloudflared service install ..."). Adresat (domenet) i gjen vetë dashboard-i kur hapet adresa nga interneti:');
+    if (!t) return;
+    try { const r = await postJson('tunnel-token', { token: t.trim() }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); delete state.secrets[s.id]; go('log'); toast('Po lidhet tuneli...'); load(); }
+    catch (e) { toast('GABIM: ' + e.message, true); }
+  };
+  const dash = state.data && state.data.dashboard;
+  const dashBtn = el('button', { type: 'button', class: dash && dash.files ? 'btn' : 'btn ghost' }, dash && dash.files ? 'Përditëso dashboard-in' : 'Kontrollo');
+  dashBtn.onclick = async () => {
+    if (!(dash && dash.files)) { toast('Po kontrollohet...'); await load(); return toast(state.data.dashboard && state.data.dashboard.files ? 'Ka version të ri të dashboard-it.' : 'Dashboard-i është i përditësuar.'); }
+    if (!confirm('Përditësoj dashboard-in nga repo i dashboard-it (' + dash.files + ' skedar)?' + NL + 'Skedarët e vjetër ruhen te manager\\.previous. Faqja rifreskohet vetë pas disa sekondash.')) return;
+    dashBtn.disabled = true; toast('Po përditësohet dashboard-i...');
+    const j = await call('dashboard-update');
+    if (j) { toast(j.files ? 'U përditësua (' + j.files + ' skedar). Rifreskohet...' : 'Dashboard-i ishte i përditësuar.'); setTimeout(() => location.reload(), 9000); } else dashBtn.disabled = false;
+  };
+  const dashText = !dash ? 'Ky dashboard punon nga folderi i zhvillimit: nuk përditësohet online.' : dash.error ? 'Nuk u kontrollua (' + dash.error + ').' : dash.files ? 'Ka version të ri (' + dash.files + ' skedar): përditësohet vetë brenda 10 minutash, ose shtyp butonin.' : 'Je në versionin e fundit (kontrollohet çdo 10 minuta dhe përditësohet vetë).';
+  const item = (title, text, ...buttons) => el('div', { class: 'item' }, el('div', {}, el('b', {}, title), el('span', {}, text)), el('div', { class: 'row' }, ...buttons));
+  pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë dhe lidhje', ''),
+    s.ownerMissing ? ownerBanner() : '',
+    el('div', { class: 'grid2' },
+      el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
+        item('Përditëso aplikacionin', s.update ? 'Ka version të ri në GitHub (' + latText + ').' : 'Je në versionin e fundit (' + verText + ').', updBtn),
+        item('Përditëso dashboard-in', dashText, dash ? dashBtn : ''))),
+      el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
+        item('Ndalo, nise, rinis', 'Kontrollon detyrën e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin? Përdoruesit nuk do ta hapin deri sa ta nisësh.'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),
+    el('div', { class: 'grid2' },
+      el('div', { class: 'card' }, el('h2', {}, 'Databaza'), el('div', { class: 'act' },
+        item('Backup tani', 'Ruan një kopje të databazës te Backup-et.', backupBtn),
+        item('Ekzekuto SQL', 'Skedar .sql, me backup automatik para tij.', sqlBtn, sqlInput),
+        s.ownerMissing ? '' : item('Importo databazën', 'Zëvendëson gjithë databazën me një dump të plotë (backup automatik).', importBtn, importInput))),
+      el('div', { class: 'card' }, el('h2', {}, 'Lidhjet'), el('div', { class: 'act' },
+        item('Token GitHub', s.tokenSet ? 'I vendosur (ruhet i enkriptuar).' : 'Mungon: pa të nuk bëhen përditësime.', tokBtn),
+        item('Cloudflare Tunnel', !a.tunnel ? 'Nuk është i lidhur.' : a.tunnelOk ? 'I lidhur dhe punon.' : 'Procesi punon por asnjë adresë nuk hapet.', tunBtn, a.tunnel ? rmTunBtn : '')))));
+
+  // ---- backups
+  pages.backup = () => el('div', {}, header('Backup-et', s.backups.length + ' kopje' + (s.backups.length ? ' · gjithsej ' + fmtSize(s.backups.reduce((n, b) => n + b.size, 0)) : ''), el('div', { class: 'row' }, backupBtn)),
+    el('div', { class: 'card' }, el('ul', { class: 'list' }, ...(s.backups.length ? s.backups.map((b) => {
+      const dl = el('a', { class: 'btn ghost sm', href: '/api/backup-file?id=' + encodeURIComponent(s.id) + '&name=' + encodeURIComponent(b.name), download: b.name, style: 'text-decoration:none;display:inline-block;border:1px solid var(--line);padding:3px 10px;border-radius:7px;color:var(--text)' }, 'Shkarko');
+      const show = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hap');
+      show.onclick = () => call('open-folder', '&name=' + encodeURIComponent(b.name));
+      const del = el('button', { type: 'button', class: 'btn danger sm' }, 'Fshi');
+      del.disabled = busy;
+      del.onclick = async () => {
+        if (!confirm('Fshij backup-in ' + b.name + ' (' + fmtSize(b.size) + ')?' + NL + (s.backups.length === 1 ? 'Është backup-i i vetëm: pas fshirjes nuk ke asnjë kopje të databazës. ' : '') + 'Kjo nuk kthehet pas.')) return;
+        const j = await call('backup-delete', '&name=' + encodeURIComponent(b.name));
+        if (j) { toast('Backup-i u fshi (mbeten ' + j.left + ').'); load(); }
+      };
+      return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size)), el('span', {}, b.name)), el('div', { class: 'row' }, dl, show, del));
+    }) : [el('li', {}, el('span', { class: 'empty' }, 'Nuk ka backup ende.'))]))));
+
+  pages.files = () => el('div', {}, header('Ku është instaluar', 'Folderët dhe skedarët e këtij instalimi', ''),
+    el('div', { class: 'card' }, el('ul', { class: 'list' }, ...s.paths.map((e) => {
+      const b = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hap');
+      b.disabled = !e.exists;
+      b.onclick = () => call('open', '&what=' + encodeURIComponent(e.key));
+      return el('li', { class: e.exists ? '' : 'missing' }, el('div', { class: 'p' }, el('b', {}, e.label), el('span', {}, e.path + (e.exists ? '' : ' (nuk ekziston)'))), b);
+    }))));
+
+  pages.log = () => {
+    const j = s.job;
+    return el('div', {}, header('Log-u', j ? j.title + ' · ' + (j.state === 'running' ? 'po vazhdon...' : j.state === 'ok' ? 'SUKSES' : 'GABIM') : 'Veprimi i fundit', ''),
+      el('div', { class: 'card' }, j ? el('pre', { class: 'log', 'data-id': s.id }, j.lines.join(NL) || '...') : el('div', { class: 'empty' }, 'Asnjë veprim ende (përditësim, SQL, import, tunel).')));
+  };
+
+  return { html: (pages[state.section] || pages.home)(), uninstall: s.canUninstall ? async () => {
+    if (!confirm('Çinstaloj HRSystem nga ky kompjuter?' + NL + NL + 'Ruhet një backup i fundit i databazës në Desktop dhe fshihet gjithçka (aplikacioni, databaza, dashboard-i, tuneli). Hapet një dritare ku shkruan PO.')) return;
+    await call('uninstall', '', 'Dritarja e çinstalimit u hap. Vazhdo atje.');
+  } : null };
+}
+
+// ---------------------------------------------------------------- shell: side navbar + page
+function go(section) { state.section = section; store.set('section', section); render(); }
+function render() {
+  const j = state.data;
+  if (!j) return;
+  const side = $('side'), page = $('page');
+  if (!j.instances.length) {
+    side.replaceChildren(el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))));
+    page.replaceChildren(el('div', { class: 'card' }, el('b', {}, 'Asnjë instalim nuk u gjet në këtë kompjuter.'), el('div', { style: 'color:var(--muted)' }, 'Hap Install.bat për të instaluar HRSystem.')));
+    return;
+  }
+  if (!j.instances.some((i) => i.id === state.cur)) state.cur = j.instances[0].id;
+  const s = j.instances.find((i) => i.id === state.cur);
+  const v = view(s);
+  const select = el('select', { 'aria-label': 'Instalimi' }, ...j.instances.map((i) => { const o = el('option', { value: i.id }, i.name); if (i.id === s.id) o.selected = true; return o; }));
+  select.onchange = () => { state.cur = select.value; store.set('cur', state.cur); render(); };
+  const nav = el('nav', { class: 'nav' }, ...SECTIONS.map(([key, label, ic]) => {
+    const b = el('button', { type: 'button', class: state.section === key ? 'on' : '' }, icon(ic), label, key === 'backup' ? el('span', { class: 'count' }, String(s.backups.length)) : '');
+    b.onclick = () => go(key);
+    return b;
+  }));
+  const refresh = el('button', { type: 'button' }, 'Rifresko'); refresh.onclick = load;
+  const un = v.uninstall ? el('button', { type: 'button', class: 'danger' }, 'Çinstalo HRSystem...') : '';
+  if (un) un.onclick = v.uninstall;
+  side.replaceChildren(
+    el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))),
+    el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off') }), select),
+    nav,
+    el('div', { class: 'foot' }, j.dashboard && j.dashboard.files ? (() => { const b = el('button', { type: 'button' }, 'Dashboard i ri: përditëso'); b.onclick = () => go('actions'); return b; })() : '', el('span', {}, j.at ? 'Përditësuar ' + fmtTime(j.at, true) : ''), el('span', {}, 'Rifreskohet vetë çdo 30 s'), refresh, un));
+  page.replaceChildren(v.html);
+}
+
+// One status request at a time (a slow measurement must not pile up), and background refreshes stay silent when the dashboard is briefly unreachable (e.g. while it restarts itself).
+let loading = false, again = false;
+async function load(quiet) {
+  if (loading) { if (quiet !== true) again = true; return; }
+  loading = true;
+  try {
+    const r = await fetch('/api/status');
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Gabim');
+    state.data = j;
+    render();
+  } catch (e) { if (quiet !== true) toast('GABIM: ' + e.message, true); }
+  finally { loading = false; if (again) { again = false; load(); } }
+}
+load();
+// Refresh every 30 s, but not while the tab is hidden; coming back to the tab refreshes at once.
+setInterval(() => { if (!document.hidden && !running().length) load(true); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !running().length) load(true); });
+// While an update / SQL / import / tunnel runs, only its log is refreshed (every 3 s); a full refresh would measure everything again.
+setInterval(async () => {
+  for (const id of running()) {
+    try {
+      const j = await (await fetch('/api/job?id=' + encodeURIComponent(id))).json();
+      if (!j) continue;
+      if (j.state !== 'running') { load(); return; }
+      const pre = document.querySelector('pre.log[data-id="' + id + '"]');
+      if (pre) { pre.textContent = j.lines.join(NL) || '...'; pre.scrollTop = pre.scrollHeight; }
+    } catch { /* next round */ }
+  }
+}, 3000);
+</script>
+</body>
+</html>

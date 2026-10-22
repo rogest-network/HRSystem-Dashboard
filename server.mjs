@@ -1,0 +1,871 @@
+﻿// HRSystem Dashboard: a small dashboard (health, speed, versions, backups, update, SQL) for the HRSystem installations.
+// It runs on the owner's PC only (127.0.0.1) and has no npm dependencies. Start it with Menaxheri.bat.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { execFile, spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+// The port is chosen by the system (port 0 = any free port) in an installation; MANAGER_PORT forces one, and on a development PC it is 3500.
+const PORT_FORCED = process.env.MANAGER_PORT ? Number(process.env.MANAGER_PORT) : null;
+const CONFIG = path.join(HERE, fs.existsSync(path.join(HERE, 'instances.json')) ? 'instances.json' : 'instances.example.json');
+// Sign-in key: OPTIONAL (owner, 2026-10-21: the dashboard is installed locally and opens with no sign-in). It is asked for only
+// when manager/dashboard.key exists (or DASHBOARD_KEY is set), e.g. on a shared computer where other users could open it.
+const KEY_FILE = path.join(HERE, 'dashboard.key');
+function dashboardKey() {
+  if (process.env.DASHBOARD_KEY) return process.env.DASHBOARD_KEY;
+  return fs.existsSync(KEY_FILE) ? fs.readFileSync(KEY_FILE, 'utf8').trim() : '';
+}
+const LOGIN_KEY = dashboardKey();
+const COOKIE = crypto.createHash('sha256').update('dashboard:' + LOGIN_KEY).digest('hex');
+const SIGN_IN = LOGIN_KEY.length > 0;
+const sameText = (a, b) => typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const authed = (req) => { if (!SIGN_IN) return true; const m = /(?:^|;\s*)mgr=([0-9a-f]+)/.exec(req.headers.cookie || ''); return !!m && sameText(m[1], COOKIE); };
+let failures = []; // times of wrong keys: 5 in a minute locks the sign-in for a minute
+const LOGIN_HTML = '<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HRSystem Dashboard</title><style>:root{color-scheme:light dark}body{font:16px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}form{display:grid;gap:12px;width:min(320px,90vw)}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #8886}button{background:#2457d6;color:#fff;border:0;font-weight:600;cursor:pointer}p{margin:0;font-size:13px;opacity:.75}#e{color:#c0392b;min-height:18px}</style></head><body><form id="f"><h1 style="margin:0;font-size:20px">HRSystem Dashboard</h1><input id="k" type="password" autocomplete="off" placeholder="Celesi i dashboard-it" autofocus required><button>Hyr</button><p>Celesi ndodhet te skedari manager/dashboard.key (vetem administratori).</p><p id="e"></p></form><script>f.onsubmit=async function(ev){ev.preventDefault();const r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k.value})});if(r.ok)location.reload();else e.textContent=r.status===429?"Shume provime. Prit nje minute.":"Celesi nuk eshte i sakte."};var h=/[#&]key=([0-9a-f]+)/.exec(location.hash);if(h){history.replaceState(null,"",location.pathname);k.value=h[1];f.requestSubmit()}</script></body></html>';
+
+// A random key per run: every action that changes something (backup) must carry it, so a web page cannot trigger it.
+const SESSION_KEY = crypto.randomBytes(24).toString('hex');
+// A broken connection or an error in one request must never stop the dashboard: it is logged and the dashboard keeps running.
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e && e.stack ? e.stack : e));
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e && e.stack ? e.stack : e));
+const history = new Map(); // instance id -> last speed samples (ms, 0 = down)
+
+// Only what runs on THIS PC (owner, 2026-10-21): the folders listed in the config that exist here, plus the standard install
+// C:\HRSystem when it is found. Other hosts (Hostinger, VPS, other computers) are not shown.
+function instances() {
+  // The list file is optional: an installation needs none (C:\HRSystem is found by itself); a missing or broken file means an empty list.
+  let configured = [];
+  try { configured = JSON.parse(fs.readFileSync(CONFIG, 'utf8')).instances || []; } catch { /* no list file */ }
+  const listed = configured.filter((i) => i.root && fs.existsSync(path.join(i.root, 'current.txt')));
+  // The installation this dashboard belongs to is the folder above manager/ (C:\HRSystem by default; its data folder is <that folder>Data).
+  const std = path.dirname(HERE);
+  if (fs.existsSync(path.join(std, 'current.txt')) && !listed.some((i) => i.root.toLowerCase() === std.toLowerCase())) {
+    const upd = (() => { try { return JSON.parse(fs.readFileSync(path.join(std, 'update.json'), 'utf8')); } catch { return {}; } })();
+    listed.unshift({ id: 'hrsystem', name: 'HRSystem (ky PC)', root: std, data: std + 'Data', repo: upd.repo, channel: upd.channel || 'stable', task: 'HRSystem' });
+  }
+  return listed.map((i) => {
+    let env = {};
+    try { env = readEnv(path.join(i.root, '.env')); } catch { /* no .env */ }
+    return { ...i, url: i.url || env.APP_ORIGIN || '', local: `http://127.0.0.1:${env.PORT || 3000}` };
+  });
+}
+const find = (id) => instances().find((i) => i.id === id);
+
+function readEnv(file) {
+  const out = {};
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = /^([A-Z_]+)=(.*)$/.exec(line);
+    if (m) out[m[1]] = m[2];
+  }
+  return out;
+}
+
+const run = (file, args, env = {}, cwd = undefined) =>
+  new Promise((resolve, reject) =>
+    execFile(file, args, { env: { ...process.env, ...env }, cwd, windowsHide: true, timeout: 20 * 60 * 1000 }, (err, stdout, stderr) =>
+      err ? reject(new Error((stderr || err.message).trim())) : resolve(stdout.trim()),
+    ),
+  );
+
+async function health(inst) {
+  const samples = [];
+  let status = 0;
+  let body = null;
+  for (let i = 0; i < 3; i++) {
+    const t0 = performance.now();
+    try {
+      const res = await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(10000), cache: 'no-store' });
+      samples.push(Math.round(performance.now() - t0));
+      status = res.status;
+      body = await res.json().catch(() => null);
+    } catch {
+      status = 0;
+    }
+  }
+  samples.sort((a, b) => a - b);
+  const ms = samples.length ? samples[Math.floor(samples.length / 2)] : 0;
+  const ok = status === 200 && !!body && body.ok === true;
+  const h = history.get(inst.id) || [];
+  h.push(ok ? Math.max(1, ms) : null); // null = down; a sub-millisecond answer is shown as 1 ms, not as down
+  history.set(inst.id, h.slice(-24));
+  return { ok, status, ms: ok ? Math.max(1, ms) : 0, database: body?.database ?? null, history: history.get(inst.id) };
+}
+
+// The read-only GitHub token: the installation's own (encrypted file, read by its hr-common.ps1), else GITHUB_TOKEN, else the signed-in gh.
+const tokens = new Map();
+async function token(inst) {
+  const key = inst.root || '';
+  if (tokens.has(key)) return tokens.get(key);
+  let t = process.env.GITHUB_TOKEN || '';
+  const common = inst.root && path.join(inst.root, 'hr-common.ps1');
+  if (!t && common && fs.existsSync(common)) {
+    t = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `. '${common.replace(/'/g, "''")}'; Get-GitHubToken`], { HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data || '' }).catch(() => '');
+  }
+  if (!t) t = await run('gh', ['auth', 'token']).catch(() => '');
+  tokens.set(key, t.trim());
+  return tokens.get(key);
+}
+
+async function latest(inst) {
+  if (!inst.repo) return null;
+  const t = await token(inst);
+  const res = await fetch(`https://api.github.com/repos/${inst.repo}/releases?per_page=30`, {
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'regina-manager', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) return { error: `GitHub ${res.status}` };
+  const releases = (await res.json()).filter((r) => !r.draft && /^v\d+\.\d+\.\d+$/.test(r.tag_name));
+  const pick = inst.channel === 'test' ? releases[0] : releases.find((r) => !r.prerelease);
+  if (!pick) return { error: 'Nuk ka Release' };
+  const asset = pick.assets.find((a) => a.name.endsWith('-Hostinger.zip'));
+  return {
+    version: pick.tag_name.slice(1),
+    prerelease: pick.prerelease,
+    published: pick.published_at,
+    build: asset ? `${asset.id}:${asset.updated_at}` : null,
+  };
+}
+
+// A local installation keeps the active release in current.txt and the build it came from in releases/<name>/.asset.
+function installed(inst) {
+  if (!inst.root) return null;
+  try {
+    const name = fs.readFileSync(path.join(inst.root, 'current.txt'), 'utf8').trim();
+    let build = null;
+    try { build = fs.readFileSync(path.join(inst.root, 'releases', name, '.asset'), 'utf8').trim(); } catch { /* none */ }
+    return { name, version: name.replace(/-b\d+$/, ''), build };
+  } catch {
+    return { error: 'current.txt nuk u gjet' };
+  }
+}
+
+const cmp = (a, b) => {
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
+  return 0;
+};
+
+function backupDir(inst) {
+  return inst.data ? path.join(inst.data, 'Backups') : null;
+}
+
+function listBackups(inst) {
+  const dir = backupDir(inst);
+  if (!dir || !fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => { const st = fs.statSync(path.join(dir, f)); return { name: f, size: st.size, time: st.mtime.toISOString() }; })
+    .sort((a, b) => b.time.localeCompare(a.time));
+}
+
+function mysqldumpPath() {
+  const base = 'C:\\Program Files\\MySQL';
+  if (fs.existsSync(base)) {
+    for (const d of fs.readdirSync(base).sort().reverse()) {
+      const p = path.join(base, d, 'bin', 'mysqldump.exe');
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return 'mysqldump';
+}
+
+async function backup(inst) {
+  if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter: backup-in e bën nga paneli i hostit.');
+  const cfg = readEnv(path.join(inst.root, '.env'));
+  const dir = backupDir(inst);
+  fs.mkdirSync(dir, { recursive: true });
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; // local time, like the updater's backups
+  const file = path.join(dir, `hrsystem-${stamp}.sql`);
+  await run(
+    mysqldumpPath(),
+    [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--single-transaction', '--no-tablespaces', '--default-character-set=utf8mb4', `--result-file=${file}`, cfg.DB_NAME],
+    { MYSQL_PWD: cfg.DB_PASSWORD },
+  );
+  return { name: path.basename(file), size: fs.statSync(file).size };
+}
+
+// ---- Jobs (update, SQL): run in the background, the page polls their output ----
+const jobs = new Map(); // instance id -> { title, state: 'running' | 'ok' | 'error', lines, started }
+const clean = (t) => t.replace(/\x1b\[[0-9;]*m/g, '').replace(/\r/g, '');
+
+function startJob(inst, title, launch) {
+  const old = jobs.get(inst.id);
+  if (old && old.state === 'running') throw new Error('Nje veprim po ekzekutohet: "' + old.title + '". Prit te mbaroje.');
+  const job = { title, state: 'running', lines: [], started: Date.now() };
+  jobs.set(inst.id, job);
+  const add = (t) => { for (const l of clean(String(t)).split('\n')) if (l.trim()) job.lines.push(l); job.lines = job.lines.slice(-200); };
+  Promise.resolve()
+    .then(() => launch(add))
+    .then((ok) => { job.state = ok === false ? 'error' : 'ok'; })
+    .catch((e) => { add('GABIM: ' + e.message); job.state = 'error'; });
+  return job;
+}
+
+function needLocal(inst) {
+  if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter.');
+}
+
+// The update is the installation's own updater.ps1 (backup, build, migrations, health check, automatic return).
+function runUpdate(inst) {
+  needLocal(inst);
+  const script = path.join(inst.root, 'updater.ps1');
+  if (!fs.existsSync(script)) throw new Error('updater.ps1 nuk u gjet te ' + inst.root);
+  return startJob(inst, 'Perditesim', (add) => new Promise((resolve) => {
+    const env = { ...process.env, HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data };
+    if (inst.task) env.HRSYSTEM_TASK = inst.task;
+    const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], { env, windowsHide: true });
+    p.stdout.on('data', add);
+    p.stderr.on('data', add);
+    p.on('error', (e) => { add('GABIM: ' + e.message); resolve(false); });
+    p.on('close', (code) => resolve(code === 0));
+  }));
+}
+
+function mysqlPath() { return mysqldumpPath().replace(/mysqldump(\.exe)?$/, 'mysql$1'); }
+
+function mysqlRun(inst, cfg, sqlFile, add) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--default-character-set=utf8mb4', cfg.DB_NAME], { env: { ...process.env, MYSQL_PWD: cfg.DB_PASSWORD }, windowsHide: true });
+    let err = '';
+    p.stdout.on('data', add);
+    p.stderr.on('data', (d) => { err += d; });
+    p.on('error', reject);
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(clean(err).trim() || 'mysql perfundoi me kod ' + code))));
+    p.stdin.on('error', () => { /* mysql stopped reading (an error in the file): its own message is shown, the dashboard must not crash */ });
+    fs.createReadStream(sqlFile).pipe(p.stdin);
+  });
+}
+
+// Replace the whole database with a dump (e.g. from Hostinger's phpMyAdmin): backup, drop the tables, load the dump, then run the
+// migrations the dump does not have yet (the installed release's own migrate-cli). The backup is the way back.
+function runImport(inst, name, text) {
+  needLocal(inst);
+  const cfg = readEnv(path.join(inst.root, '.env'));
+  const dir = path.join(inst.data, 'Backups');
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = Date.now();
+  const dropFile = path.join(dir, `drop-${stamp}.tmp.sql`);
+  const dumpFile = path.join(dir, `import-${stamp}.tmp.sql`);
+  // MariaDB 11.4+ names a collation MySQL 8.4 does not know; the standard one is the same for this app.
+  fs.writeFileSync(dumpFile, text.replace(/utf8mb4_uca1400_[a-z_]+/g, 'utf8mb4_unicode_ci').replace(/^\s*(CREATE DATABASE|USE)\b.*$/gim, '-- (skipped) $&'));
+  return startJob(inst, 'Import databaze: ' + name, async (add) => {
+    try {
+      add('1/4 Backup i databazes para importit...');
+      const b = await backup(inst);
+      add('Backup: ' + b.name + ' (kthimi mbrapa)');
+      add('2/4 Po fshihen tabelat ekzistuese...');
+      const tables = (await run(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '-N', '-B', '-e', 'SHOW FULL TABLES WHERE Table_type="BASE TABLE"', cfg.DB_NAME], { MYSQL_PWD: cfg.DB_PASSWORD })).split(/\r?\n/).map((l) => l.split('\t')[0]).filter(Boolean);
+      fs.writeFileSync(dropFile, 'SET FOREIGN_KEY_CHECKS=0;\n' + tables.map((t) => 'DROP TABLE IF EXISTS `' + t.replace(/`/g, '``') + '`;').join('\n') + '\nSET FOREIGN_KEY_CHECKS=1;\n');
+      await mysqlRun(inst, cfg, dropFile, add);
+      add('3/4 Po ngarkohet ' + name + ' ...');
+      await mysqlRun(inst, cfg, dumpFile, add);
+      add('4/4 Migrimet qe mungojne...');
+      const release = fs.readFileSync(path.join(inst.root, 'current.txt'), 'utf8').trim();
+      const relDir = path.join(inst.root, 'releases', release);
+      add(await run(process.execPath, ['server/core/migrate-cli.mjs'], cfg, relDir));
+      add('SUKSES: databaza u importua.');
+    } catch (e) {
+      add('Nese databaza ka mbetur gjysme, rikthe backup-in e mesiperm (Ekzekuto SQL ose sql-import.bat).');
+      throw e;
+    } finally {
+      fs.rmSync(dropFile, { force: true });
+      fs.rmSync(dumpFile, { force: true });
+    }
+  });
+}
+
+// One .sql file: backup first, then run it; it stops at the first error.
+function runSql(inst, name, text) {
+  needLocal(inst);
+  const cfg = readEnv(path.join(inst.root, '.env'));
+  const tmp = path.join(inst.data, 'Backups', 'sql-' + Date.now() + '.tmp.sql');
+  fs.mkdirSync(path.dirname(tmp), { recursive: true });
+  fs.writeFileSync(tmp, text);
+  return startJob(inst, 'SQL: ' + name, async (add) => {
+    try {
+      add('Backup i databazes para SQL...');
+      const b = await backup(inst);
+      add('Backup: ' + b.name);
+      add('Po ekzekutohet ' + name + ' ...');
+      await new Promise((resolve, reject) => {
+        const p = spawn(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--default-character-set=utf8mb4', cfg.DB_NAME], { env: { ...process.env, MYSQL_PWD: cfg.DB_PASSWORD }, windowsHide: true });
+        let err = '';
+        p.stdout.on('data', add);
+        p.stderr.on('data', (d) => { err += d; });
+        p.on('error', reject);
+        p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(clean(err).trim() || 'mysql perfundoi me kod ' + code))));
+        p.stdin.on('error', () => { /* same as above */ });
+        fs.createReadStream(tmp).pipe(p.stdin);
+      });
+      add('SUKSES: SQL u ekzekutua.');
+    } catch (e) {
+      add('Backup-i para SQL ruhet; asgje tjeter nuk u ndryshua pas gabimit.');
+      throw e;
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  });
+}
+
+// ---- Where everything is (shown in the dashboard) and what can be done with the system ----
+function readTextOr(file, fallback = '') { try { return fs.readFileSync(file, 'utf8'); } catch { return fallback; } }
+
+function pathsOf(inst, env) {
+  const release = readTextOr(path.join(inst.root, 'current.txt')).trim();
+  let mysqlData = path.join(inst.data, 'MySQLData');
+  for (const ini of ['mysql-hrsystem.ini', 'my.ini']) {
+    const m = /^datadir=(.*)$/mi.exec(readTextOr(path.join(inst.root, ini)));
+    if (m) { mysqlData = path.normalize(m[1].trim()); break; }
+  }
+  const list = [
+    { key: 'root', label: 'Folderi kryesor (aplikacioni, skriptet)', path: inst.root },
+    ...(release ? [{ key: 'release', label: 'Kodi qe po punon (versioni ' + release + ')', path: path.join(inst.root, 'releases', release) }] : []),
+    { key: 'env', label: 'Cilesimet (.env: porta, databaza, adresa)', path: path.join(inst.root, '.env'), file: true },
+    { key: 'launcher', label: 'Nisesi i aplikacionit (start-hrsystem.ps1)', path: path.join(inst.root, 'start-hrsystem.ps1'), file: true },
+    { key: 'data', label: 'Te dhenat (databaza, backup-et)', path: inst.data },
+    { key: 'mysql', label: 'Skedaret e databazes MySQL', path: mysqlData },
+    { key: 'backups', label: 'Backup-et e databazes', path: path.join(inst.data, 'Backups') },
+  ];
+  const logDirs = [inst.root, path.join(inst.root, 'logs')];
+  for (const dir of logDirs) {
+    try {
+      for (const f of fs.readdirSync(dir)) if (f.endsWith('.log')) list.push({ key: 'log:' + path.join(dir, f), label: 'Log: ' + f, path: path.join(dir, f), file: true });
+    } catch { /* no such folder */ }
+  }
+  return list.map((e) => ({ ...e, exists: fs.existsSync(e.path) }));
+}
+
+// The public address (domain) is set once from the dashboard and kept in dashboard-settings.json in the installation folder.
+const settingsFile = (inst) => path.join(inst.root, 'dashboard-settings.json');
+function readSettings(inst) { try { return JSON.parse(fs.readFileSync(settingsFile(inst), 'utf8')); } catch { return {}; } }
+function normalizeDomain(raw) {
+  let d = String(raw || '').trim();
+  if (!d) return '';
+  if (!/^https?:[/][/]/i.test(d)) d = 'https://' + d;
+  const m = /^(https?:[/][/][A-Za-z0-9.-]+(?::[0-9]+)?)(?:[/].*)?$/i.exec(d);
+  if (!m) throw new Error('Adresa nuk duket e sakte (p.sh. https://staff.butikuregina.com).');
+  return m[1].toLowerCase();
+}
+
+// The names the application is opened with from the internet are found by themselves: the application remembers the address of its last
+// request that came through the tunnel (GET /api/local/public-host); the dashboard asks for it every few seconds and keeps every name it
+// sees with the time (domainsSeen). One tunnel can carry several names (self, app, test ...), so all of them are shown. A name not seen
+// for 14 days is forgotten; a temporary address (quick tunnel) is never a domain of the application.
+async function learnDomains(inst) {
+  try {
+    const rawSeen = (await (await fetch(inst.local + '/api/local/public-host', { signal: AbortSignal.timeout(3000), cache: 'no-store' })).json()).host || '';
+    let seen = '';
+    try { seen = rawSeen ? normalizeDomain(rawSeen) : ''; } catch { /* not a plain host name: ignored */ }
+    if (/[.]trycloudflare[.]com$/i.test(seen)) seen = '';
+    const settings = readSettings(inst);
+    const known = settings.domainsSeen && typeof settings.domainsSeen === 'object' ? { ...settings.domainsSeen } : {};
+    const oldOne = settings.domainSeen && !/[.]trycloudflare[.]com$/i.test(settings.domainSeen) ? settings.domainSeen : '';
+    if (oldOne && !known[oldOne]) known[oldOne] = new Date().toISOString();
+    if (seen) known[seen] = new Date().toISOString();
+    for (const [h, at] of Object.entries(known)) if (Date.now() - Date.parse(at) > 14 * 864e5) delete known[h];
+    if (JSON.stringify(known) !== JSON.stringify(settings.domainsSeen) || settings.domainSeen !== undefined || settings.domain !== undefined) {
+      settings.domainsSeen = known; delete settings.domainSeen; delete settings.domain; // a domain typed by hand is no longer used (owner, 2026-10-22: only automatic)
+      fs.writeFileSync(settingsFile(inst), JSON.stringify(settings, null, 2));
+    }
+  } catch { /* older application without the route, or it is stopped */ }
+}
+setInterval(() => { try { for (const inst of instances()) if (inst.local && inst.root) learnDomains(inst); } catch { /* none */ } }, 15000).unref();
+
+async function accessOf(inst, env) {
+  const settings = readSettings(inst);
+  const isPublic = (o) => o && !o.includes('localhost') && !o.includes('127.0.0.1');
+  // Only automatic: the names that were seen (in alphabetical order), then the one from the .env.
+  const names = [...Object.keys(settings.domainsSeen || {}).sort(), env.APP_ORIGIN].filter(isPublic).filter((o, i, all) => all.indexOf(o) === i);
+  const domains = await Promise.all(names.map(async (u) => {
+    let ok = false;
+    try { ok = (await fetch(u.replace(/[/]$/, '') + '/api/health', { signal: AbortSignal.timeout(8000), cache: 'no-store' })).ok; } catch { ok = false; }
+    return { url: u, ok };
+  }));
+  // A name learned from the tunnel that no longer opens (the tunnel or its DNS record was deleted) is forgotten at once; only the one in
+  // .env stays listed when it does not open.
+  const learned = settings.domainsSeen || {};
+  const gone = domains.filter((d) => !d.ok && learned[d.url] && d.url !== env.APP_ORIGIN).map((d) => d.url);
+  if (gone.length) {
+    const cur = readSettings(inst);
+    for (const g of gone) delete (cur.domainsSeen || {})[g];
+    try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+    domains.splice(0, domains.length, ...domains.filter((d) => !gone.includes(d.url)));
+  }
+  const publicDomain = domains.length ? domains[0].url : '';
+  const domainOk = domains.length ? domains[0].ok : null;
+  // A permanent tunnel is any cloudflared process except the temporary one (its pid is in quick-tunnel.json), which is not "the tunnel".
+  const quickPid = (quickState(inst) || {}).pid;
+  const tunnel = await run('tasklist', ['/FI', 'IMAGENAME eq cloudflared.exe', '/NH', '/FO', 'CSV']).then((o) => o.split(/\r?\n/).some((l) => /^"cloudflared[.]exe","(\d+)"/i.test(l) && Number(/^"[^"]*","(\d+)"/.exec(l)[1]) !== quickPid)).catch(() => false);
+  // tunnelOk: a cloudflared process runs AND at least one of the names opens (a deleted tunnel keeps its process but nothing opens).
+  return { local: 'http://localhost:' + (env.PORT || 3000), domain: publicDomain, domainOk, domains, tunnel, tunnelOk: tunnel && domains.some((d) => d.ok), quickUrl: quickUrlOf(inst) };
+}
+
+const q = (t) => "'" + String(t).replace(/'/g, "''") + "'";
+// Stop / start / restart the application of an installation (its Task Scheduler task; the node process is ended by its folder).
+async function systemAction(inst, action) {
+  needLocal(inst);
+  const task = inst.task || 'HRSystem';
+  const stop = `Stop-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine -like ${q('*' + inst.root + '*server.mjs*')} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+  const start = `Start-ScheduledTask -TaskName ${q(task)}`;
+  const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;
+  if (!command) throw new Error('Veprim i panjohur.');
+  await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);
+  return { ok: true };
+}
+
+// The Cloudflare Tunnel (opens the application from the internet with the owner's own address): the same steps as the installer.
+function runTunnel(inst, rawToken) {
+  needLocal(inst);
+  const token = String(rawToken || '').replace(/^.*service\s+install\s+/i, '').trim().replace(/^["']|["']$/g, '');
+  if (token.length < 20 || /\s/.test(token)) throw new Error('Tokeni i Cloudflare nuk duket i sakte (ngjite sic e jep Cloudflare).');
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    "$cf = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source",
+    "if (-not $cf) { foreach ($p in @($env:HR_CF1, $env:HR_CF2)) { if (Test-Path $p) { $cf = $p } } }",
+    "if (-not $cf) { Write-Host 'cloudflared mungon: po instalohet...'; winget install --id Cloudflare.cloudflared -e --source winget --accept-package-agreements --accept-source-agreements --silent; foreach ($p in @($env:HR_CF1, $env:HR_CF2)) { if (Test-Path $p) { $cf = $p } } }",
+    "if (-not $cf) { throw 'cloudflared.exe nuk u gjet (winget nuk e instaloi).' }",
+    "if (Get-Service cloudflared -ErrorAction SilentlyContinue) { Stop-Service cloudflared -Force -ErrorAction SilentlyContinue; & $cf service uninstall; Start-Sleep -Seconds 2 }",
+    "Get-Process cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne [int]$env:HR_QUICK_PID } | Stop-Process -Force -ErrorAction SilentlyContinue",
+    "& $cf service install $env:HR_TUNNEL_TOKEN",
+    "if ($LASTEXITCODE -ne 0) { throw 'cloudflared service install deshtoi.' }",
+    "Start-Sleep -Seconds 3; Set-Service cloudflared -StartupType Automatic; if ((Get-Service cloudflared).Status -ne 'Running') { Start-Service cloudflared }",
+    "Write-Host 'SUKSES: Cloudflare Tunnel u lidh dhe niset vete me Windows.'",
+  ].join('; ');
+  return startJob(inst, 'Cloudflare Tunnel', (add) => new Promise((resolve) => {
+    const env = { ...process.env, HR_QUICK_PID: String((quickState(inst) || {}).pid || 0), HR_TUNNEL_TOKEN: token, HR_CF1: path.join(process.env.ProgramFiles || '', 'cloudflared', 'cloudflared.exe'), HR_CF2: path.join(process.env['ProgramFiles(x86)'] || '', 'cloudflared', 'cloudflared.exe') };
+    const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { env, windowsHide: true });
+    p.stdout.on('data', add);
+    p.stderr.on('data', add);
+    p.on('error', (e) => { add('GABIM: ' + e.message); resolve(false); });
+    p.on('close', (code) => resolve(code === 0));
+  }));
+}
+
+// Remove the permanent tunnel from this PC: the Windows service (if any) and every cloudflared process except the temporary address.
+function removeTunnel(inst) {
+  needLocal(inst);
+  const script = [
+    "$cf = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source",
+    "if (-not $cf) { foreach ($p in @($env:HR_CF1, $env:HR_CF2)) { if (Test-Path $p) { $cf = $p } } }",
+    "if ((Get-Service cloudflared -ErrorAction SilentlyContinue) -and $cf) { Stop-Service cloudflared -Force -ErrorAction SilentlyContinue; & $cf service uninstall }",
+    "Get-Process cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne [int]$env:HR_QUICK_PID } | Stop-Process -Force -ErrorAction SilentlyContinue",
+    "Write-Host 'SUKSES: tuneli u hoq nga ky PC.'",
+  ].join('; ');
+  return startJob(inst, 'Heqja e tunelit', (add) => new Promise((resolve) => {
+    const env = { ...process.env, HR_QUICK_PID: String((quickState(inst) || {}).pid || 0), HR_CF1: path.join(process.env.ProgramFiles || '', 'cloudflared', 'cloudflared.exe'), HR_CF2: path.join(process.env['ProgramFiles(x86)'] || '', 'cloudflared', 'cloudflared.exe') };
+    const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { env, windowsHide: true });
+    p.stdout.on('data', add);
+    p.stderr.on('data', add);
+    p.on('error', (e) => { add('GABIM: ' + e.message); resolve(false); });
+    p.on('close', (code) => resolve(code === 0));
+  }));
+}
+
+// A temporary public address (a Cloudflare "quick tunnel": https://<words>.trycloudflare.com): no account and no domain of the owner's
+// needed, it works while the process runs and is a new address every time. For trying the application from a phone (some operators
+// do not let a new domain through; this one opened on mobile data, owner 2026-10-22).
+// The tunnel is a separate process that outlives the dashboard (a restart or an update of the dashboard does not end it): its process id and
+// address are kept in quick-tunnel.json in the installation folder. "quickWanted" (dashboard-settings.json) remembers that the owner switched
+// it on: when the process is gone (restart of the PC) the dashboard starts a new one, with a new address (an account-less tunnel never keeps one).
+function cloudflaredPath() {
+  const names = [process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter(Boolean).map((p) => path.join(p, 'cloudflared', 'cloudflared.exe'));
+  return names.find((p) => fs.existsSync(p)) || null;
+}
+const quickFile = (inst) => path.join(inst.root, 'quick-tunnel.json');
+function quickState(inst) {
+  try { const j = JSON.parse(fs.readFileSync(quickFile(inst), 'utf8')); process.kill(j.pid, 0); return j.url ? j : null; } catch { return null; }
+}
+const quickUrlOf = (inst) => (quickState(inst) || {}).url || '';
+function setQuickWanted(inst, on) {
+  const cur = readSettings(inst);
+  if (on) cur.quickWanted = true; else delete cur.quickWanted;
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+}
+let quickStarting = false;
+async function startQuick(inst) {
+  needLocal(inst);
+  const live = quickState(inst);
+  if (live) { setQuickWanted(inst, true); return { url: live.url }; }
+  if (quickStarting) throw new Error('Adresa e përkohshme po krijohet, prit pak.');
+  const exe = cloudflaredPath();
+  if (!exe) throw new Error('cloudflared mungon: instaloje me "Lidh me internetin" (tokeni) ose me winget install Cloudflare.cloudflared.');
+  quickStarting = true;
+  try {
+    let env = {};
+    try { env = readEnv(path.join(inst.root, '.env')); } catch { /* defaults */ }
+    const log = path.join(inst.root, 'quick-tunnel.log');
+    try { fs.rmSync(log, { force: true }); } catch { /* in use */ }
+    const proc = spawn(exe, ['tunnel', '--no-autoupdate', '--url', 'http://localhost:' + (env.PORT || 3000), '--logfile', log], { detached: true, stdio: 'ignore', windowsHide: true });
+    proc.unref();
+    let url = '';
+    for (let i = 0; i < 40 && !url; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try { const m = /https:[/][/][a-z0-9-]+[.]trycloudflare[.]com/.exec(fs.readFileSync(log, 'utf8')); if (m) url = m[0]; } catch { /* not written yet */ }
+    }
+    if (!url) { try { process.kill(proc.pid); } catch { /* gone */ } throw new Error('Adresa e përkohshme nuk u krijua (kontrollo internetin).'); }
+    fs.writeFileSync(quickFile(inst), JSON.stringify({ pid: proc.pid, url }));
+    setQuickWanted(inst, true);
+    return { url };
+  } finally { quickStarting = false; }
+}
+function stopQuick(inst) {
+  try { const j = JSON.parse(fs.readFileSync(quickFile(inst), 'utf8')); process.kill(j.pid); } catch { /* not running */ }
+  try { fs.rmSync(quickFile(inst), { force: true }); } catch { /* gone */ }
+  setQuickWanted(inst, false);
+  return { ok: true };
+}
+setInterval(() => {
+  try { for (const inst of instances()) if (inst.root && readSettings(inst).quickWanted && !quickState(inst) && !quickStarting) startQuick(inst).catch(() => {}); } catch { /* next round */ }
+}, 20000).unref();
+
+// The dashboard updates itself from its own PUBLIC GitHub repo (owner, 2026-10-22): one repo for every installation, no token needed. The files
+// of its main branch are compared with the local ones by their git blob hash. A new version is downloaded and applied by itself (every 10
+// minutes, and from the "Përditëso dashboard-in" button); the old files are kept in manager/.previous/, server.mjs is written last (its change
+// makes the dashboard start itself again) and a guard process puts the old files back when the new dashboard does not answer within 25 s.
+// Only an installed dashboard updates; only files that already exist here are replaced.
+const DASH_REPO = process.env.DASHBOARD_REPO || 'rogestshalaa/HRSystem-Dashboard';
+const gitBlobSha = (buf) => crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + buf.length + '\0'), buf])).digest('hex');
+async function ghJson(url) {
+  const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'hrsystem-dashboard' }, signal: AbortSignal.timeout(20000), cache: 'no-store' });
+  if (!res.ok) throw new Error('GitHub ' + res.status);
+  return res.json();
+}
+const dashSafe = (rel) => { const full = path.resolve(HERE, rel); return full.startsWith(HERE + path.sep) && !rel.startsWith('.previous') ? full : null; };
+async function dashboardDiff() {
+  const tree = await ghJson(`https://api.github.com/repos/${DASH_REPO}/git/trees/main?recursive=1`);
+  const changed = [];
+  for (const e of tree.tree || []) {
+    if (e.type !== 'blob' || !dashSafe(e.path) || /^(instances|dashboard)[.](json|key)$/.test(e.path)) continue;
+    let local = null;
+    try { local = fs.readFileSync(path.join(HERE, e.path)); } catch { continue; } // only files that exist here are updated
+    if (gitBlobSha(local) !== e.sha) changed.push({ rel: e.path, sha: e.sha });
+  }
+  return changed;
+}
+let dashCache = null;
+async function dashboardState(force) {
+  if (!INSTALLED_EARLY()) return null;
+  if (!force && dashCache && Date.now() - dashCache.at < (dashCache.error ? 60000 : 300000)) return dashCache.value;
+  let value = null, error = false;
+  try { value = { files: (await dashboardDiff()).length, auto: true }; } catch (e) { value = { error: e.message, auto: true }; error = true; }
+  dashCache = { at: Date.now(), value, error };
+  return value;
+}
+let dashUpdating = false;
+async function updateDashboard() {
+  if (!INSTALLED_EARLY()) throw new Error('Ky dashboard nuk është i instaluar (po punon nga folderi i zhvillimit): përditësohet vetëm ai i instaluar.');
+  if (dashUpdating) throw new Error('Përditësimi po vazhdon, prit pak.');
+  dashUpdating = true;
+  try {
+    const changed = await dashboardDiff();
+    if (!changed.length) { dashCache = null; return { ok: true, files: 0 }; }
+    const files = [];
+    for (const c of changed) {
+      const blob = await ghJson(`https://api.github.com/repos/${DASH_REPO}/git/blobs/${c.sha}`);
+      const buf = Buffer.from(blob.content || '', 'base64');
+      if (gitBlobSha(buf) !== c.sha) throw new Error('Skedari ' + c.rel + ' nuk u shkarkua i plotë.');
+      files.push({ rel: c.rel, buf });
+    }
+    files.sort((a, b) => (a.rel === 'server.mjs') - (b.rel === 'server.mjs'));
+    const server = files.find((f) => f.rel === 'server.mjs');
+    if (server) {
+      const probe = path.join(HERE, 'server.check.mjs');
+      fs.writeFileSync(probe, server.buf);
+      try { await run(process.execPath, ['--check', probe]); } catch (e) { throw new Error('Kodi i ri i dashboard-it nuk është i vlefshëm, nuk u ndryshua asgjë: ' + e.message); } finally { fs.rmSync(probe, { force: true }); }
+    }
+    const prev = path.join(HERE, '.previous');
+    fs.rmSync(prev, { recursive: true, force: true });
+    for (const f of files) {
+      const full = dashSafe(f.rel);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      if (fs.existsSync(full)) { const keep = path.join(prev, f.rel); fs.mkdirSync(path.dirname(keep), { recursive: true }); fs.copyFileSync(full, keep); }
+    }
+    if (server) fs.writeFileSync(path.join(HERE, '.updating'), String(Date.now())); // read by the restart: starts the guard
+    for (const f of files) fs.writeFileSync(dashSafe(f.rel), f.buf);
+    dashCache = null;
+    return { ok: true, files: files.length };
+  } finally { dashUpdating = false; }
+}
+// After a self-update the old process starts this guard before it ends: if the new dashboard does not answer within 25 s, the old files are
+// put back and started again (a new version that parses but breaks at start must never leave the PC without a dashboard).
+const GUARD = `
+const fs = require('fs'), path = require('path'), http = require('http'), cp = require('child_process');
+const dir = process.argv[1];
+const flag = path.join(dir, '.updating');
+setTimeout(() => {
+  let url = '';
+  try { url = fs.readFileSync(path.join(dir, '..', 'dashboard-url.txt'), 'utf8').trim(); } catch { url = ''; }
+  const restore = () => {
+    const prev = path.join(dir, '.previous');
+    const walk = (d, rel) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const r = path.join(rel, e.name); if (e.isDirectory()) walk(path.join(d, e.name), r); else fs.copyFileSync(path.join(d, e.name), path.join(dir, r)); } };
+    try { walk(prev, ''); } catch {}
+    try { fs.rmSync(flag, { force: true }); } catch {}
+    try { cp.spawn(process.execPath, [path.join(dir, 'server.mjs')], { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch {}
+  };
+  if (!url) { try { fs.rmSync(flag, { force: true }); } catch {} return; }
+  http.get(url, (r) => { r.resume(); try { fs.rmSync(flag, { force: true }); } catch {} }).on('error', restore).setTimeout(5000, function () { this.destroy(); });
+}, 25000);
+`;
+function startGuard() {
+  try { if (fs.existsSync(path.join(HERE, '.updating'))) spawn(process.execPath, ['-e', GUARD, HERE], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch { /* no guard */ }
+}
+// Automatic: first check 2 minutes after the start, then every 10 minutes.
+async function autoUpdateDashboard() {
+  try { const s = await dashboardState(true); if (s && s.files > 0) await updateDashboard(); } catch { /* next round */ }
+}
+function INSTALLED_EARLY() { return fs.existsSync(path.join(path.dirname(HERE), 'current.txt')); }
+if (INSTALLED_EARLY()) { setTimeout(autoUpdateDashboard, 120000).unref(); setInterval(autoUpdateDashboard, 600000).unref(); }
+
+function access_domain_or_local(access, inst) { return access.domain || inst.url || access.local; }
+
+function uninstallerOf(inst) {
+  return ['Uninstall.bat', 'uninstall.bat'].map((f) => path.join(inst.root, f)).find((f) => fs.existsSync(f)) || null;
+}
+
+// GitHub is asked at most every 5 minutes (every minute after an error): the page refreshes every 30 s, which would go over the 60 requests an hour of an unauthenticated client.
+const latestCache = new Map();
+async function latestCached(inst) {
+  const c = latestCache.get(inst.id);
+  if (c && Date.now() - c.at < (c.value && c.value.error ? 60000 : 300000)) return c.value;
+  const value = await latest(inst).catch((e) => ({ error: e.message }));
+  latestCache.set(inst.id, { at: Date.now(), value });
+  return value;
+}
+
+async function status(inst) {
+  const [h, l] = await Promise.all([health(inst), latestCached(inst)]);
+  const i = installed(inst);
+  let update = null;
+  if (i && !i.error && l && !l.error) {
+    if (cmp(l.version, i.version) > 0) update = 'version';
+    else if (cmp(l.version, i.version) === 0 && l.build && i.build && l.build !== i.build) update = 'build';
+  }
+  let env = {};
+  try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
+  const tokenSet = !!(await token(inst).catch(() => ''));
+  const [access, setupState] = await Promise.all([
+    accessOf(inst, env),
+    fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+  ]);
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
+}
+
+const send = (res, code, data, type = 'application/json') => {
+  res.writeHead(code, { 'Content-Type': type + '; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+  res.end(typeof data === 'string' ? data : JSON.stringify(data));
+};
+
+const server = http.createServer(async (req, res) => {
+  // Only this machine, only its own page: blocks DNS-rebinding and other sites calling the API.
+  const host = (req.headers.host || '').split(':')[0];
+  if (host !== '127.0.0.1' && host !== 'localhost') return send(res, 403, { error: 'forbidden' });
+  const url = new URL(req.url, 'http://x');
+  try {
+    if (req.method === 'POST' && url.pathname === '/login') {
+      const now = Date.now();
+      failures = failures.filter((t) => now - t < 60000);
+      if (failures.length >= 5) return send(res, 429, { error: 'too_many' });
+      let body = '';
+      for await (const c of req) { body += c; if (body.length > 1000) break; }
+      let given = '';
+      try { given = JSON.parse(body).key; } catch { /* wrong */ }
+      if (!sameText(given, LOGIN_KEY)) { failures.push(now); return send(res, 403, { error: 'wrong_key' }); }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000`, 'Cache-Control': 'no-store' });
+      return res.end('{"ok":true}');
+    }
+    if (!authed(req)) {
+      if (req.method === 'GET' && url.pathname === '/') return send(res, 200, LOGIN_HTML, 'text/html');
+      return send(res, 401, { error: 'sign_in_required' });
+    }
+    if (req.method === 'GET' && url.pathname === '/') {
+      let page;
+      try { page = fs.readFileSync(path.join(HERE, 'public', 'index.html'), 'utf8'); }
+      catch (e) {
+        // Usually a process without administrator rights in a folder closed to ordinary users: say what to do instead of a raw error.
+        return send(res, 500, '<!doctype html><meta charset="utf-8"><body style="font:16px system-ui;padding:24px"><h2>Dashboard-i nuk lexon skedaret e veta</h2><p>' + String(e.code || e.message).replace(/[<>&]/g, '') + '</p><p>Mbylle dhe hape perseri me <b>Dashboard.bat</b> (kerkon Administrator), ose ekzekuto ne PowerShell Administrator:<br><code>icacls C:\\HRSystem\\manager /grant "*S-1-5-32-545:(OI)(CI)RX" /T</code></p></body>', 'text/html');
+      }
+      return send(res, 200, page.replace('__KEY__', SESSION_KEY), 'text/html');
+    }
+    if (req.method === 'GET' && url.pathname === '/api/status') {
+      return send(res, 200, { instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), at: new Date().toISOString() });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/backup') {
+      if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
+      const inst = find(url.searchParams.get('id'));
+      if (!inst) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
+      return send(res, 200, await backup(inst));
+    }
+    if (req.method === 'GET' && url.pathname === '/api/job') {
+      return send(res, 200, jobs.get(url.searchParams.get('id')) || null);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/backup-file') {
+      const inst = find(url.searchParams.get('id'));
+      const name = url.searchParams.get('name');
+      if (!inst || !listBackups(inst).some((b) => b.name === name)) return send(res, 404, { error: 'Skedari nuk u gjet.' });
+      const file = path.join(backupDir(inst), name);
+      res.writeHead(200, { 'Content-Type': 'application/sql', 'Content-Length': fs.statSync(file).size, 'Content-Disposition': `attachment; filename="${name}"`, 'Cache-Control': 'no-store' });
+      const stream = fs.createReadStream(file);
+      stream.on('error', () => res.destroy());
+      res.on('error', () => stream.destroy());
+      return stream.pipe(res);
+    }
+    if (req.method === 'POST' && url.pathname.startsWith('/api/') && url.pathname !== '/api/backup') {
+      if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
+      const inst = find(url.searchParams.get('id'));
+      if (!inst) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
+      if (url.pathname === '/api/open-folder') {
+        needLocal(inst);
+        const name = url.searchParams.get('name');
+        const target = name && listBackups(inst).some((b) => b.name === name) ? path.join(backupDir(inst), name) : null;
+        fs.mkdirSync(backupDir(inst), { recursive: true });
+        spawn('explorer.exe', target ? ['/select,' + target] : [backupDir(inst)], { detached: true, stdio: 'ignore' }).unref();
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === '/api/secrets') {
+        // The settings and secrets of this installation, for the "Te dhenat" page (the owner's own computer; POST with the run key, never in /api/status).
+        needLocal(inst);
+        let env = {};
+        try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
+        const items = Object.entries(env).map(([key, value]) => ({ key, value }));
+        // The installation's own GitHub token (encrypted file); never the signed-in gh's token.
+        let github = '';
+        try {
+          github = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+            `$f = ${q(path.join(inst.root, 'github.token'))}; if (Test-Path $f) { Add-Type -AssemblyName System.Security; [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content $f -Raw).Trim()), $null, [Security.Cryptography.DataProtectionScope]::LocalMachine)) }`]);
+        } catch { /* none */ }
+        let tunnel = '';
+        try { tunnel = fs.readFileSync(path.join(process.env.ProgramData || 'C:\\ProgramData', 'cloudflared', 'token'), 'utf8').trim(); } catch { /* none */ }
+        return send(res, 200, { env: items, github: github.trim(), tunnel });
+      }
+      if (url.pathname === '/api/backup-delete') {
+        // Only a file that is in the installation's backup list can be deleted (the name is never used as a path).
+        needLocal(inst);
+        const name = url.searchParams.get('name');
+        const found = name && listBackups(inst).find((b) => b.name === name);
+        if (!found) return send(res, 404, { error: 'Backup-i nuk u gjet.' });
+        fs.unlinkSync(path.join(backupDir(inst), found.name));
+        return send(res, 200, { ok: true, left: listBackups(inst).length });
+      }
+      if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
+      if (url.pathname === '/api/dashboard-update') return send(res, 200, await updateDashboard());
+      if (url.pathname === '/api/github-token') {
+        // The read-only GitHub token for updates, typed on this computer (never sent anywhere but stored encrypted by the installation's own tool).
+        needLocal(inst);
+        let body = '';
+        for await (const c of req) { body += c; if (body.length > 2000) break; }
+        let given = '';
+        try { given = String(JSON.parse(body).token || '').trim(); } catch { /* wrong body */ }
+        if (!/^[A-Za-z0-9_]{20,}$/.test(given)) return send(res, 400, { error: 'Tokeni nuk duket i sakte (ngjite sic e jep GitHub).' });
+        const common = path.join(inst.root, 'hr-common.ps1');
+        if (!fs.existsSync(common)) return send(res, 400, { error: 'hr-common.ps1 nuk u gjet te ' + inst.root });
+        await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `. ${q(common)}; Save-GitHubToken $env:HR_NEW_TOKEN`], { HR_NEW_TOKEN: given, HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data });
+        tokens.delete(inst.root || '');
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === '/api/tunnel-remove') return send(res, 200, removeTunnel(inst));
+      if (url.pathname === '/api/tunnel-token') {
+        let body = '';
+        for await (const c of req) { body += c; if (body.length > 4000) break; }
+        let given = '';
+        try { given = String(JSON.parse(body).token || ''); } catch { /* wrong body */ }
+        return send(res, 200, runTunnel(inst, given));
+      }
+      if (url.pathname === '/api/quick-tunnel') return send(res, 200, url.searchParams.get('do') === 'stop' ? stopQuick(inst) : await startQuick(inst));
+      if (url.pathname === '/api/system') return send(res, 200, await systemAction(inst, url.searchParams.get('do')));
+      if (url.pathname === '/api/open') {
+        needLocal(inst);
+        let env = {};
+        try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
+        const entry = pathsOf(inst, env).find((e) => e.key === url.searchParams.get('what'));
+        if (!entry) return send(res, 404, { error: 'Shtegu nuk u gjet.' });
+        fs.mkdirSync(entry.file ? path.dirname(entry.path) : entry.path, { recursive: true });
+        spawn('explorer.exe', entry.file ? ['/select,' + entry.path] : [entry.path], { detached: true, stdio: 'ignore' }).unref();
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === '/api/setup-link') {
+        needLocal(inst);
+        const env = readEnv(path.join(inst.root, '.env'));
+        if (!env.SETUP_TOKEN) return send(res, 400, { error: 'SETUP_TOKEN mungon te .env.' });
+        return send(res, 200, { url: 'http://localhost:' + (env.PORT || 3000) + '/setup#token=' + env.SETUP_TOKEN });
+      }
+      if (url.pathname === '/api/uninstall') {
+        needLocal(inst);
+        const bat = uninstallerOf(inst);
+        if (!bat) return send(res, 400, { error: 'Uninstall.bat nuk u gjet.' });
+        // A separate console window: the uninstaller asks its questions there and removes this dashboard too.
+        spawn('cmd.exe', ['/c', 'start', 'HRSystem Uninstall', 'cmd.exe', '/c', bat], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === '/api/import') {
+        const chunks = [];
+        let size = 0;
+        for await (const c of req) { size += c.length; if (size > 300 * 1024 * 1024) return send(res, 413, { error: 'Skedari eshte shume i madh (max 300 MB).' }); chunks.push(c); }
+        const name = path.basename(url.searchParams.get('name') || 'databaza.sql');
+        if (!/\.sql$/i.test(name)) return send(res, 400, { error: 'Zgjidh nje skedar .sql' });
+        return send(res, 200, runImport(inst, name, Buffer.concat(chunks).toString('utf8')));
+      }
+      if (url.pathname === '/api/sql') {
+        const chunks = [];
+        let size = 0;
+        for await (const c of req) { size += c.length; if (size > 50 * 1024 * 1024) return send(res, 413, { error: 'Skedari eshte shume i madh (max 50 MB).' }); chunks.push(c); }
+        const name = path.basename(url.searchParams.get('name') || 'skedar.sql');
+        if (!/\.sql$/i.test(name)) return send(res, 400, { error: 'Zgjidh nje skedar .sql' });
+        return send(res, 200, runSql(inst, name, Buffer.concat(chunks).toString('utf8')));
+      }
+    }
+    return send(res, 404, { error: 'not found' });
+  } catch (e) {
+    return send(res, 500, { error: e.message });
+  }
+});
+
+// In an installation (the folder above manager/ has current.txt) the system picks a free port itself. The chosen address is written to
+// dashboard-url.txt there: the installer, the shortcut and Dashboard.bat read it. The same port is tried again at the next start
+// (so the address stays the same) and if it is taken a new free one is chosen.
+const INSTALLED = fs.existsSync(path.join(path.dirname(HERE), 'current.txt'));
+const URL_FILE = path.join(path.dirname(HERE), 'dashboard-url.txt');
+function savedPort() {
+  try { return Number(new URL(fs.readFileSync(URL_FILE, 'utf8').trim()).port) || 0; } catch { return 0; }
+}
+function listen(port) {
+  const onError = (e) => {
+    if (e.code === 'EADDRINUSE' && port !== 0) listen(0);
+    else { console.error('HRSystem Dashboard: ' + e.message); process.exit(1); }
+  };
+  server.once('error', onError);
+  server.listen(port, '127.0.0.1', () => {
+    server.removeListener('error', onError);
+    const address = `http://127.0.0.1:${server.address().port}`;
+    if (INSTALLED) {
+      try { fs.writeFileSync(URL_FILE, address); } catch { /* read-only folder */ }
+      // The desktop shortcut made by the setup must follow the address, or it opens a port nobody listens on.
+      for (const dir of [path.join(process.env.PUBLIC || 'C:\\Users\\Public', 'Desktop'), path.join(process.env.USERPROFILE || '', 'Desktop')]) {
+        const file = path.join(dir, 'HRSystem Dashboard.url');
+        try { if (fs.existsSync(file)) fs.writeFileSync(file, `[InternetShortcut]\r\nURL=${address}\r\n`); } catch { /* no rights */ }
+      }
+    }
+    console.log(`HRSystem Dashboard: ${address}  (${path.basename(CONFIG)}); sign-in: ${SIGN_IN ? 'on (key file)' : 'off'}`);
+  });
+}
+listen(PORT_FORCED ?? (INSTALLED ? savedPort() : 3500));
+
+// An update of this file (a new dashboard from update/setup) must not leave the old code running: when server.mjs changes on disk the
+// dashboard starts itself again (same user and rights, same port) and ends. Checked every 5 s.
+const SELF = fileURLToPath(import.meta.url);
+let selfStamp = 0;
+try { selfStamp = fs.statSync(SELF).mtimeMs; } catch { /* none */ }
+setInterval(() => {
+  let now = 0;
+  try { now = fs.statSync(SELF).mtimeMs; } catch { return; }
+  if (!selfStamp || now === selfStamp) return;
+  selfStamp = now;
+  const relaunch = () => { startGuard(); try { spawn(process.execPath, [SELF], { cwd: HERE, detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch { /* stays as it is */ } process.exit(0); };
+  const timer = setTimeout(relaunch, 3000);
+  server.close(() => { clearTimeout(timer); relaunch(); });
+  server.closeAllConnections?.();
+}, 5000).unref();

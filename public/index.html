@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HRSystem Dashboard</title>
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%234338ca'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Ctext x='16' y='21.5' text-anchor='middle' font-family='Arial,sans-serif' font-weight='800' font-size='15' fill='white'%3EHR%3C/text%3E%3C/svg%3E">
 <script>(function(){try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.setAttribute('data-theme',d?'dark':'light');var z=localStorage.getItem('textsize');if(z==='1')r.classList.add('a11y-t1');if(z==='2')r.classList.add('a11y-t2');if(z==='3')r.classList.add('a11y-t3');['spacing','targets','cb','focus'].forEach(function(k){if(localStorage.getItem(k)==='1')r.classList.add('a11y-'+k);});if(localStorage.getItem('contrast')==='1')r.classList.add('a11y-contrast');if(localStorage.getItem('motion')==='1')r.classList.add('a11y-motion');if(localStorage.getItem('font')==='1')r.classList.add('a11y-font');if(localStorage.getItem('links')==='1')r.classList.add('a11y-links');}catch(e){}})();</script>
 <style>
   :root {
@@ -368,6 +370,27 @@
   .boot.done { opacity:0; visibility:hidden; pointer-events:none; transition:opacity .2s ease-out, visibility 0s .2s; }
   @media (forced-colors: active) { .banner { border:1px solid CanvasText; } .toast { border:1px solid CanvasText; } }
 
+  /* in-page dialogs (they replace the browser's own confirm / prompt boxes): enter 200 ms ease-out, leave 140 ms */
+  .dlg-overlay { position:fixed; inset:0; z-index:80; display:grid; place-items:center; padding:16px; background:rgba(2,6,23,.5); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); animation:dlgfade .15s ease-out both; }
+  .dlg-overlay.out { opacity:0; transition:opacity .14s ease-in; pointer-events:none; }
+  @keyframes dlgfade { from { opacity:0; } }
+  .dlg { width:min(440px, 100%); max-height:90vh; overflow:auto; display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 14px; padding:20px 22px 18px; background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:16px; box-shadow:0 24px 60px rgba(2,6,23,.38); animation:dlgin .2s var(--ease-out) both; }
+  .dlg-overlay.out .dlg { transform:translateY(4px) scale(.985); transition:transform .14s ease-in; }
+  @keyframes dlgin { from { opacity:0; transform:translateY(8px) scale(.97); } }
+  .dlg-icon { grid-row:1 / span 2; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:800; background:var(--accent-soft); color:var(--accent); }
+  .dlg.danger .dlg-icon { background:var(--badbg); color:var(--bad); }
+  .dlg-body { display:grid; gap:8px; min-width:0; padding-top:5px; } .dlg-body p { margin:0; line-height:1.5; overflow-wrap:anywhere; } .dlg-body p:first-child { font-weight:600; font-size:14.5px; } .dlg-body p + p { color:var(--muted); font-size:13px; }
+  .dlg-body input { width:100%; margin-top:4px; }
+  .dlg-actions { grid-column:2; display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  button.btn.danger-solid { background:var(--bad); color:var(--accent-text); border-color:transparent; }
+  @media (max-width:520px) { .dlg { grid-template-columns:1fr; } .dlg-icon { grid-row:auto; } .dlg-actions { grid-column:1; } .dlg-actions .btn { flex:1; } }
+
+  /* toggles: a roomier switch with a smooth knob */
+  .sw i { width:38px; height:22px; } .sw i::after { top:3px; left:3px; width:16px; height:16px; transition:transform .18s var(--ease-out), width .12s; }
+  .sw input:checked + i::after { transform:translateX(16px); } .sw:active i::after { width:19px; } .sw:active input:checked + i::after { transform:translateX(13px); }
+  .sw i { transition:background-color .18s var(--ease-out); }
+  .empty { display:grid; justify-items:center; gap:6px; text-align:center; padding:28px 12px; font-size:13px; }
+
   /* phone: a compact header (brand, installation, live) and one swipeable row of sections, like an app's tab bar */
   @media (max-width:980px) {
     .app { grid-template-columns:minmax(0,1fr); } .side { min-width:0; }
@@ -420,6 +443,7 @@ const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch {
 
 // ---- Language of the whole dashboard (sq default, en, sr): [Albanian, English, Serbian]. Exact strings first, then longer fragments (so dynamic texts are translated too).
 const TR_LIST = [
+  ["Anulo","Cancel","Otkaži"], ["Vazhdo","Continue","Nastavi"], ["Ruaj","Save","Sačuvaj"], ["Vlera","Value","Vrednost"], ["Hap çinstalimin e HRSystem?","Open the HRSystem uninstall?","Otvoriti deinstalaciju HRSystem-a?"], ["Hapet dritarja e çinstalimit: aty zgjedh a ruhet databaza (një eksport në Desktop). Pastaj fshihet gjithçka tjetër; aplikacioni dhe dashboard-i ndalen vetë.","The uninstall window opens: there you choose whether the database is kept (an export on the Desktop). Then everything else is deleted; the application and the dashboard stop by themselves.","Otvara se prozor za deinstalaciju: tamo biraš da li se baza čuva (izvoz na Desktop). Zatim se briše sve ostalo; aplikacija i dashboard se zaustavljaju sami."],
   ["Po hapet dashboard-i...","Opening the dashboard...","Dashboard se otvara..."], ["Dashboard-i nuk përgjigjet.","The dashboard is not answering.","Dashboard ne odgovara."], ["Provo përsëri","Try again","Pokušaj ponovo"], ["Ka version të ri","A new version is available","Dostupna je nova verzija"],["Dashboard-i u përditësua","The dashboard was updated","Dashboard je ažuriran"], [" skedarë","files","datoteka"], ["Backup i vjetër","Old backup","Stari backup"],["Adresa u kthye","Address is back","Adresa je ponovo dostupna"], ["Adresa nuk hapet","Address does not open","Adresa se ne otvara"], ["Aplikacioni nuk përgjigjet","The application is not responding","Aplikacija ne odgovara"], ["Aplikacioni u ndez vetë (kishte rënë)","The application restarted by itself (it had crashed)","Aplikacija se sama pokrenula (bila je pala)"], ["Kopja jashtë PC-së","Off-site copy","Kopija van računara"], ["Raporti i ditës u dërgua","The daily report was sent","Dnevni izveštaj je poslat"], ["Ky version nuk ndodhet në këtë PC.","This version is not on this PC.","Ova verzija nije na ovom računaru."], ["Backup-i nuk u gjet.","The backup was not found.","Backup nije pronađen."],
   ["Gabimet", "Errors", "Greške"], ["Dashboard-i", "Dashboard", "Dashboard"], ["Dashboard (dalja)", "Dashboard (output)", "Dashboard (izlaz)"], ["Filtro...", "Filter...", "Filtriraj..."], ["Filtro", "Filter", "Filter"], ["Po lexohet...", "Reading...", "Čita se..."], ["Asnjë gabim. Gjithçka punon.", "No errors. Everything works.", "Nema grešaka. Sve radi."], ["Asnjë rezultat.", "No result.", "Nema rezultata."], ["Ky log është bosh ose nuk ekziston ende.", "This log is empty or does not exist yet.", "Ovaj log je prazan ili još ne postoji."], ["Ora", "Time", "Vreme"], ["Ku dhe çfarë", "Where and what", "Gde i šta"], ["gabim", "error", "greška"], ["Pastro gabimet", "Clear the errors", "Obriši greške"], ["Pastroj listën e gabimeve të dashboard-it?", "Clear the dashboard's list of errors?", "Obrisati listu grešaka dashboard-a?"], ["U pastrua.", "Cleared.", "Obrisano."], ["Gabimet gjatë punës së dashboard-it, aplikacionit dhe përditësimit.", "Errors while the dashboard, the application and the update were running.", "Greške tokom rada dashboard-a, aplikacije i ažuriranja."], ["Skedari: ", "File: ", "Datoteka: "], [" · përditësuar ", " · updated ", " · ažurirano "], [" · më e reja lart", " · newest first", " · najnovije gore"], ["Gabime në 24 orët e fundit", "Errors in the last 24 hours", "Greške u poslednja 24 sata"], ["Vendndodhja e serverit", "Server location", "Lokacija servera"], ["Adresa publike (IP)", "Public address (IP)", "Javna adresa (IP)"], ["Kompjuteri", "Computer", "Računar"], [" · qendra Cloudflare: ", " · Cloudflare data centre: ", " · Cloudflare centar: "], ["po përcaktohet...", "being determined...", "određuje se..."], ["Nuk u lexua: ", "Could not read: ", "Nije pročitano: "],
   ["Testo", "Test", "Testiraj"], ["I provuar", "Tested", "Testirano"], ["Testi dështoi", "The test failed", "Test nije uspeo"], ["Testi filloi...", "The test started...", "Test je počeo..."], ["Test backup: ", "Backup test: ", "Test backup-a: "], ["Raport i përditshëm", "Daily report", "Dnevni izveštaj"], ["Ora e raportit", "Report time", "Vreme izveštaja"], ["Ora e raportit u ruajt.", "The report time was saved.", "Vreme izveštaja je sačuvano."], ["Dërgo raportin tani", "Send the report now", "Pošalji izveštaj sada"], ["Raporti i ditës", "The daily report", "Dnevni izveštaj"], ["Dërgon tani raportin: aplikacioni, backup-i, disku, adresat dhe versioni.", "Sends the report now: application, backup, disk, addresses and version.", "Šalje izveštaj sada: aplikacija, backup, disk, adrese i verzija."], ["Raporti u dërgua: shiko telefonin.", "The report was sent: look at your phone.", "Izveštaj je poslat: pogledaj telefon."], ["Raporti u krijua (njoftimet janë të fikura).", "The report was created (notifications are off).", "Izveštaj je napravljen (obaveštenja su isključena)."], ["Njoftim kur aplikacioni bie (1 minutë), kur backup-i i fundit është më i vjetër se 2 ditë, kur një adresë nuk hapet 5 minuta, kur backup-i ose përditësimi dështon, kur mbaron hapësira, kur përditësimi kryhet, dhe një raport çdo ditë në orën që zgjedh ti. Mesazhet nuk kanë të dhëna personale.", "A message when the application is down (1 minute), when the newest backup is older than 2 days, when an address does not open for 5 minutes, when a backup or update fails, when space runs out, when an update completes, and a report every day at the hour you choose. Messages contain no personal data.", "Poruka kada aplikacija ne radi (1 minut), kada je najnoviji backup stariji od 2 dana, kada se adresa ne otvara 5 minuta, kada backup ili ažuriranje ne uspe, kada ponestane prostora, kada se ažuriranje završi, i izveštaj svaki dan u sat koji izabereš. Poruke ne sadrže lične podatke."], ["E ngarkon backup-in në një databazë të përkohshme dhe e kontrollon; pastaj e fshin.", "Loads the backup into a temporary database and checks it; then deletes it.", "Učitava backup u privremenu bazu i proverava je; zatim je briše."], ["1/4 Po krijohet një databazë e përkohshme (", "1/4 Creating a temporary database (", "1/4 Pravi se privremena baza ("],
@@ -602,17 +626,58 @@ function toast(msg, err) {
     set(fn) {
       if (typeof fn !== 'function') return d.set.call(this, fn);
       d.set.call(this, function (ev) {
-        const r = fn.call(this, ev);
-        if (r && typeof r.then === 'function') {
-          const b = this; b.classList.add('is-busy'); b.setAttribute('aria-busy', 'true');
-          const end = () => { b.classList.remove('is-busy'); b.removeAttribute('aria-busy'); };
-          r.then(end, end);
-        }
+        const b = this; b.classList.add('is-busy'); b.setAttribute('aria-busy', 'true'); // set before the handler runs, so a dialog opened by it can hide the spinner
+        const end = () => { b.classList.remove('is-busy'); b.removeAttribute('aria-busy'); };
+        let r;
+        try { r = fn.call(this, ev); } catch (err) { end(); throw err; }
+        if (r && typeof r.then === 'function') r.then(end, end); else end();
         return r;
       });
     },
   });
 })();
+// ---- polish: the browser's own boxes (confirm / prompt) become in-page dialogs. Same wording (translated), used with await. A question about something
+// that deletes or replaces data is drawn in red. Escape or a click outside cancels; Enter confirms; Tab stays inside.
+const DANGER_RE = /FSHIH|Fshij|Çinstaloj|Heq |Rikthej databazën|IMPORT I PLOTË|nuk kthehet|zëvendëson/i;
+function openDialog({ message, input, value, placeholder }) {
+  return new Promise((resolve) => {
+    const prev = document.activeElement;
+    const busyBtn = (prev && prev.classList && prev.classList.contains('is-busy') ? prev : null) || document.querySelector('button.is-busy'); if (busyBtn) busyBtn.classList.remove('is-busy'); // no spinner while the question is open
+    const danger = DANGER_RE.test(String(message));
+    const parts = String(message).split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    const field = input ? el('input', { type: 'text', value: value || '', placeholder: placeholder || '', 'aria-label': parts[0] || 'Vlera', spellcheck: 'false', autocomplete: 'off' }) : null;
+    const ok = el('button', { type: 'button', class: 'btn' + (danger ? ' danger-solid' : '') }, input ? 'Ruaj' : 'Vazhdo');
+    const cancel = el('button', { type: 'button', class: 'btn ghost' }, 'Anulo');
+    const panel = el('div', { class: 'dlg' + (danger ? ' danger' : ''), role: input ? 'dialog' : 'alertdialog', 'aria-modal': 'true', 'aria-label': parts[0] || 'HRSystem' },
+      el('div', { class: 'dlg-icon', 'aria-hidden': 'true' }, danger ? '!' : input ? '✎' : '?'),
+      el('div', { class: 'dlg-body' }, ...parts.map((p) => el('p', {}, p)), field),
+      el('div', { class: 'dlg-actions' }, cancel, ok));
+    const overlay = el('div', { class: 'dlg-overlay' }, panel);
+    let closed = false;
+    const finish = (v) => {
+      if (closed) return; closed = true;
+      document.removeEventListener('keydown', onKey, true);
+      overlay.classList.add('out'); setTimeout(() => overlay.remove(), 160);
+      if (busyBtn && v && busyBtn.isConnected) busyBtn.classList.add('is-busy'); // the action goes on: the spinner returns
+      if (prev && prev.focus) prev.focus();
+      resolve(v);
+    };
+    const accept = () => finish(input ? field.value : true), reject = () => finish(input ? null : false);
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); reject(); }
+      else if (e.key === 'Enter' && document.activeElement !== cancel) { e.preventDefault(); e.stopPropagation(); accept(); }
+      else if (e.key === 'Tab') { const f = [field, cancel, ok].filter(Boolean), i = f.indexOf(document.activeElement); e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus(); }
+    };
+    ok.onclick = accept; cancel.onclick = reject;
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) reject(); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.append(overlay);
+    if (field) { field.focus(); field.select(); } else (danger ? cancel : ok).focus(); // a dangerous question starts on "Anulo"
+  });
+}
+const confirmAsync = (message) => openDialog({ message });
+const promptAsync = (message, value) => openDialog({ message, input: true, value });
+
 // ---- polish: the loading screen leaves once the first status is drawn (or tells that the dashboard does not answer)
 const bootEl = () => document.getElementById('boot');
 function pageIn(cls) {
@@ -766,9 +831,9 @@ function settingsBody() {
     };
     // removing is its own button: it asks for the current password and a confirmation
     const drop = el('button', { type: 'button', class: 'btn danger' }, 'Hiq fjalëkalimin');
-    drop.onclick = () => {
+    drop.onclick = async () => {
       if (!cur.value) { toast('GABIM: shkruaj fjalëkalimin aktual për ta hequr.', true); return cur.focus(); }
-      if (confirm('Heq fjalëkalimin? Dashboard-i do të hapet pa fjalëkalim në këtë PC.')) send(cur.value, '');
+      if (await confirmAsync('Heq fjalëkalimin? Dashboard-i do të hapet pa fjalëkalim në këtë PC.')) send(cur.value, '');
     };
     save.disabled = !!sec.env; drop.disabled = !sec.password || !!sec.env;
     // the current password is shown hidden; "Shfaq" reveals it (the server gives it only to a signed-in page)
@@ -841,7 +906,7 @@ function view(s) {
     if (!busy && action === 'stop' && !h.ok) b.title = 'Aplikacioni është tashmë i fikur.';
     if (!busy && action === 'start' && h.ok) b.title = 'Aplikacioni punon tashmë.';
     b.onclick = async () => {
-      if (ask && !confirm(ask)) return;
+      if (ask && !await confirmAsync(ask)) return;
       b.disabled = true; toast(label + '...');
       await call('system', '&do=' + action, label + ': u krye.');
       setTimeout(load, 4000);
@@ -863,7 +928,7 @@ function view(s) {
 
   const [importBtn, importInput] = fileButton('Importo databazën...', '.sql', async (f) => {
     const text = ['IMPORT I PLOTË në "' + s.name + '":', '- bëhet backup automatik;', '- FSHIHEN të gjitha tabelat që ekzistojnë tani;', '- ngarkohet "' + f.name + '" (' + fmtSize(f.size) + ');', '- ekzekutohen migrimet që mungojnë.', '', 'Vazhdoj?'].join(NL);
-    if (confirm(text)) await sendFile('import', f, 'Importi filloi...');
+    if (await confirmAsync(text)) await sendFile('import', f, 'Importi filloi...');
   });
   const ownerBanner = () => {
     const setupBtn = el('button', { type: 'button', class: 'btn' }, 'Krijo pronarin (/setup)');
@@ -883,7 +948,7 @@ function view(s) {
     if (j) { toast('Gati: ' + j.url); load(); }
   };
   const removeAddress = async (u) => {
-    if (!confirm('Heq adresën ' + u.replace(/^https?:[/][/]/, '') + ' nga lista?' + NL + 'Nuk hiqet vetë kurrë: vetëm kur e heq ti.')) return;
+    if (!await confirmAsync('Heq adresën ' + u.replace(/^https?:[/][/]/, '') + ' nga lista?' + NL + 'Nuk hiqet vetë kurrë: vetëm kur e heq ti.')) return;
     if (await call('address-remove', '&host=' + encodeURIComponent(u), 'Adresa u hoq.')) load();
   };
   const changeAddress = () => {
@@ -948,7 +1013,7 @@ function view(s) {
     const prev = document.activeElement;
     const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
     const go2 = async (name, source, bk) => {
-      if (!confirm('Rikthej aplikacionin te versioni ' + name + (bk ? ' DHE databazën nga ' + bk.name : '') + '?' + NL + (bk ? 'Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ' + bk.name + '.' + NL : '') + (source === 'repo' ? 'Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).' : 'Kalon menjëherë (kodi është në këtë PC).') + NL + 'Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.')) return;
+      if (!await confirmAsync('Rikthej aplikacionin te versioni ' + name + (bk ? ' DHE databazën nga ' + bk.name : '') + '?' + NL + (bk ? 'Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ' + bk.name + '.' + NL : '') + (source === 'repo' ? 'Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).' : 'Kalon menjëherë (kodi është në këtë PC).') + NL + 'Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.')) return;
       close();
       if (await call('rollback', '&to=' + encodeURIComponent(name) + '&source=' + source + (bk ? '&backup=' + encodeURIComponent(bk.name) : ''), 'Rikthimi filloi...')) { go('log'); load(); }
     };
@@ -1100,7 +1165,7 @@ function view(s) {
   updBtn.disabled = busy || !s.update;
   updBtn.title = s.update ? '' : 'Nuk ka version të ri.';
   updBtn.onclick = async () => {
-    if (!confirm((s.update ? '' : 'Nuk shfaqet version i ri. Ta kontrolloj dhe ta përditësoj gjithsesi?' + NL + NL) + 'Përditësoj "' + s.name + '" në ' + (s.latest && s.latest.version || '?') + '?' + NL + 'Bëhet backup, pastaj build dhe migrimet; në dështim kthehet vetë te versioni i vjetër.')) return;
+    if (!await confirmAsync((s.update ? '' : 'Nuk shfaqet version i ri. Ta kontrolloj dhe ta përditësoj gjithsesi?' + NL + NL) + 'Përditësoj "' + s.name + '" në ' + (s.latest && s.latest.version || '?') + '?' + NL + 'Bëhet backup, pastaj build dhe migrimet; në dështim kthehet vetë te versioni i vjetër.')) return;
     if (await call('update', '', 'Përditësimi filloi...')) { go('log'); load(); }
   };
   // Automatic backup: on/off, the hour and how many to keep.
@@ -1117,24 +1182,24 @@ function view(s) {
   const asRows = asList.map((x) => sw(x.label, x.on, (v) => asSet(x.key, v)));
   const asAllOn = el('button', { type: 'button', class: 'btn ghost sm' }, 'Aktivizo të gjitha'); asAllOn.onclick = () => asSet('all', true);
   const asAllOff = el('button', { type: 'button', class: 'btn ghost sm' }, 'Ndalo të gjitha');
-  asAllOff.onclick = () => { if (confirm('Ndaloj nisjen automatike të të gjitha? Pas rinisjes së kompjuterit asgjë nuk niset vetë (ato që punojnë tani vazhdojnë).')) asSet('all', false); };
+  asAllOff.onclick = async () => { if (await confirmAsync('Ndaloj nisjen automatike të të gjitha? Pas rinisjes së kompjuterit asgjë nuk niset vetë (ato që punojnë tani vazhdojnë).')) asSet('all', false); };
   const abSwBackup = sw('Backup i databazës', ab.on, (v) => abSave(v, undefined));
   const abSwUpdate = sw('Përditëso programin', ab.updateToo, (v) => abSave(ab.on, v));
   const abLast = !ab.last ? 'Ende nuk ka ekzekutim.' : 'Hera e fundit: ' + ab.last.date + ' · ' + ({ ok: 'backup u ruajt', update_started: 'përditësimi filloi', update_ok: 'përditësim i kryer (me backup)', update_error: 'përditësimi dështoi (shiko Log-un)' }[ab.last.result] || ab.last.result) + (ab.last.name && ab.last.result === 'ok' ? ' ' + ab.last.name : '');
   const backupBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Backup tani');
   backupBtn.disabled = busy;
   backupBtn.onclick = async () => {
-    if (!confirm('Bëj backup të databazës së "' + s.name + '" tani?')) return;
+    if (!await confirmAsync('Bëj backup të databazës së "' + s.name + '" tani?')) return;
     backupBtn.disabled = true; toast('Po bëhet backup...');
     const j = await call('backup');
     if (j) { toast('Backup u ruajt: ' + j.name + ' (' + fmtSize(j.size) + ')'); load(); } else backupBtn.disabled = false;
   };
   const [sqlBtn, sqlInput] = fileButton('Ekzekuto SQL...', '.sql', async (f) => {
-    if (confirm('Ekzekutoj "' + f.name + '" (' + fmtSize(f.size) + ') në databazën e "' + s.name + '"?' + NL + 'Fillimisht bëhet backup automatik. Ndalet te gabimi i parë.')) await sendFile('sql', f, 'SQL filloi...');
+    if (await confirmAsync('Ekzekutoj "' + f.name + '" (' + fmtSize(f.size) + ') në databazën e "' + s.name + '"?' + NL + 'Fillimisht bëhet backup automatik. Ndalet te gabimi i parë.')) await sendFile('sql', f, 'SQL filloi...');
   });
   const tokBtn = el('button', { type: 'button', class: 'btn ghost' }, s.tokenSet ? 'Ndrysho tokenin GitHub...' : 'Vendos tokenin GitHub...');
   tokBtn.onclick = async () => {
-    const t = prompt('Token GitHub vetëm-lexim (Contents: read), ruhet i enkriptuar:');
+    const t = await promptAsync('Token GitHub vetëm-lexim (Contents: read), ruhet i enkriptuar:');
     if (!t) return;
     try { const r = await postJson('github-token', { token: t.trim() }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Tokeni nuk u ruajt'); delete state.secrets[s.id]; toast(j.changed ? 'Tokeni u ruajt. Repo i ri i programit: ' + j.repo : j.choices && j.choices.length ? 'Tokeni u ruajt. Ai sheh disa repo (' + j.choices.join(', ') + '): mbetet ' + (s.repo || '-') + '.' : 'Tokeni u ruajt.'); load(); }
     catch (e) { toast('GABIM: ' + e.message, true); }
@@ -1142,12 +1207,12 @@ function view(s) {
   const tunBtn = el('button', { type: 'button', class: 'btn ghost sm' }, a.tunnel ? 'Ndrysho tunelin' : 'Shto tunel');
   const rmTunBtn = el('button', { type: 'button', class: 'btn danger sm' }, 'Hiq');
   rmTunBtn.onclick = async () => {
-    if (!confirm('Heq tunelin nga ky PC?' + NL + 'Adresat e tij nuk do të hapen nga interneti. Adresa e përkohshme mbetet.')) return;
+    if (!await confirmAsync('Heq tunelin nga ky PC?' + NL + 'Adresat e tij nuk do të hapen nga interneti. Adresa e përkohshme mbetet.')) return;
     if (await call('tunnel-remove', '', 'Po hiqet tuneli...')) { go('log'); load(); }
   };
   tunBtn.disabled = busy;
   tunBtn.onclick = async () => {
-    const t = prompt((a.tunnel ? 'Tuneli i vjetër hiqet dhe vendoset ky i ri. ' : '') + 'Token i Cloudflare Tunnel (ose komanda "cloudflared service install ..."):');
+    const t = await promptAsync((a.tunnel ? 'Tuneli i vjetër hiqet dhe vendoset ky i ri. ' : '') + 'Token i Cloudflare Tunnel (ose komanda "cloudflared service install ..."):');
     if (!t) return;
     try { const r = await postJson('tunnel-token', { token: t.trim() }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); delete state.secrets[s.id]; go('log'); toast('Po lidhet tuneli...'); load(); }
     catch (e) { toast('GABIM: ' + e.message, true); }
@@ -1157,7 +1222,7 @@ function view(s) {
   dashBtn.disabled = !(dash && dash.files);
   dashBtn.onclick = async () => {
     if (!(dash && dash.files)) { toast('Po kontrollohet...'); await load(); return toast(state.data.dashboard && state.data.dashboard.files ? 'Ka version të ri të dashboard-it.' : 'Dashboard-i është i përditësuar.'); }
-    if (!confirm('Përditësoj dashboard-in nga repo i dashboard-it (' + dash.files + ' skedar)?' + NL + 'Skedarët e vjetër ruhen te manager\\.previous; faqja rifreskohet vetë.')) return;
+    if (!await confirmAsync('Përditësoj dashboard-in nga repo i dashboard-it (' + dash.files + ' skedar)?' + NL + 'Skedarët e vjetër ruhen te manager\\.previous; faqja rifreskohet vetë.')) return;
     dashBtn.disabled = true; toast('Po përditësohet dashboard-i...');
     const j = await call('dashboard-update');
     if (j) { toast(j.files ? 'U përditësua (' + j.files + ' skedar). Rifreskohet...' : 'Dashboard-i ishte i përditësuar.'); setTimeout(() => location.reload(), 9000); } else dashBtn.disabled = false;
@@ -1169,7 +1234,7 @@ function view(s) {
   const off = s.offsite || { on: false, path: '', last: null };
   const offPost = async (body, okMsg) => { try { const r = await postJson('offsite', body); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(okMsg || 'U ruajt.'); load(); } catch (e) { toast('GABIM: ' + e.message, true); } };
   const offPick = el('button', { type: 'button', class: 'btn ghost' }, off.path ? 'Ndrysho folderin...' : 'Zgjidh folderin...');
-  offPick.onclick = () => { const v = prompt('Folderi ku kopjohen backup-et (disk i jashtëm, folder rrjeti ose folder cloud), p.sh. E:\\HRBackup:', off.path); if (v) offPost({ on: true, path: v.trim() }); };
+  offPick.onclick = async () => { const v = await promptAsync('Folderi ku kopjohen backup-et (disk i jashtëm, folder rrjeti ose folder cloud), p.sh. E:\\HRBackup:', off.path); if (v) offPost({ on: true, path: v.trim() }); };
   const offNow = el('button', { type: 'button', class: 'btn ghost' }, 'Kopjo tani'); offNow.disabled = !off.path;
   offNow.onclick = async () => { offNow.disabled = true; toast('Po kopjohet...'); if (await call('offsite-sync', '', 'Kopja u kryer.')) load(); else offNow.disabled = false; };
   const offSw = sw('Kopjo çdo backup automatikisht', off.on, (v) => offPost({ on: v }));
@@ -1181,7 +1246,7 @@ function view(s) {
   const nf = s.notify || { on: false, target: '' };
   const nfPost = async (body, okMsg) => { try { const r = await postJson('notify', body); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(okMsg || 'U ruajt.'); load(); } catch (e) { toast('GABIM: ' + e.message, true); } };
   const nfSet = el('button', { type: 'button', class: 'btn ghost' }, nf.target ? 'Ndrysho temën...' : 'Vendos temën...');
-  nfSet.onclick = () => { const v = prompt('Emri i temës ntfy (shkronja, shifra, - _ ; i gjatë dhe i fshehtë, p.sh. hrsystem-k3m9x72q) ose një URL webhook https:', nf.target); if (v) nfPost({ on: true, target: v.trim() }); };
+  nfSet.onclick = async () => { const v = await promptAsync('Emri i temës ntfy (shkronja, shifra, - _ ; i gjatë dhe i fshehtë, p.sh. hrsystem-k3m9x72q) ose një URL webhook https:', nf.target); if (v) nfPost({ on: true, target: v.trim() }); };
   const nfTest = el('button', { type: 'button', class: 'btn ghost' }, 'Dërgo provë'); nfTest.disabled = !nf.target;
   nfTest.onclick = () => call('notify-test', '', 'Njoftimi u dërgua: shiko telefonin.');
   const nfSw = sw('Dërgo njoftime', nf.on, (v) => nfPost({ on: v }));
@@ -1232,7 +1297,7 @@ function view(s) {
       const restore = el('button', { type: 'button', class: 'btn ghost sm' }, 'Rikthe');
       restore.disabled = busy;
       restore.onclick = async () => {
-        if (!confirm('Rikthej databazën nga ' + b.name + (b.version ? ' (versioni ' + b.version + ')' : '') + '?' + NL + 'Bëhet fillimisht një backup i gjendjes së tanishme; pastaj FSHIHEN të gjitha tabelat dhe ngarkohet ky backup.')) return;
+        if (!await confirmAsync('Rikthej databazën nga ' + b.name + (b.version ? ' (versioni ' + b.version + ')' : '') + '?' + NL + 'Bëhet fillimisht një backup i gjendjes së tanishme; pastaj FSHIHEN të gjitha tabelat dhe ngarkohet ky backup.')) return;
         if (await call('backup-restore', '&name=' + encodeURIComponent(b.name), 'Rikthimi filloi...')) { go('log'); load(); }
       };
       const test = el('button', { type: 'button', class: 'btn ghost sm', title: 'E ngarkon backup-in në një databazë të përkohshme dhe e kontrollon; pastaj e fshin.' }, 'Testo');
@@ -1243,7 +1308,7 @@ function view(s) {
       const del = el('button', { type: 'button', class: 'btn danger sm' }, 'Fshi');
       del.disabled = busy;
       del.onclick = async () => {
-        if (!confirm('Fshij backup-in ' + b.name + ' (' + fmtSize(b.size) + ')?' + NL + (s.backups.length === 1 ? 'Është i vetmi backup. ' : '') + 'Kjo nuk kthehet pas.')) return;
+        if (!await confirmAsync('Fshij backup-in ' + b.name + ' (' + fmtSize(b.size) + ')?' + NL + (s.backups.length === 1 ? 'Është i vetmi backup. ' : '') + 'Kjo nuk kthehet pas.')) return;
         const j = await call('backup-delete', '&name=' + encodeURIComponent(b.name));
         if (j) { toast('Backup-i u fshi (mbeten ' + j.left + ').'); load(); }
       };
@@ -1291,7 +1356,7 @@ function view(s) {
     const refresh = el('button', { type: 'button', class: 'btn ghost' }, 'Rifresko'); refresh.onclick = () => render();
     const dl = el('a', { class: 'btn ghost', href: '/api/errors-file?id=' + encodeURIComponent(s.id) + '&source=' + encodeURIComponent(src), download: '', style: 'text-decoration:none;display:inline-flex;align-items:center;border:1px solid var(--line);padding:0 14px;border-radius:8px;color:var(--text);height:32px' }, 'Shkarko');
     const clear = el('button', { type: 'button', class: 'btn danger' }, 'Pastro gabimet'); clear.style.display = src === 'dashboard' ? '' : 'none';
-    clear.onclick = async () => { if (confirm('Pastroj listën e gabimeve të dashboard-it?')) { if (await call('errors-clear', '', 'U pastrua.')) { await load(); render(); } } };
+    clear.onclick = async () => { if (await confirmAsync('Pastroj listën e gabimeve të dashboard-it?')) { if (await call('errors-clear', '', 'U pastrua.')) { await load(); render(); } } };
     return el('div', {}, header('Gabimet', 'Gabimet gjatë punës së dashboard-it, aplikacionit dhe përditësimit.', el('div', { class: 'row' }, refresh, dl, clear)), tabs, el('div', { class: 'row', style: 'margin:12px 0' }, filter), body);
   };
   pages.history = () => el('div', {}, header('Historiku', 'Veprimet e fundit: backup-e, përditësime, rikthime dhe probleme.', ''),
@@ -1304,7 +1369,7 @@ function view(s) {
   };
 
   return { html: (pages[state.section] || pages.home)(), uninstall: s.canUninstall ? async () => {
-    if (!confirm('Çinstaloj HRSystem nga ky kompjuter?' + NL + NL + 'Ruhet një backup në Desktop dhe fshihet gjithçka (aplikacioni, databaza, dashboard-i, tuneli).')) return;
+    if (!await confirmAsync('Hap çinstalimin e HRSystem?' + NL + NL + 'Hapet dritarja e çinstalimit: aty zgjedh a ruhet databaza (një eksport në Desktop). Pastaj fshihet gjithçka tjetër; aplikacioni dhe dashboard-i ndalen vetë.')) return;
     await call('uninstall', '', 'Dritarja e çinstalimit u hap. Vazhdo atje.');
   } : null };
 }

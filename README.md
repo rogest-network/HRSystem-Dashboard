@@ -42,3 +42,8 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **Fjalëkalimi** (Cilësimet → Siguria): opsional. Shkruhet vetëm **një herë** (me *Shfaq* për ta parë). Kur është aktiv, shfaqet i fshehur dhe *Shfaq* e tregon; hyrja vlen vetëm sa është hapur shfletuesi (kur mbyllet dashboard-i dhe hapet përsëri, kërkon fjalëkalimin); *Dil nga dashboard-i* e mbyll hyrjen. Për ta ndryshuar duhen i aktuali dhe i riu; **Hiq fjalëkalimin** është buton më vete (kërkon të aktualin). 5 gabime në minutë e kyçin një minutë. Ruhet te `manager\dashboard.key`; harrova = fshi atë skedar.
 - **Diagnostika** (faqja Log-u): një skedar .txt me gjendjen dhe fundin e log-eve, sekretet të fshehura.
 - Kur dashboard-i rindizet, faqja e hapur rifreskohet vetë një herë (pa "forbidden").
+- **Gabimet** (faqja Gabimet, numri i gabimeve të 24 orëve në menu): gabimet e dashboard-it (`dashboard-errors.log`, mbahen ~1500 të fundit), me log-un e aplikacionit, të përditësimit dhe të dashboard-it; filtër, shkarkim, pastrim. Diagnostika i përfshin 20 të fundit.
+- **Vendndodhja e serverit** (faqja Të dhënat): shteti, qendra Cloudflare, IP publike dhe emri i kompjuterit.
+- **Alarme:** backup i vjetër (mbi 36 orë), adresa publike nuk hapet / u kthye, dhe **raporti i ditës** (një përmbledhje në telefon, ora 20:00; ndizet/fiket te njoftimet).
+- **Testo backup-in** (faqja Backup-et): kontrollon strukturën e kopjes (tabelat, përdoruesit) pa e prekur databazën; backup-i shënohet "I provuar".
+- **Njoftimet:** çdo njoftim ka nivel (info, sukses, kujdes, gabim), titull dhe tekst të qartë.

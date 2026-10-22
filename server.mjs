@@ -31,8 +31,64 @@ const LOGIN_HTML = '<!doctype html><html lang="sq"><head><meta charset="utf-8"><
 const SESSION_KEY = crypto.randomBytes(24).toString('hex');
 const BOOT_ID = crypto.createHash('sha256').update(SESSION_KEY).digest('hex').slice(0, 10); // shown to the page, not the key itself
 // A broken connection or an error in one request must never stop the dashboard: it is logged and the dashboard keeps running.
-process.on('uncaughtException', (e) => console.error('uncaughtException:', e && e.stack ? e.stack : e));
-process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e && e.stack ? e.stack : e));
+// Where the server is (owner, 2026-10-22): the public address, the country and the Cloudflare data centre that answers for it, read from Cloudflare's own trace page
+// (no third party gets the address); refreshed every 10 minutes in the background.
+const locSeen = { at: 0, value: null, busy: false };
+function serverLocation() {
+  if (Date.now() - locSeen.at > 600000 && !locSeen.busy) {
+    locSeen.busy = true;
+    fetch('https://www.cloudflare.com/cdn-cgi/trace', { signal: AbortSignal.timeout(8000), cache: 'no-store' }).then((r) => r.text()).then((t) => {
+      const m = Object.fromEntries(t.split(/\r?\n/).filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]));
+      if (m.ip) locSeen.value = { ip: m.ip, country: m.loc || '', colo: m.colo || '', warp: m.warp === 'on' || m.warp === 'plus' };
+    }).catch(() => {}).finally(() => { locSeen.at = Date.now(); locSeen.busy = false; });
+  }
+  return locSeen.value ? { ...locSeen.value, host: os.hostname(), zone: Intl.DateTimeFormat().resolvedOptions().timeZone } : { host: os.hostname(), zone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+}
+// ======================= Error logs (owner, 2026-10-22) =======================
+// Every runtime error of the dashboard (an unexpected exception, a request that failed, an action that ended in an error) is written, one JSON line each, to
+// dashboard-errors.log next to server.mjs (kept small: over 1 MB only the last 1500 lines stay). The page "Gabimet" shows it, with the logs of the application and of the updater.
+const ERR_FILE = path.join(HERE, 'dashboard-errors.log');
+function logError(where, err, extra) {
+  try {
+    const e = err instanceof Error ? err : new Error(String(err));
+    const entry = { at: new Date().toISOString(), where, message: String(e.message).slice(0, 500), stack: (e.stack || '').split('\n').slice(1, 4).map((s) => s.trim()).join(' | ').slice(0, 400), ...(extra || {}) };
+    fs.appendFileSync(ERR_FILE, JSON.stringify(entry) + '\n');
+    if (fs.statSync(ERR_FILE).size > 1048576) fs.writeFileSync(ERR_FILE, fs.readFileSync(ERR_FILE, 'utf8').split('\n').filter(Boolean).slice(-1500).join('\n') + '\n');
+  } catch { /* the log must never break the dashboard */ }
+}
+function readErrorEntries(limit = 300) {
+  try { return fs.readFileSync(ERR_FILE, 'utf8').split('\n').filter(Boolean).slice(-limit).reverse().map((l) => { try { return JSON.parse(l); } catch { return { at: '', where: '?', message: l }; } }); } catch { return []; }
+}
+let errCount = { at: 0, n: 0 };
+function errorsLastDay() {
+  if (Date.now() - errCount.at < 30000) return errCount.n;
+  const since = Date.now() - 86400000;
+  errCount = { at: Date.now(), n: readErrorEntries(1500).filter((e) => Date.parse(e.at) >= since).length };
+  return errCount.n;
+}
+// The tail of a text log; PowerShell's redirected logs are UTF-16 (null bytes), the others UTF-8.
+function tailText(file, maxBytes = 262144) {
+  try {
+    const st = fs.statSync(file), fd = fs.openSync(file, 'r');
+    try {
+      const len = Math.min(st.size, maxBytes), buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, st.size - len);
+      const text = buf.includes(0) ? buf.subarray((st.size - len) % 2 ? 1 : 0).toString('utf16le') : buf.toString('utf8');
+      return text.replace(/^\uFEFF/, '');
+    } finally { fs.closeSync(fd); }
+  } catch { return ''; }
+}
+const LOG_FILES = (inst) => ({ app: path.join(inst.root, 'HRSystem-Server.log'), updater: path.join(inst.root, 'Updater.log'), dashboardlog: path.join(inst.root, 'Dashboard.log') });
+function errorsOf(inst, source, limit) {
+  if (source === 'dashboard') return { source, entries: readErrorEntries(limit), file: ERR_FILE };
+  const file = (LOG_FILES(inst))[source];
+  if (!file) return null;
+  const lines = tailText(file).split(/\r?\n/).filter((l) => l.trim()).slice(-limit).reverse();
+  let updated = null; try { updated = fs.statSync(file).mtime.toISOString(); } catch { /* none */ }
+  return { source, lines, file, updated };
+}
+process.on('uncaughtException', (e) => { console.error('uncaughtException:', e && e.stack ? e.stack : e); logError('uncaughtException', e); });
+process.on('unhandledRejection', (e) => { console.error('unhandledRejection:', e && e.stack ? e.stack : e); logError('unhandledRejection', e); });
 const history = new Map(); // instance id -> last speed samples (ms, 0 = down)
 
 // Only what runs on THIS PC (owner, 2026-10-21): the folders listed in the config that exist here, plus the standard install
@@ -178,7 +234,7 @@ function mysqldumpPath() {
 }
 
 async function backup(inst) {
-  try { return await backupRaw(inst); } catch (e) { addHistory(inst, { title: 'Backup', ok: false, detail: String(e.message).slice(0, 160) }); notify(inst, 'Backup-i dështoi', String(e.message).slice(0, 160)); throw e; }
+  try { return await backupRaw(inst); } catch (e) { addHistory(inst, { title: 'Backup', ok: false, detail: String(e.message).slice(0, 160) }); notify(inst, 'Backup-i dështoi', String(e.message).slice(0, 160), 'error'); throw e; }
 }
 async function backupRaw(inst) {
   if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter: backup-in e bën nga paneli i hostit.');
@@ -224,7 +280,7 @@ function withVersions(inst, list) {
   return list.map((b) => {
     let v = known[b.name] || null;
     if (!v) { const t = Date.parse(b.time); for (const e of log) if (e.at <= t) v = e.name; }
-    return { ...b, version: v };
+    return { ...b, version: v, tested: (cur.backupTests || {})[b.name] || null };
   });
 }
 setInterval(() => { for (const inst of instances()) { if (inst.root) { try { recordVersion(inst); } catch { /* next time */ } } } }, 60000).unref();
@@ -364,9 +420,9 @@ function rollbackRepo(inst, version, withBackup) {
 
 function mysqlPath() { return mysqldumpPath().replace(/mysqldump(\.exe)?$/, 'mysql$1'); }
 
-function mysqlRun(inst, cfg, sqlFile, add) {
+function mysqlRun(inst, cfg, sqlFile, add, db) {
   return new Promise((resolve, reject) => {
-    const p = spawn(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--default-character-set=utf8mb4', cfg.DB_NAME], { env: { ...process.env, MYSQL_PWD: cfg.DB_PASSWORD }, windowsHide: true });
+    const p = spawn(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--default-character-set=utf8mb4', db || cfg.DB_NAME], { env: { ...process.env, MYSQL_PWD: cfg.DB_PASSWORD }, windowsHide: true });
     let err = '';
     p.stdout.on('data', add);
     p.stderr.on('data', (d) => { err += d; });
@@ -580,7 +636,7 @@ async function systemAction(inst, action) {
   { const cur = readSettings(inst); if (action === 'stop') cur.manualStop = Date.now(); else delete cur.manualStop; settingsWrite(inst, cur); }
   // The phone is told what was done and by whom (owner, 2026-10-22), and the history keeps it.
   { const what = { stop: ['Aplikacioni u ndal manualisht', 'Është ndalur me butonin Stop nga dashboard-i.'], start: ['Aplikacioni u ndez manualisht', 'Është ndezur me butonin Start nga dashboard-i.'], restart: ['Aplikacioni u rindez manualisht', 'Është rindezur me butonin Restart nga dashboard-i.'] }[action];
-    if (what && !systemAction.quiet) { notify(inst, what[0], (inst.name || '') + ': ' + what[1]); addHistory(inst, { title: what[0], ok: true, detail: '' }); } }
+    if (what && !systemAction.quiet) { notify(inst, what[0], what[1], 'info'); addHistory(inst, { title: what[0], ok: true, detail: '' }); } }
   return { ok: true };
 }
 
@@ -702,7 +758,7 @@ setInterval(() => {
       if (Date.now() < wait.next) continue;
       const before = (readSettings(inst).quickLast || {}).url || '';
       // The temporary tunnel is gone (the PC restarted, or the process ended): a new one is made. Its address is NEW (Cloudflare gives a random one each time), so the phone is told which.
-      startQuick(inst).then((r) => { quickBackoff.delete(inst.id); if (r && r.url && r.url !== before) { notify(inst, 'Adresa e përkohshme ndryshoi', 'Adresa e re: ' + r.url); addHistory(inst, { title: 'Adresa e përkohshme ndryshoi', ok: true, detail: r.url }); } }).catch(() => { const f = (quickBackoff.get(inst.id) || { fails: 0 }).fails + 1; quickBackoff.set(inst.id, { fails: f, next: Date.now() + Math.min(60000 * 2 ** (f - 1), 900000) }); });
+      startQuick(inst).then((r) => { quickBackoff.delete(inst.id); if (r && r.url && r.url !== before) { notify(inst, 'Adresa e përkohshme ndryshoi', 'Adresa e re: ' + r.url, 'info'); addHistory(inst, { title: 'Adresa e përkohshme ndryshoi', ok: true, detail: r.url }); } }).catch(() => { const f = (quickBackoff.get(inst.id) || { fails: 0 }).fails + 1; quickBackoff.set(inst.id, { fails: f, next: Date.now() + Math.min(60000 * 2 ** (f - 1), 900000) }); });
     }
   } catch { /* next round */ }
 }, 20000).unref();
@@ -916,28 +972,35 @@ function jobDone(inst, job) {
   const last = job.lines[job.lines.length - 1] || '';
   const ok = job.state === 'ok';
   addHistory(inst, { title: job.title, ok, detail: last.slice(0, 160) });
-  if (!ok) notify(inst, 'Veprimi dështoi', job.title + (last ? ': ' + last.slice(0, 140) : ''));
-  else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') notify(inst, job.title === 'Perditesim' ? 'Përditësimi u krye' : 'Rikthimi i versionit u krye', (inst.name || '') + ' · versioni ' + ((installed(inst) || {}).name || '?'));
+  if (!ok) { notify(inst, 'Veprimi dështoi', job.title + (last ? ': ' + last.slice(0, 140) : ''), 'error'); logError('Veprimi: ' + job.title, new Error(last || 'dështoi')); }
+  else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') notify(inst, job.title === 'Perditesim' ? 'Përditësimi u krye' : 'Rikthimi i versionit u krye', 'Versioni aktual: ' + ((installed(inst) || {}).name || '?'), 'ok');
 }
 
 // ---- notifications: ntfy.sh (a topic name the owner subscribes to in the free ntfy phone app) or any webhook URL; opt-in, off until set
-function notifyOf(inst) { const n = readSettings(inst).notify || {}; return { on: !!n.on, target: String(n.target || '') }; }
-async function sendNotify(target, title, message) {
+function notifyOf(inst) { const n = readSettings(inst).notify || {}; return { on: !!n.on, target: String(n.target || ''), daily: n.daily !== false }; }
+// Every message has a LEVEL: critical (the application is down), error (something failed), warn (attention), ok (all good / done), info (what was done by hand). The level sets
+// the priority and the icon on the phone; the title is "<company> · <what happened>" and the body ends with the time.
+const NOTE_LEVELS = { critical: { priority: 5, tags: ['rotating_light'] }, error: { priority: 4, tags: ['x'] }, warn: { priority: 4, tags: ['warning'] }, ok: { priority: 3, tags: ['white_check_mark'] }, info: { priority: 2, tags: ['information_source'] } };
+function composeNote(inst, title, message, level) {
+  const L = NOTE_LEVELS[level] || NOTE_LEVELS.info, d = new Date(), p = (n) => String(n).padStart(2, '0');
+  return { title: (inst.name ? inst.name + ' · ' : '') + title, message: String(message || '').trim() + '\n— ' + p(d.getHours()) + ':' + p(d.getMinutes()), level, ...L };
+}
+async function sendNotify(target, note) {
   if (!target) throw new Error('Mungon adresa e njoftimit.');
   const isUrl = /^https?:\/\//i.test(target);
-  const r = await fetch(isUrl ? target : 'https://ntfy.sh/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isUrl ? { title, message, text: title + ': ' + message } : { topic: target, title, message, priority: 4 }), signal: AbortSignal.timeout(10000) });
+  const r = await fetch(isUrl ? target : 'https://ntfy.sh/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isUrl ? { title: note.title, message: note.message, level: note.level, text: note.title + ': ' + note.message } : { topic: target, title: note.title, message: note.message, priority: note.priority, tags: note.tags }), signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error('Shërbimi i njoftimit u përgjigj ' + r.status + '.');
 }
-function notify(inst, title, message) {
+function notify(inst, title, message, level = 'info') {
   const n = notifyOf(inst);
   if (!n.on || !n.target) return;
-  sendNotify(n.target, title, message).catch(() => { /* a failed notification never breaks anything */ });
+  sendNotify(n.target, composeNote(inst, title, message, level)).catch(() => { /* a failed notification never breaks anything */ });
 }
-function setNotify(inst, on, target) {
+function setNotify(inst, on, target, daily) {
   const cur = readSettings(inst);
   const t = target === undefined ? String((cur.notify || {}).target || '') : String(target).trim();
   if (t && !/^[A-Za-z0-9_-]{3,64}$/.test(t) && !/^https?:\/\/\S+$/i.test(t)) throw new Error('Adresa: një emër teme (shkronja, shifra, - _ ; min. 3) ose një URL https.');
-  cur.notify = { on: !!on && !!t, target: t };
+  cur.notify = { on: (on === undefined ? !!(cur.notify || {}).on : !!on) && !!t, target: t, daily: daily === undefined ? (cur.notify || {}).daily !== false : !!daily };
   settingsWrite(inst, cur);
   return notifyOf(inst);
 }
@@ -953,7 +1016,7 @@ async function watchTick() {
     try { ok = (await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(5000) })).ok; } catch { ok = false; }
     if (ok || (job && job.state === 'running')) {
       if (ok) { const st = readSettings(inst); if (st.manualStop && Date.now() - st.manualStop > 20000) { delete st.manualStop; settingsWrite(inst, st); } }
-      if (ok && w.told && !w.selfStarted) { notify(inst, 'Aplikacioni u kthye', (inst.name || '') + ' punon përsëri.'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
+      if (ok && w.told && !w.selfStarted) { notify(inst, 'Aplikacioni u kthye', 'Punon përsëri.', 'ok'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
       w.down = 0; w.told = false; w.selfStarted = false;
     } else {
       if (!w.down) w.down = Date.now();
@@ -966,16 +1029,19 @@ async function watchTick() {
             w.lastStart = Date.now(); w.selfStarted = true;
             systemAction.quiet = true; try { await systemAction(inst, 'start'); } finally { systemAction.quiet = false; }
             addHistory(inst, { title: 'Aplikacioni u ndez vetë (kishte rënë)', ok: true, detail: '' });
-            notify(inst, 'Aplikacioni u ndez vetë', (inst.name || '') + ' ishte mbyllur vetë dhe dashboard-i e ndezi përsëri (ndezja automatike është e ndezur).');
+            notify(inst, 'Aplikacioni u ndez vetë', 'Ishte mbyllur vetë; dashboard-i e ndezi përsëri (ndezja automatike është e ndezur).', 'warn');
           }
         } catch { /* tried; the next attempt is in 10 minutes */ }
       }
-      if (!w.told && Date.now() - w.down >= 60000 && !readSettings(inst).manualStop) { w.told = true; notify(inst, 'Aplikacioni u mbyll vetë', (inst.name || '') + ' u mbyll pa e ndalur ti dhe nuk përgjigjet prej 1 minute.'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
+      if (!w.told && Date.now() - w.down >= 60000 && !readSettings(inst).manualStop) { w.told = true; notify(inst, 'Aplikacioni u mbyll vetë', 'U mbyll pa e ndalur ti dhe nuk përgjigjet prej 1 minute.', 'critical'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
     }
+    try { staleBackupCheck(inst); } catch { /* next time */ }
+    try { await addressCheck(inst); } catch { /* next time */ }
+    try { await dailyReportCheck(inst); } catch { /* next time */ }
     const d = diskOf(inst.data || inst.root);
     if (d && d.total && d.free / d.total < 0.1) {
       const cur = readSettings(inst), day = new Date().toISOString().slice(0, 10);
-      if (cur.lastDiskAlert !== day) { cur.lastDiskAlert = day; settingsWrite(inst, cur); notify(inst, 'Pak hapësirë në disk', 'Mbeten ' + (d.free / 1073741824).toFixed(1) + ' GB (' + Math.round((100 * d.free) / d.total) + '%).'); addHistory(inst, { title: 'Pak hapësirë në disk', ok: false, detail: (d.free / 1073741824).toFixed(1) + ' GB të lira' }); }
+      if (cur.lastDiskAlert !== day) { cur.lastDiskAlert = day; settingsWrite(inst, cur); notify(inst, 'Pak hapësirë në disk', 'Mbeten ' + (d.free / 1073741824).toFixed(1) + ' GB (' + Math.round((100 * d.free) / d.total) + '%).', 'warn'); addHistory(inst, { title: 'Pak hapësirë në disk', ok: false, detail: (d.free / 1073741824).toFixed(1) + ' GB të lira' }); }
     }
   }
 }
@@ -1018,7 +1084,7 @@ async function syncOffsite(inst, force) {
   finally { offsiteBusy = false; }
   const cur = readSettings(inst), before = cur.offsiteLast;
   cur.offsiteLast = record; settingsWrite(inst, cur);
-  if (!record.ok && (!before || before.ok)) { notify(inst, 'Kopja jashtë PC-së dështoi', record.error); addHistory(inst, { title: 'Kopja jashtë PC-së', ok: false, detail: record.error }); }
+  if (!record.ok && (!before || before.ok)) { notify(inst, 'Kopja jashtë PC-së dështoi', record.error, 'error'); addHistory(inst, { title: 'Kopja jashtë PC-së', ok: false, detail: record.error }); }
   if (record.ok && record.copied) addHistory(inst, { title: 'Kopja jashtë PC-së', ok: true, detail: record.copied + ' backup u kopjuan te ' + o.path });
   return record;
 }
@@ -1159,6 +1225,7 @@ async function diagnostics(inst) {
     'Kopja jashtë PC-së: ' + JSON.stringify(offsiteOf(inst)), 'Automatik: ' + JSON.stringify(autoBackupOf(inst)), '',
     '== Historiku (të fundit) ==', ...(readSettings(inst).history || []).slice(-30).map((h) => new Date(h.at).toISOString() + ' · ' + h.title + ' · ' + (h.ok ? 'OK' : 'GABIM') + ' · ' + (h.detail || '')), '',
     '== Veprimi i fundit ==', ...((jobs.get(inst.id) || { lines: ['-'] }).lines), '',
+    '== Gabimet e dashboard-it (të fundit) ==', ...readErrorEntries(20).map((e) => e.at + ' · ' + e.where + ' · ' + e.message), '',
     '== Updater.log (fundi) ==', tailOf(path.join(inst.root, 'Updater.log'), 60), '',
     '== HRSystem-Server.log (fundi) ==', tailOf(path.join(inst.root, 'HRSystem-Server.log'), 60), '',
     '== Dashboard.log (fundi) ==', tailOf(path.join(inst.root, 'Dashboard.log'), 40),
@@ -1186,6 +1253,144 @@ async function followTokenRepo(inst, token) {
     return out;
   } catch { return null; }
 }
+// ======================= Alerts (owner, 2026-10-22): an old backup, an address that does not open, a test of a backup, a daily report =======================
+const STALE_MS = Number(process.env.HR_STALE_MS) || 48 * 3600 * 1000;      // a backup older than this is an alarm (override only for tests)
+const ADDR_DOWN_MS = Number(process.env.HR_ADDR_DOWN_MS) || 5 * 60 * 1000;  // an address that does not open for this long is an alarm
+const DAILY_HOUR = Number.isInteger(Number(process.env.HR_DAILY_HOUR)) && process.env.HR_DAILY_HOUR !== undefined ? Number(process.env.HR_DAILY_HOUR) : 8;
+const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+// 1) The newest backup is too old (or there is none for two days after the installation): once a day.
+function staleBackupCheck(inst) {
+  if (!inst.data) return;
+  const list = listBackups(inst);
+  let age = null;
+  if (list.length) age = Date.now() - Date.parse(list[0].time);
+  else { try { age = Date.now() - fs.statSync(path.join(inst.root, 'current.txt')).birthtimeMs; } catch { /* unknown */ } }
+  if (age === null || age <= STALE_MS) return;
+  const cur = readSettings(inst), day = todayKey();
+  if (cur.lastStaleAlert === day) return;
+  cur.lastStaleAlert = day; settingsWrite(inst, cur);
+  const days = Math.max(1, Math.floor(age / 86400000));
+  const text = list.length ? 'Backup-i i fundit është ' + days + ' ditë i vjetër (' + list[0].name + ').' : 'Nuk ka asnjë backup prej ' + days + ' ditësh.';
+  notify(inst, 'Backup i vjetër', text + ' Kontrollo Automatik te Veprime.', 'warn');
+  addHistory(inst, { title: 'Backup i vjetër', ok: false, detail: text });
+}
+
+// 3) A public address that does not open for 5 minutes while the application itself runs (a tunnel or a domain problem): one message, one more when it is back.
+const addrWatch = new Map(); // url -> { down, told }
+async function addressCheck(inst) {
+  const w = watch.get(inst.id);
+  if (!w || w.down) { addrWatch.clear(); return; } // the application is down: that has its own message
+  let env = {}; try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
+  const a = await accessOf(inst, env);
+  const urls = new Set((a.domains || []).map((d) => d.url));
+  for (const k of [...addrWatch.keys()]) if (!urls.has(k)) addrWatch.delete(k);
+  for (const d of a.domains || []) {
+    const st = addrWatch.get(d.url) || { down: 0, told: false };
+    addrWatch.set(d.url, st);
+    const name = d.url.replace(/^https?:[/][/]/, '') + (d.temporary ? ' (e përkohshme)' : '');
+    if (d.ok) {
+      if (st.told) { notify(inst, 'Adresa u kthye', name + ' hapet përsëri.', 'ok'); addHistory(inst, { title: 'Adresa u kthye', ok: true, detail: name }); }
+      st.down = 0; st.told = false;
+    } else {
+      if (!st.down) st.down = Date.now();
+      if (!st.told && Date.now() - st.down >= ADDR_DOWN_MS) {
+        st.told = true;
+        notify(inst, 'Adresa nuk hapet', name + ' nuk hapet prej ' + Math.round((Date.now() - st.down) / 60000) + ' minutash, edhe pse aplikacioni punon.', 'error');
+        addHistory(inst, { title: 'Adresa nuk hapet', ok: false, detail: name });
+      }
+    }
+  }
+}
+
+// 2) A backup is tested for real: loaded into a temporary database (hrtest_<time>), checked, and the temporary database is dropped.
+function mysqlQuery(cfg, sql, db) {
+  return run(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '-N', '-B', '-e', sql, ...(db ? [db] : [])], { MYSQL_PWD: cfg.DB_PASSWORD });
+}
+function runBackupTest(inst, name) {
+  needLocal(inst);
+  const found = name && listBackups(inst).find((b) => b.name === name);
+  if (!found) throw new Error('Backup-i nuk u gjet.');
+  return startJob(inst, 'Test backup: ' + found.name, async (add) => {
+    const cfg = readEnv(path.join(inst.root, '.env'));
+    const stamp = Date.now(), db = 'hrtest_' + stamp;
+    const file = path.join(inst.data, 'Backups', `test-${stamp}.tmp.sql`);
+    const record = (ok, extra) => { const cur = readSettings(inst); cur.backupTests = { ...(cur.backupTests || {}), [found.name]: { ok, at: new Date().toISOString(), ...extra } }; const keys = Object.keys(cur.backupTests); if (keys.length > 200) for (const k of keys.slice(0, keys.length - 200)) delete cur.backupTests[k]; settingsWrite(inst, cur); };
+    let created = false;
+    try {
+      // Step 1, always: the file itself. Every table of the live database must be in the backup, with its CREATE and (for people) its rows, and the dump must be complete.
+      add('1/4 Po kontrollohet skedari: tabelat, rreshtat dhe fundi i tij...');
+      const text = fs.readFileSync(path.join(backupDir(inst), found.name), 'utf8');
+      const live = (await mysqlQuery(cfg, 'SHOW TABLES', cfg.DB_NAME)).split(/\r?\n/).map((t) => t.trim()).filter(Boolean);
+      const missing = live.filter((t) => !text.includes('CREATE TABLE `' + t + '`'));
+      if (!live.length) throw new Error('Nuk u lexuan tabelat e databazës aktuale.');
+      if (missing.length) throw new Error('Backup-i nuk ka këto tabela: ' + missing.join(', ') + '.');
+      if (!text.includes('Dump completed')) throw new Error('Skedari nuk mbaron siç duhet (duket i prerë).');
+      const liveUsers = Number(await mysqlQuery(cfg, 'SELECT COUNT(*) FROM `users`', cfg.DB_NAME).catch(() => '0')) || 0;
+      if (liveUsers > 0 && !text.includes('INSERT INTO `users`')) throw new Error('Backup-i nuk ka përdorues, ndërsa databaza aktuale ka ' + liveUsers + '.');
+      add('   OK: ' + live.length + ' tabela, fundi i skedarit dhe përdoruesit ekzistojnë.');
+      // Step 2, when the database user may create a database: the backup is really loaded into a temporary database and counted.
+      let real = false, tables = live.length, users = liveUsers;
+      try {
+        fs.writeFileSync(file, text.replace(/utf8mb4_uca1400_[a-z_]+/g, 'utf8mb4_unicode_ci').replace(/^\s*(CREATE DATABASE|USE)\b.*$/gim, '-- (skipped) $&'));
+        add('2/4 Po krijohet një databazë e përkohshme (' + db + ')...');
+        await mysqlQuery(cfg, 'CREATE DATABASE `' + db + '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+        created = true;
+        add('3/4 Po ngarkohet backup-i në të dhe numërohet...');
+        await mysqlRun(inst, cfg, file, add, db);
+        tables = Number(await mysqlQuery(cfg, `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${db}' AND table_type='BASE TABLE'`));
+        users = Number(await mysqlQuery(cfg, 'SELECT COUNT(*) FROM `' + db + '`.users').catch(() => '0')) || 0;
+        if (tables < live.length) throw new Error('Backup-i u ngarkua, por ka ' + tables + ' tabela nga ' + live.length + '.');
+        real = true;
+      } catch (e) {
+        if (/Access denied|1044|1142|1227/.test(String(e.message)) && !created) add('   Ngarkimi real nuk u bë: përdoruesi i aplikacionit nuk ka të drejtë të krijojë databazë të përkohshme. Kontrolli i skedarit mbetet i vlefshëm.');
+        else throw e;
+      }
+      record(true, { tables, users, real });
+      add('SUKSES: backup-i është i plotë: ' + tables + ' tabela, ' + users + ' përdorues' + (real ? ' (ngarkuar dhe numëruar në një databazë të përkohshme).' : ' (kontroll i skedarit; ngarkimi real nuk ishte i mundur).'));
+    } catch (e) {
+      record(false, { error: String(e.message).slice(0, 160) });
+      throw e;
+    } finally {
+      if (created) { add('4/4 Po fshihet databaza e përkohshme...'); try { await mysqlQuery(cfg, 'DROP DATABASE IF EXISTS `' + db + '`'); } catch { /* next time */ } }
+      fs.rmSync(file, { force: true });
+    }
+  });
+}
+
+// 4) The daily report to the phone (08:00, or the first time after 08:00 that the dashboard runs): what is fine and what is not.
+async function dailyReportText(inst) {
+  const s = await status(inst);
+  const problems = [], lines = [];
+  lines.push('Aplikacioni: ' + (s.health.ok ? 'online (' + s.health.ms + ' ms)' : 'FIKUR'));
+  if (!s.health.ok) problems.push('aplikacioni është i fikur');
+  lines.push('Databaza: ' + (s.health.database === 'connected' ? 'lidhur' : (s.health.database || '-')));
+  const b = s.backups[0];
+  if (b) {
+    const days = Math.floor((Date.now() - Date.parse(b.time)) / 86400000);
+    lines.push('Backup i fundit: ' + fmtDateTime(b.time) + (b.version ? ' · versioni ' + b.version : '') + ' · ' + (b.check ? 'OK' : 'DËMTUAR'));
+    if (!b.check) problems.push('backup-i i fundit është dëmtuar');
+    if (Date.now() - Date.parse(b.time) > STALE_MS) problems.push('backup-i është ' + days + ' ditë i vjetër');
+  } else { lines.push('Backup: asnjë'); problems.push('nuk ka asnjë backup'); }
+  const d = s.system && s.system.disk && s.system.disk.data;
+  if (d && d.total) { const pct = Math.round((100 * d.free) / d.total); lines.push('Disku: ' + pct + '% i lirë (' + (d.free / 1073741824).toFixed(0) + ' GB)'); if (pct < 15) problems.push('pak hapësirë në disk'); }
+  const doms = (s.access && s.access.domains) || [];
+  if (doms.length) { const open = doms.filter((x) => x.ok).length; lines.push('Adresat: ' + open + ' nga ' + doms.length + ' hapen'); if (open < doms.length) problems.push((doms.length - open) + ' adresë nuk hapet'); }
+  lines.push('Versioni: ' + ((s.installed && s.installed.name) || '-') + (s.update ? ' · ka version të ri: ' + (s.latest && s.latest.version) : ''));
+  return { level: problems.length ? 'warn' : 'ok', title: 'Raporti i ditës' + (problems.length ? ': KUJDES' : ': gjithçka OK'), message: (problems.length ? 'Kujdes: ' + problems.join(', ') + '.\n' : 'Gjithçka në rregull.\n') + lines.join('\n') };
+}
+const fmtDateTime = (iso) => { const d = new Date(iso); const p = (n) => String(n).padStart(2, '0'); return p(d.getDate()) + '.' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+async function dailyReportCheck(inst) {
+  const n = notifyOf(inst);
+  if (!n.on || !n.target || !n.daily) return;
+  const now = new Date(), cur = readSettings(inst), day = todayKey();
+  if (now.getHours() < DAILY_HOUR || cur.lastDailyReport === day) return;
+  cur.lastDailyReport = day; settingsWrite(inst, cur);
+  const r = await dailyReportText(inst);
+  notify(inst, r.title, r.message, r.level);
+  addHistory(inst, { title: 'Raporti i ditës u dërgua', ok: true, detail: r.title });
+}
+
 // Also by itself: every 10 minutes (and once a minute after the start) the repo the stored token can read is compared with the installation's repo; with exactly one
 // repo that is not the installation's own, the installation follows it (a token changed on the PC brings its repo without pressing anything).
 async function followStoredToken() {
@@ -1195,7 +1400,7 @@ async function followStoredToken() {
       const t = await token(inst);
       if (!t) continue;
       const out = await followTokenRepo(inst, t);
-      if (out && out.changed) { addHistory(inst, { title: 'Repo i programit ndryshoi', ok: true, detail: out.repo }); notify(inst, 'Repo i programit ndryshoi', 'Tokeni lexon repo-n ' + out.repo + ': instalimi e ndjek.'); }
+      if (out && out.changed) { addHistory(inst, { title: 'Repo i programit ndryshoi', ok: true, detail: out.repo }); notify(inst, 'Repo i programit ndryshoi', 'Tokeni lexon repo-n ' + out.repo + ': instalimi e ndjek.', 'info'); }
     } catch { /* next time */ }
   }
 }
@@ -1364,7 +1569,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/status') {
       if (!statusShared.promise || Date.now() - statusShared.at > 3000) {
         statusShared.at = Date.now();
-        statusShared.promise = (async () => ({ instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, security: { password: SIGN_IN, env: !!process.env.DASHBOARD_KEY }, at: new Date().toISOString() }))();
+        statusShared.promise = (async () => ({ instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, errors: { day: errorsLastDay() }, location: serverLocation(), security: { password: SIGN_IN, env: !!process.env.DASHBOARD_KEY }, at: new Date().toISOString() }))();
         statusShared.promise.catch(() => { statusShared.promise = null; });
       }
       return send(res, 200, await statusShared.promise);
@@ -1388,6 +1593,21 @@ const server = http.createServer(async (req, res) => {
       stream.on('error', () => res.destroy());
       res.on('error', () => stream.destroy());
       return stream.pipe(res);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/errors') {
+      const inst = find(url.searchParams.get('id'));
+      if (!inst || !inst.root) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
+      const out = errorsOf(inst, String(url.searchParams.get('source') || 'dashboard'), Math.min(1000, Number(url.searchParams.get('limit')) || 300));
+      return out ? send(res, 200, out) : send(res, 400, { error: 'Burim i panjohur.' });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/errors-file') {
+      const inst = find(url.searchParams.get('id'));
+      if (!inst || !inst.root) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
+      const source = String(url.searchParams.get('source') || 'dashboard');
+      const text = source === 'dashboard' ? (fs.existsSync(ERR_FILE) ? fs.readFileSync(ERR_FILE, 'utf8') : '') : (LOG_FILES(inst)[source] ? tailText(LOG_FILES(inst)[source], 2097152) : null);
+      if (text === null) return send(res, 400, { error: 'Burim i panjohur.' });
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="gabime-${source}.log"`, 'Cache-Control': 'no-store' });
+      return res.end(text);
     }
     if (req.method === 'GET' && url.pathname === '/api/diagnostics') {
       const inst = find(url.searchParams.get('id'));
@@ -1446,12 +1666,12 @@ const server = http.createServer(async (req, res) => {
         needLocal(inst);
         let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; }
         let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
-        return send(res, 200, setNotify(inst, j.on, j.target));
+        return send(res, 200, setNotify(inst, j.on, j.target, j.daily));
       }
       if (url.pathname === '/api/notify-test') {
         needLocal(inst);
         const n = notifyOf(inst);
-        try { await sendNotify(n.target, 'Provë nga HRSystem Dashboard', (inst.name || '') + ': njoftimet punojnë.'); } catch (e) { return send(res, 400, { error: e.message }); }
+        try { await sendNotify(n.target, composeNote(inst, 'Njoftimet punojnë', 'Ky është një mesazh prove nga dashboard-i.', 'ok')); } catch (e) { return send(res, 400, { error: e.message }); }
         return send(res, 200, { ok: true });
       }
       if (url.pathname === '/api/offsite') {
@@ -1488,6 +1708,16 @@ const server = http.createServer(async (req, res) => {
         try { setDashboardPassword(j.password); } catch (e) { return send(res, 400, { error: e.message }); }
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...(SIGN_IN ? { 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/` } : { 'Set-Cookie': 'mgr=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }) });
         return res.end(JSON.stringify({ password: SIGN_IN }));
+      }
+      if (url.pathname === '/api/errors-clear') { try { fs.rmSync(ERR_FILE, { force: true }); } catch { /* none */ } errCount = { at: 0, n: 0 }; return send(res, 200, { ok: true }); }
+      if (url.pathname === '/api/backup-test') { needLocal(inst); return send(res, 200, runBackupTest(inst, url.searchParams.get('name'))); }
+      if (url.pathname === '/api/daily-report') {
+        // The report now (the same text as the daily one at 08:00): sent to the phone when the notifications are on, and shown here.
+        needLocal(inst);
+        const r = await dailyReportText(inst);
+        const n = notifyOf(inst);
+        notify(inst, r.title, r.message, r.level);
+        return send(res, 200, { title: r.title, message: r.message, sent: !!(n.on && n.target) });
       }
       if (url.pathname === '/api/versions') return send(res, 200, await versionsOf(inst));
       if (url.pathname === '/api/rollback') {
@@ -1593,6 +1823,7 @@ const server = http.createServer(async (req, res) => {
     }
     return send(res, 404, { error: 'not found' });
   } catch (e) {
+    logError('HTTP ' + req.method + ' ' + (req.url || '').split('?')[0], e);
     return send(res, 400, { error: e.message }); // our own checks throw readable messages: a bad request, not a crash
   }
 });

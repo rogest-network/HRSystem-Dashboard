@@ -220,8 +220,8 @@ async function copyText(text) {
   toast('U kopjua.');
 }
 
-const SECTIONS = [['home', 'Pasqyra', 'home'], ['access', 'Adresat', 'globe'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Ku është instaluar', 'folder'], ['log', 'Log-u', 'term']];
-const state = { cur: store.get('cur', ''), section: store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
+const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Ku është instaluar', 'folder'], ['log', 'Log-u', 'term']];
+const state = { cur: store.get('cur', ''), section: store.get('section', 'home') === 'access' ? 'data' : store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
 // ---------------------------------------------------------------- one installation
@@ -341,11 +341,6 @@ function view(s) {
         el('tr', {}, el('td', { class: 'k' }, 'Backup-e'), el('td', {}, s.backups.length + (s.backups.length ? ' · e fundit ' + fmtTime(s.backups[0].time) : ''))),
         el('tr', {}, el('td', { class: 'k' }, 'Veprimi i fundit'), el('td', {}, s.job ? s.job.title + ' · ' + (s.job.state === 'running' ? 'po vazhdon...' : s.job.state === 'ok' ? 'SUKSES' : 'GABIM') : '-'))))));
 
-  pages.access = () => el('div', {}, header('Adresat', 'Tuneli, domenet, adresa e përkohshme', controls),
-    el('div', { class: 'card' }, el('h2', {}, 'Adresat e aplikacionit'), addressTable()),
-    el('div', { class: 'card' }, el('h2', {}, 'Si funksionojnë'),
-      el('div', { class: 'desc' }, 'Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe harrohen pas 14 ditësh. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon çdo herë dhe punon sa punon procesi.')));
-
   // ---- the settings and secrets page
   const SECRET = /PASS|SECRET|TOKEN|KEY/i;
   const FRIENDLY = { PORT: 'Porta e aplikacionit', APP_ORIGIN: 'Adresa e aplikacionit', DB_HOST: 'Databaza: serveri', DB_PORT: 'Databaza: porta', DB_NAME: 'Databaza: emri', DB_USER: 'Databaza: përdoruesi', DB_PASSWORD: 'Databaza: fjalëkalimi', APP_SECRET: 'Çelësi i aplikacionit (APP_SECRET)', SETUP_TOKEN: 'Token i /setup' };
@@ -363,13 +358,14 @@ function view(s) {
     refresh.onclick = () => { delete state.secrets[s.id]; render(); };
     const showAll = el('button', { type: 'button', class: 'btn ghost' }, 'Shfaq të gjitha');
     showAll.onclick = () => { const all = sec ? [...sec.env.filter((e) => SECRET.test(e.key)).map((e) => e.key), '#github', '#tunnel'] : []; const on = !all.every((x) => state.shown[s.id + ':' + x]); for (const x of all) state.shown[s.id + ':' + x] = on; render(); };
-    const top = header('Të dhënat', 'Cilësime dhe sekrete (.env), të fshehura si parazgjedhje.', el('div', { class: 'row' }, showAll, refresh));
+    const top = header('Të dhënat', 'Adresat, cilësimet dhe sekretet (.env, të fshehura si parazgjedhje).', el('div', { class: 'row' }, showAll, refresh));
     if (!sec) {
       if (sec === undefined) {
         state.secrets[s.id] = null;
         post('secrets').then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error === 'not_found' ? 'Dashboard-i u rinis: rifresko faqen.' : (j.error || 'Gabim')); state.secrets[s.id] = j; render(); })).catch((e) => { state.secrets[s.id] = false; state.secretsError = e.message; toast('GABIM: ' + e.message, true); render(); });
       }
-      return el('div', {}, top, el('div', { class: 'card' }, el('div', { class: 'empty' }, sec === false ? (state.secretsError || 'Të dhënat nuk u lexuan.') + ' Shtyp "Rifresko" për të provuar përsëri.' : 'Po lexohen të dhënat...')));
+      return el('div', {}, top,
+      el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable(), el('div', { class: 'desc', style: 'margin:10px 0 0' }, 'Domenet zbulohen vetë kur aplikacioni merr kërkesë nga interneti dhe harrohen pas 14 ditësh. Adresa e përkohshme është një tunel i shpejtë Cloudflare (trycloudflare.com): ndryshon çdo herë dhe punon sa punon procesi.')), el('div', { class: 'card' }, el('div', { class: 'empty' }, sec === false ? (state.secretsError || 'Të dhënat nuk u lexuan.') + ' Shtyp "Rifresko" për të provuar përsëri.' : 'Po lexohen të dhënat...')));
     }
     const envMap = Object.fromEntries(sec.env.map((e) => [e.key, e.value]));
     const group = (title, keys) => {
@@ -380,6 +376,7 @@ function view(s) {
     const others = sec.env.filter((e) => !used.has(e.key));
     const conn = envMap.DB_NAME ? 'mysql -h ' + (envMap.DB_HOST || '127.0.0.1') + ' -P ' + (envMap.DB_PORT || '3306') + ' -u ' + (envMap.DB_USER || 'root') + ' -p ' + envMap.DB_NAME : '';
     return el('div', {}, top,
+      el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable()),
       el('div', { class: 'grid2' },
         group('Aplikacioni', ['PORT', 'APP_ORIGIN']),
         group('Databaza', ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'])),

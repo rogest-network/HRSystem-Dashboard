@@ -573,6 +573,8 @@ async function systemAction(inst, action) {
   const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;
   if (!command) throw new Error('Veprim i panjohur.');
   await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);
+  // A Stop pressed by the owner is remembered, so the watcher does not start the application again; Start / Restart forget it.
+  { const cur = readSettings(inst); if (action === 'stop') cur.manualStop = Date.now(); else delete cur.manualStop; settingsWrite(inst, cur); }
   return { ok: true };
 }
 
@@ -926,10 +928,24 @@ async function watchTick() {
     let ok = false;
     try { ok = (await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(5000) })).ok; } catch { ok = false; }
     if (ok || (job && job.state === 'running')) {
+      if (ok) { const st = readSettings(inst); if (st.manualStop && Date.now() - st.manualStop > 20000) { delete st.manualStop; settingsWrite(inst, st); } }
       if (ok && w.told) { notify(inst, 'Aplikacioni u kthye', (inst.name || '') + ' punon përsëri.'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
       w.down = 0; w.told = false;
     } else {
       if (!w.down) w.down = Date.now();
+      // Self-heal (owner, 2026-10-22): when it fell by itself (not stopped with the Stop button) and "Nisja me Windows" for the application is ON, it is started again
+      // after a minute (at most once every 10 minutes). When the owner stopped it, or the switch is off, nothing is started.
+      if (Date.now() - w.down >= 60000 && Date.now() - (w.lastStart || 0) > 600000 && !readSettings(inst).manualStop) {
+        try {
+          const app = (await autostartState(inst).catch(() => [])).find((x) => x.key === 'app');
+          if (app && app.on) {
+            w.lastStart = Date.now();
+            await systemAction(inst, 'start');
+            addHistory(inst, { title: 'Aplikacioni u ndez vetë (kishte rënë)', ok: true, detail: '' });
+            notify(inst, 'Aplikacioni u ndez vetë', (inst.name || '') + ' kishte rënë dhe u ndez përsëri.');
+          }
+        } catch { /* tried; the next attempt is in 10 minutes */ }
+      }
       if (!w.told && Date.now() - w.down >= 60000) { w.told = true; notify(inst, 'Aplikacioni ka rënë', (inst.name || '') + ' nuk përgjigjet prej 1 minute.'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
     }
     const d = diskOf(inst.data || inst.root);

@@ -4,6 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { execFile, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -186,8 +187,38 @@ async function backup(inst) {
     [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--single-transaction', '--no-tablespaces', '--hex-blob', '--default-character-set=utf8mb4', `--result-file=${file}`, cfg.DB_NAME],
     { MYSQL_PWD: cfg.DB_PASSWORD },
   );
+  noteBackupVersion(inst, path.basename(file));
   return { name: path.basename(file), size: fs.statSync(file).size };
 }
+
+// Which version of the program was running when a backup was made (owner, 2026-10-22). A backup made here (manual, night, safety copy) records the
+// installed version at once; the updater's own backups are matched by time against a log of version changes that the dashboard keeps.
+function recordVersion(inst) {
+  const i = installed(inst);
+  if (!i || i.error) return;
+  const cur = readSettings(inst), log = Array.isArray(cur.versionLog) ? cur.versionLog : [];
+  if (log.length && log[log.length - 1].name === i.name) return;
+  log.push({ at: Date.now(), name: i.name });
+  cur.versionLog = log.slice(-60);
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+}
+function noteBackupVersion(inst, file) {
+  const i = installed(inst);
+  if (!i || i.error) return;
+  const cur = readSettings(inst);
+  cur.backupVersions = { ...(cur.backupVersions || {}), [file]: i.name };
+  const keys = Object.keys(cur.backupVersions); if (keys.length > 400) for (const k of keys.slice(0, keys.length - 400)) delete cur.backupVersions[k];
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+}
+function withVersions(inst, list) {
+  const cur = readSettings(inst), known = cur.backupVersions || {}, log = Array.isArray(cur.versionLog) ? cur.versionLog : [];
+  return list.map((b) => {
+    let v = known[b.name] || null;
+    if (!v) { const t = Date.parse(b.time); for (const e of log) if (e.at <= t) v = e.name; }
+    return { ...b, version: v };
+  });
+}
+setInterval(() => { for (const inst of instances()) { if (inst.root) { try { recordVersion(inst); } catch { /* next time */ } } } }, 60000).unref();
 
 // ---- Jobs (update, SQL): run in the background, the page polls their output ----
 const jobs = new Map(); // instance id -> { title, state: 'running' | 'ok' | 'error', lines, started }
@@ -211,19 +242,110 @@ function needLocal(inst) {
 }
 
 // The update is the installation's own updater.ps1 (backup, build, migrations, health check, automatic return).
-function runUpdate(inst) {
-  needLocal(inst);
+function spawnUpdater(inst, add, zip) {
   const script = path.join(inst.root, 'updater.ps1');
   if (!fs.existsSync(script)) throw new Error('updater.ps1 nuk u gjet te ' + inst.root);
-  return startJob(inst, 'Perditesim', (add) => new Promise((resolve) => {
+  return new Promise((resolve) => {
     const env = { ...process.env, HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data };
     if (inst.task) env.HRSYSTEM_TASK = inst.task;
-    const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], { env, windowsHide: true });
+    const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...(zip ? ['-Zip', zip] : [])], { env, windowsHide: true });
     p.stdout.on('data', add);
     p.stderr.on('data', add);
     p.on('error', (e) => { add('GABIM: ' + e.message); resolve(false); });
     p.on('close', (code) => resolve(code === 0));
-  }));
+  });
+}
+function runUpdate(inst) {
+  needLocal(inst);
+  if (!fs.existsSync(path.join(inst.root, 'updater.ps1'))) throw new Error('updater.ps1 nuk u gjet te ' + inst.root);
+  return startJob(inst, 'Perditesim', (add) => spawnUpdater(inst, add));
+}
+
+// ---- Go back to an older version of the program (owner, 2026-10-22) ----
+// The backup holds only the database; the program (code, forms, design) is the version in releases\<name>\ (kept locally) or the Release on GitHub.
+// Going back to a version that is on this PC just switches current.txt and restarts the app (no build); one that is only on GitHub is downloaded and
+// installed with the same updater (update.bat <zip>: backup, build, migrations, health check). Afterwards the version is PINNED: the automatic
+// night update and the "new version" notice ignore what GitHub had at that moment, and only a version NEWER than that (or "Hiq ngjitjen")
+// ends the pin, so the old version does not come straight back.
+function pinOf(inst) { return readSettings(inst).pinned || null; }
+function savePin(inst, pin) {
+  const cur = readSettings(inst);
+  if (pin) cur.pinned = pin; else delete cur.pinned;
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+}
+function updateKindPinned(inst, i, l) {
+  const pin = pinOf(inst);
+  if (pin && i && !i.error) {
+    if (i.name !== pin.name) savePin(inst, null); // another version was installed since (by hand): the pin is over
+    else if (l && !l.error && cmp(l.version, pin.seen) > 0) savePin(inst, null); // GitHub has a newer version than the one the owner went back from
+    else return null;
+  }
+  return updateKind(i, l);
+}
+async function pinNow(inst) {
+  const i = installed(inst);
+  if (!i || i.error) return;
+  const l = await latestCached(inst).catch(() => null);
+  savePin(inst, { name: i.name, version: i.version, seen: l && !l.error ? l.version : i.version, at: new Date().toISOString() });
+}
+function localVersions(inst) {
+  const dir = path.join(inst.root, 'releases');
+  try { return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && fs.existsSync(path.join(dir, d.name, 'dist', 'index.html'))).map((d) => d.name).sort(); } catch { return []; }
+}
+async function repoReleases(inst) {
+  if (!inst.repo) return [];
+  const t = await token(inst);
+  const res = await fetch(`https://api.github.com/repos/${inst.repo}/releases?per_page=30`, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'regina-manager', ...(t ? { Authorization: `Bearer ${t}` } : {}) }, signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error('GitHub ' + res.status);
+  return (await res.json()).filter((r) => !r.draft && /^v\d+\.\d+\.\d+$/.test(r.tag_name)).map((r) => {
+    const a = r.assets.find((x) => x.name.endsWith('-Hostinger.zip'));
+    return a ? { version: r.tag_name.slice(1), prerelease: r.prerelease, url: a.url, name: a.name, size: a.size } : null;
+  }).filter(Boolean);
+}
+async function versionsOf(inst) {
+  needLocal(inst);
+  const cur = installed(inst);
+  let repo = [], repoError = null;
+  try { repo = (await repoReleases(inst)).map(({ version, prerelease }) => ({ version, prerelease })); } catch (e) { repoError = e.message; }
+  return { current: cur && cur.name, local: localVersions(inst), repo, repoError, pinned: pinOf(inst) };
+}
+function rollbackLocal(inst, name) {
+  needLocal(inst);
+  if (!localVersions(inst).includes(name)) throw new Error('Ky version nuk ndodhet në këtë PC.');
+  const cur = installed(inst);
+  if (cur && cur.name === name) throw new Error('Ky version është tashmë aktiv.');
+  const common = path.join(inst.root, 'hr-common.ps1');
+  return startJob(inst, 'Rikthim i versionit', async (add) => {
+    add('Po kalohet te versioni ' + name + ' (pa build: kodi është tashmë në këtë PC)...');
+    const script = `. ${q(common)}; $ErrorActionPreference = 'Stop'; $cfg = Use-HrEnv; $port = [int]$cfg['PORT']; if (-not $port) { $port = 3000 }; $old = Get-InstalledVersion; ` +
+      `Set-Content -Path $script:CurrentFile -Value ${q(name)} -NoNewline; Restart-HrApp; ` +
+      `if (Wait-Health $port 60) { 'OK' } else { Set-Content -Path $script:CurrentFile -Value $old -NoNewline; Restart-HrApp; Wait-Health $port 60 | Out-Null; 'FAIL' }`;
+    const out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data || '' });
+    if (!/OK\s*$/.test(out.trim())) { add('Versioni ' + name + ' nuk u përgjigj: u kthye versioni i mëparshëm.'); return false; }
+    await pinNow(inst);
+    add('SUKSES: aplikacioni punon me versionin ' + name + '. Përditësimet automatike janë ndalur deri në një version më të ri në GitHub.');
+    return true;
+  });
+}
+function rollbackRepo(inst, version) {
+  needLocal(inst);
+  return startJob(inst, 'Rikthim i versionit', async (add) => {
+    const rel = (await repoReleases(inst)).find((r) => r.version === version);
+    if (!rel) throw new Error('Versioni ' + version + ' nuk u gjet te GitHub.');
+    const t = await token(inst);
+    add('Po shkarkohet ' + rel.name + ' (' + Math.round(rel.size / 1048576) + ' MB)...');
+    const r = await fetch(rel.url, { headers: { Accept: 'application/octet-stream', 'User-Agent': 'regina-manager', ...(t ? { Authorization: `Bearer ${t}` } : {}) }, redirect: 'follow' });
+    if (!r.ok) throw new Error('Shkarkimi dështoi (GitHub ' + r.status + ').');
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length !== rel.size) throw new Error('Shkarkimi nuk u plotësua (madhësia nuk përputhet).');
+    const zip = path.join(os.tmpdir(), 'rollback-' + rel.name);
+    fs.writeFileSync(zip, buf);
+    try {
+      const ok = await spawnUpdater(inst, add, zip);
+      if (ok) { await pinNow(inst); add('Përditësimet automatike janë ndalur deri në një version më të ri në GitHub.'); }
+      return ok;
+    } finally { fs.rmSync(zip, { force: true }); }
+  });
 }
 
 function mysqlPath() { return mysqldumpPath().replace(/mysqldump(\.exe)?$/, 'mysql$1'); }
@@ -695,7 +817,7 @@ async function autoBackupTick() {
     const running = jobs.get(inst.id);
     if (running && running.state === 'running') continue;
     const record = { date: today, at: new Date().toISOString() };
-    const kind = auto.updateToo ? updateKind(installed(inst), await latestCached(inst).catch(() => null)) : null;
+    const kind = auto.updateToo ? updateKindPinned(inst, installed(inst), await latestCached(inst).catch(() => null)) : null;
     if (kind) {
       // the update makes the backup (its first step): one backup, then the new version
       saveAutoResult(inst, record, 'update_started');
@@ -726,7 +848,8 @@ setInterval(() => { autoBackupTick().catch(() => {}); }, 60000).unref();
 async function status(inst) {
   const [h, l] = await Promise.all([health(inst), latestCached(inst)]);
   const i = installed(inst);
-  const update = updateKind(i, l);
+  recordVersion(inst);
+  const update = updateKindPinned(inst, i, l);
   let env = {};
   try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
   const tokenSet = !!(await token(inst).catch(() => ''));
@@ -734,7 +857,7 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)), job: jobs.get(inst.id) || null };
 }
 
 // ---- Start with Windows (owner, 2026-10-22): the owner can stop or enable the automatic start of each part, or all at once ----
@@ -949,6 +1072,13 @@ const server = http.createServer(async (req, res) => {
         if (!found) return send(res, 404, { error: 'Backup-i nuk u gjet.' });
         return send(res, 200, runImport(inst, found.name, fs.readFileSync(path.join(backupDir(inst), found.name), 'utf8')));
       }
+      if (url.pathname === '/api/versions') return send(res, 200, await versionsOf(inst));
+      if (url.pathname === '/api/rollback') {
+        const to = String(url.searchParams.get('to') || '');
+        if (url.searchParams.get('source') === 'repo') { if (!/^\d+\.\d+\.\d+$/.test(to)) return send(res, 400, { error: 'Version i pavlefshëm.' }); return send(res, 200, rollbackRepo(inst, to)); }
+        return send(res, 200, rollbackLocal(inst, to));
+      }
+      if (url.pathname === '/api/unpin') { needLocal(inst); savePin(inst, null); latestCache.delete(inst.id); return send(res, 200, { ok: true }); }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
       if (url.pathname === '/api/autostart') { needLocal(inst); return send(res, 200, { items: await setAutostart(inst, String(url.searchParams.get('item') || 'all'), url.searchParams.get('on') !== '0') }); }
       if (url.pathname === '/api/auto-backup') { needLocal(inst); const q = url.searchParams; return send(res, 200, setAutoBackup(inst, (q.get('backup') ?? q.get('on')) !== '0', q.has('hour') ? Number(q.get('hour')) : undefined, q.has('keep') ? Number(q.get('keep')) : undefined, q.has('update') ? q.get('update') !== '0' : undefined)); }

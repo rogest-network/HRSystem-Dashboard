@@ -313,6 +313,12 @@ const TR_LIST = [
   ["Folderi kryesor (aplikacioni, skriptet)", "Main folder (application, scripts)", "Glavna fascikla (aplikacija, skripte)"], ["Kodi qe po punon (versioni ", "Running code (version ", "Kod koji radi (verzija "], ["Cilesimet (.env: porta, databaza, adresa)", "Settings (.env: port, database, address)", "Podešavanja (.env: port, baza, adresa)"],
   ["Nisesi i aplikacionit (start-hrsystem.ps1)", "Application starter (start-hrsystem.ps1)", "Pokretač aplikacije (start-hrsystem.ps1)"], ["Te dhenat (databaza, backup-et)", "Data (database, backups)", "Podaci (baza, backup-i)"], ["Skedaret e databazes MySQL", "MySQL database files", "MySQL datoteke baze"], ["Backup-et e databazes", "Database backups", "Backup-i baze"],
   ["Aplikacioni + databaza", "Application + database", "Aplikacija + baza"], ["Dashboard-i", "Dashboard", "Dashboard"], ["Databaza (MySQL)", "Database (MySQL)", "Baza (MySQL)"], ["ky PC", "this PC", "ovaj računar"],
+  ["Hiq ngjitjen", "Remove the pin", "Ukloni zakivanje"], ["U hoq ngjitja.", "The pin was removed.", "Zakivanje je uklonjeno."], ["Version i rikthyer: ", "Rolled-back version: ", "Vraćena verzija: "], [" · përditësimet automatike janë ndalur deri në një version më të ri se ", " · automatic updates are paused until a version newer than ", " · automatska ažuriranja su zaustavljena do verzije novije od "],
+  ["Rikthe një version", "Go back to a version", "Vrati verziju"], ["Kthe kodin (formularët, dizajni) te një version më i vjetër, nga ky PC ose nga GitHub.", "Put the code (forms, design) back to an older version, from this PC or from GitHub.", "Vrati kod (obrasci, dizajn) na stariju verziju, sa ovog računara ili sa GitHub-a."],
+  ["Rikthe versionin...", "Go back to a version...", "Vrati verziju..."], ["Rikthe versionin", "Go back to a version", "Vrati verziju"], ["Aktiv tani: ", "Active now: ", "Trenutno aktivna: "], [". Databaza nuk ndryshon (backup-in e rikthen nga faqja Backup-et).", ". The database does not change (restore a backup from the Backups page).", ". Baza se ne menja (backup vrati sa stranice Backup-i)."],
+  ["Në këtë PC (pa shkarkim)", "On this PC (no download)", "Na ovom računaru (bez preuzimanja)"], ["Nga GitHub", "From GitHub", "Sa GitHub-a"], ["Asnjë version tjetër në këtë PC.", "No other version on this PC.", "Nema druge verzije na ovom računaru."], ["Asnjë version tjetër.", "No other version.", "Nema druge verzije."], ["GitHub nuk u arrit (", "GitHub could not be reached (", "GitHub nije dostupan ("],
+  ["Rikthej aplikacionin te versioni ", "Go back to version ", "Vratiti aplikaciju na verziju "], ["Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).", "It is downloaded from GitHub, the database is backed up and built (a few minutes).", "Preuzima se sa GitHub-a, pravi se backup baze i build (nekoliko minuta)."], ["Kalon menjëherë (kodi është në këtë PC).", "It switches at once (the code is already on this PC).", "Prelazi odmah (kod je već na ovom računaru)."],
+  ["Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.", "The database stays as it is; automatic updates are paused until a newer version.", "Baza ostaje kakva jeste; automatska ažuriranja se zaustavljaju do novije verzije."], ["Rikthimi i versionit", "Version rollback", "Vraćanje verzije"],
   ["Backup", "Backup", "Backup"], ["Instalimi i vjetër", "Old installation", "Stara instalacija"],
 ];
 const TR_EXACT = {}, TR_FRAG = { en: [], sr: [] };
@@ -578,6 +584,59 @@ function view(s) {
   // ================= pages
   const pages = {};
 
+  // ---- go back to an older version of the program (the dialog) and the pin that keeps the old version from being updated at once
+  const pinBanner = () => {
+    if (!s.pinned) return '';
+    const un = el('button', { type: 'button', class: 'btn' }, 'Hiq ngjitjen');
+    un.onclick = async () => { if (await call('unpin', '', 'U hoq ngjitja.')) load(); };
+    return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, 'Version i rikthyer: ' + s.pinned.name), ' · përditësimet automatike janë ndalur deri në një version më të ri se ' + s.pinned.seen + '.'), el('div', { class: 'row' }, un));
+  };
+  const openVersions = (v) => {
+    const prev = document.activeElement;
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
+    const go2 = async (name, source) => {
+      if (!confirm('Rikthej aplikacionin te versioni ' + name + '?' + NL + (source === 'repo' ? 'Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).' : 'Kalon menjëherë (kodi është në këtë PC).') + NL + 'Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.')) return;
+      close();
+      if (await call('rollback', '&to=' + encodeURIComponent(name) + '&source=' + source, 'Rikthimi filloi...')) { go('log'); load(); }
+    };
+    const curVer = String(v.current || '').replace(/-b\d+$/, '');
+    const row = (name, source, note) => { const b = el('button', { type: 'button', class: 'btn ghost sm' }, 'Rikthe'); b.onclick = () => go2(name, source); return el('li', {}, el('div', { class: 'p' }, el('b', {}, name), note ? el('span', {}, note) : ''), b); };
+    const localOthers = v.local.filter((n) => n !== v.current);
+    const repoOthers = v.repo.filter((r) => r.version !== curVer && !v.local.includes(r.version));
+    const closeBtn = el('button', { type: 'button', class: 'btn' }, 'Mbyll'); closeBtn.onclick = close;
+    const panel = el('div', { class: 'a11y-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'verTitle' },
+      el('h2', { id: 'verTitle' }, 'Rikthe versionin'),
+      el('p', { class: 'desc' }, 'Aktiv tani: ' + (v.current || '-') + '. Databaza nuk ndryshon (backup-in e rikthen nga faqja Backup-et).'),
+      el('h3', { style: 'font-size:13px;margin:12px 0 4px' }, 'Në këtë PC (pa shkarkim)'),
+      el('ul', { class: 'list' }, ...(localOthers.length ? localOthers.map((n) => row(n, 'local')) : [el('li', {}, el('span', { class: 'empty' }, 'Asnjë version tjetër në këtë PC.'))])),
+      el('h3', { style: 'font-size:13px;margin:12px 0 4px' }, 'Nga GitHub'),
+      el('ul', { class: 'list' }, ...(v.repoError ? [el('li', {}, el('span', { class: 'empty' }, 'GitHub nuk u arrit (' + v.repoError + ').'))] : repoOthers.length ? repoOthers.map((r) => row(r.version, 'repo', r.prerelease ? 'pre-release' : '')) : [el('li', {}, el('span', { class: 'empty' }, 'Asnjë version tjetër.'))])),
+      el('div', { class: 'row', style: 'margin-top:12px' }, closeBtn));
+    const overlay = el('div', { class: 'a11y-overlay' }, panel);
+    overlay.onmousedown = (e) => { if (e.target === overlay) close(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { close(); return; }
+      if (e.key === 'Tab') {
+        const f = [...panel.querySelectorAll('button')].filter((x) => !x.disabled);
+        if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.append(overlay);
+    closeBtn.focus();
+  };
+  const versionsBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Rikthe versionin...');
+  versionsBtn.disabled = busy;
+  versionsBtn.onclick = async () => {
+    versionsBtn.disabled = true;
+    try { const r = await post('versions'); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); openVersions(j); }
+    catch (e) { toast('GABIM: ' + e.message, true); }
+    versionsBtn.disabled = busy;
+  };
+
   const updateNotice = () => {
     if (!s.update) return '';
     const go2 = el('button', { type: 'button', class: 'btn' }, 'Përditëso tani'); go2.disabled = busy; go2.onclick = () => updBtn.onclick();
@@ -586,6 +645,7 @@ function view(s) {
   pages.home = () => el('div', {},
     header(s.name, 'Pasqyra', controls),
     updateNotice(),
+    pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'kpis' },
       appKpi(),
@@ -739,10 +799,12 @@ function view(s) {
   const repoLink = (name) => el('a', { class: 'dom', href: 'https://github.com/' + name, target: '_blank', rel: 'noopener' }, name);
   const item = (title, text, ...buttons) => el('div', { class: 'item' }, el('div', {}, el('b', {}, title), el('span', {}, text)), el('div', { class: 'row' }, ...buttons));
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë, lidhje', ''),
+    pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
-        item('Përditëso aplikacionin', s.update ? 'Ka version të ri: ' + latText + ' (instaluar: ' + verText + ').' : 'Versioni ' + verText + ' · i përditësuar.', updBtn))),
+        item('Përditëso aplikacionin', s.update ? 'Ka version të ri: ' + latText + ' (instaluar: ' + verText + ').' : 'Versioni ' + verText + ' · i përditësuar.', updBtn),
+        item('Rikthe një version', 'Kthe kodin (formularët, dizajni) te një version më i vjetër, nga ky PC ose nga GitHub.', versionsBtn))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Branding, module, databazë. Hapet pa token.', devBtn),
         item('Ndalo, nise, rinis', 'Detyra e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin?'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),
@@ -771,7 +833,7 @@ function view(s) {
       const restore = el('button', { type: 'button', class: 'btn ghost sm' }, 'Rikthe');
       restore.disabled = busy;
       restore.onclick = async () => {
-        if (!confirm('Rikthej databazën nga ' + b.name + '?' + NL + 'Bëhet fillimisht një backup i gjendjes së tanishme; pastaj FSHIHEN të gjitha tabelat dhe ngarkohet ky backup.')) return;
+        if (!confirm('Rikthej databazën nga ' + b.name + (b.version ? ' (versioni ' + b.version + ')' : '') + '?' + NL + 'Bëhet fillimisht një backup i gjendjes së tanishme; pastaj FSHIHEN të gjitha tabelat dhe ngarkohet ky backup.')) return;
         if (await call('backup-restore', '&name=' + encodeURIComponent(b.name), 'Rikthimi filloi...')) { go('log'); load(); }
       };
       const show = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hap');
@@ -783,7 +845,7 @@ function view(s) {
         const j = await call('backup-delete', '&name=' + encodeURIComponent(b.name));
         if (j) { toast('Backup-i u fshi (mbeten ' + j.left + ').'); load(); }
       };
-      return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size)), el('span', {}, b.name)), el('div', { class: 'row' }, dl, restore, show, del));
+      return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size) + (b.version ? ' · versioni ' + b.version : '')), el('span', {}, b.name)), el('div', { class: 'row' }, dl, restore, show, del));
     }) : [el('li', {}, el('span', { class: 'empty' }, 'Nuk ka backup ende.'))]))));
 
   pages.files = () => el('div', {}, header('Ku është instaluar', 'Rrugët e instalimit', ''),
@@ -859,14 +921,14 @@ function render() {
 }
 
 // One status request at a time (a slow measurement must not pile up), and background refreshes stay silent when the dashboard is briefly unreachable (e.g. while it restarts itself).
-const jobName = (t) => ({ Perditesim: 'Përditësimi i aplikacionit', 'Cloudflare Tunnel': 'Lidhja e tunelit', 'Heqja e tunelit': 'Heqja e tunelit' }[t] || t);
+const jobName = (t) => ({ Perditesim: 'Përditësimi i aplikacionit', 'Rikthim i versionit': 'Rikthimi i versionit', 'Cloudflare Tunnel': 'Lidhja e tunelit', 'Heqja e tunelit': 'Heqja e tunelit' }[t] || t);
 // Progress of a running job. The updater prints a header "=== step ===" for each stage; each stage has a share of the bar. The build is the long one
 // (a few minutes), so inside it the bar creeps forward with the elapsed time until the next header arrives.
 const UPDATE_STEPS = [['Versioni i instaluar', 5, 'Kontroll'], ['GitHub', 10, 'Kontroll në GitHub'], ['Versioni i ri', 15, 'Shkarkim'], ['Backup i databazes', 28, 'Backup i databazës'], ['Skedaret e versionit', 38, 'Skedarët e versionit'], ['Paketat dhe build', 50, 'Build'], ['SQL i versionit', 82, 'Migrimet'], ['Ndrrimi i versionit', 92, 'Ndërrimi i versionit']];
 function progressOf(job) {
   if (job.state === 'ok') return { pct: 100, label: 'U krye' };
   if (job.state === 'error') return { pct: 100, label: 'Dështoi' };
-  if (job.title !== 'Perditesim') return { pct: null, label: 'Po vazhdon' };
+  if (job.title !== 'Perditesim' && !(job.title === 'Rikthim i versionit' && (job.lines || []).some((l) => /^=== /.test(l)))) return { pct: null, label: 'Po vazhdon' };
   let pct = 3, label = 'Po nis';
   for (const l of job.lines || []) {
     const m = /^=== (.+?) ===/.exec(l);

@@ -106,6 +106,24 @@
   .toast { position:fixed; right:22px; bottom:22px; max-width:520px; background:var(--side); color:#fff; padding:12px 16px; border-radius:11px; box-shadow:0 10px 30px rgba(0,0,0,.25); font-size:13.5px; opacity:0; transform:translateY(8px); transition:.2s; pointer-events:none; z-index:20; }
   .toast.show { opacity:1; transform:none; } .toast.err { background:#991b1b; }
 
+  /* --- polish (22.10.2026): domains stay on one line, the address card gets the wider column, softer details */
+  a.dom { word-break:normal; overflow-wrap:normal; white-space:nowrap; font-weight:600; }
+  table.kv td.k { width:1%; padding-right:28px; }
+  table.kv td { padding:11px 6px; }
+  table.kv tr { transition:background .15s; }
+  table.kv tr:hover td { background:var(--soft); }
+  .grid2.wide { grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); }
+  .kpi .s { overflow-wrap:anywhere; word-break:normal; }
+  .kpi .v { font-variant-numeric:tabular-nums; }
+  .top h1 { font-size:24px; letter-spacing:-.4px; }
+  .card { transition:border-color .15s, box-shadow .15s; } .card:hover { border-color:color-mix(in srgb, var(--accent) 35%, var(--line)); }
+  .act .item { transition:border-color .15s; } .act .item:hover { border-color:var(--accent); }
+  button, a, .iconbtn { transition:background .15s, filter .15s, border-color .15s, color .15s; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+  ::selection { background:var(--accent); color:var(--accent-text); }
+  @media (max-width:1180px) { .grid2.wide { grid-template-columns:1fr; } }
+  @media (max-width:700px) { a.dom { white-space:normal; word-break:break-all; } table.kv td.k { width:auto; white-space:normal; } table.kv td.a { white-space:normal; } }
+
   @media (max-width:980px) {
     .app { grid-template-columns:1fr; } .side { position:static; height:auto; flex-direction:column; }
     .nav { flex-direction:row; flex-wrap:wrap; } .nav button { width:auto; } .main { padding:16px; }
@@ -257,7 +275,7 @@ function view(s) {
     const j = await call('quick-tunnel', '&do=start');
     if (j) { toast('Gati: ' + j.url); load(); } else quickBtn.disabled = false;
   };
-  const link = (u) => el('a', { href: u, target: '_blank', rel: 'noopener' }, u.replace(/^https?:[/][/]/, ''));
+  const link = (u) => el('a', { class: 'dom', href: u, target: '_blank', rel: 'noopener' }, u.replace(/^https?:[/][/]/, ''));
   const addressTable = () => el('table', { class: 'kv' },
     el('tr', {}, el('td', { class: 'k' }, 'Lokale'), el('td', {}, link(a.local)), el('td', { class: 'a' }, pill('ok', 'në këtë PC'))),
     ...(a.domains && a.domains.length
@@ -280,7 +298,7 @@ function view(s) {
       el('div', { class: 'card kpi' }, el('h2', {}, 'Databaza'), el('div', { class: 'v' }, h.database === 'connected' ? 'Lidhur' : (h.database || '-')), el('div', { class: 's' }, s.database && s.database.name ? s.database.name + ' · porta ' + s.database.port : '-')),
       el('div', { class: 'card kpi' }, el('h2', {}, 'Versioni'), el('div', { class: 'v' }, verText, updPill || ''), el('div', { class: 's' }, 'I fundit (' + (s.channel || 'stable') + '): ' + latText)),
       el('div', { class: 'card kpi' }, el('h2', {}, 'Adresa'), el('div', { class: 'v' }, publicUrl ? (a.domainOk ? 'Hapet' : 'Nuk hapet') : 'Pa domen', publicUrl ? pill(a.domainOk ? 'ok' : 'bad', a.domainOk ? 'online' : 'offline') : ''), el('div', { class: 's' }, publicUrl ? publicUrl.replace(/^https?:[/][/]/, '') : 'del vetë kur hapet një tunel'))),
-    el('div', { class: 'grid2' },
+    el('div', { class: 'grid2 wide' },
       el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable()),
       el('div', { class: 'card' }, el('h2', {}, 'Gjendja'), el('table', { class: 'kv' },
         el('tr', {}, el('td', { class: 'k' }, 'Instaluar'), el('td', {}, verText)),

@@ -25,7 +25,32 @@ let SIGN_IN = LOGIN_KEY.length > 0;
 const sameText = (a, b) => typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const authed = (req) => { if (!SIGN_IN) return true; const m = /(?:^|;\s*)mgr=([0-9a-f]+)/.exec(req.headers.cookie || ''); return !!m && sameText(m[1], COOKIE); };
 let failures = []; // times of wrong keys: 5 in a minute locks the sign-in for a minute
-const LOGIN_HTML = '<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HRSystem Dashboard</title><style>:root{color-scheme:light dark}body{font:16px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}form{display:grid;gap:12px;width:min(320px,90vw)}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #8886}button{background:#2457d6;color:#fff;border:0;font-weight:600;cursor:pointer}p{margin:0;font-size:13px;opacity:.75}#e{color:#c0392b;min-height:18px}</style></head><body><form id="f"><h1 style="margin:0;font-size:20px">HRSystem Dashboard</h1><input id="k" type="password" autocomplete="off" placeholder="Fjalekalimi i dashboard-it" autofocus required><button>Hyr</button><p>Harrove fjalekalimin? Fshi skedarin manager\\dashboard.key (vetem administratori).</p><p id="e"></p></form><script>f.onsubmit=async function(ev){ev.preventDefault();const r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k.value})});if(r.ok)location.reload();else e.textContent=r.status===429?"Shume provime. Prit nje minute.":"Fjalekalimi nuk eshte i sakte."};var h=/[#&]key=([0-9a-f]+)/.exec(location.hash);if(h){history.replaceState(null,"",location.pathname);k.value=h[1];f.requestSubmit()}</script></body></html>';
+// The sign-in page (only when a dashboard password is set): same type, colours and motion as the dashboard; the button shows a spinner while the key is checked.
+const LOGIN_HTML = `<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HRSystem Dashboard</title><style>
+:root{color-scheme:light dark;--bg:#f3f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--accent:#4f46e5;--bad:#b91c1c;--badbg:#fee2e2;--out:cubic-bezier(.23,1,.32,1)}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#131a2e;--text:#e5e9f4;--muted:#8b97b1;--line:#222c47;--accent:#818cf8;--bad:#f87171;--badbg:#3f1519}button{color:#0b1020!important}button i{border-color:#0b1020!important;border-right-color:transparent!important}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:14px/1.55 "Anthropic Sans","Styrene B",ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+form{width:min(360px,92vw);display:grid;gap:14px;padding:28px 26px 24px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px rgba(2,6,23,.1);animation:rise .34s var(--out) both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#4338ca);display:grid;place-items:center;color:#fff;font-weight:800;letter-spacing:-.5px;box-shadow:0 1px 0 rgba(255,255,255,.2) inset,0 8px 18px rgba(67,56,202,.32)}
+h1{margin:6px 0 0;font-size:20px;font-weight:600;letter-spacing:-.02em}p{margin:0;color:var(--muted);font-size:12.5px}
+input{font:inherit;height:40px;padding:0 13px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);outline:none;transition:border-color .15s var(--out),box-shadow .15s var(--out)}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 24%,transparent)}
+input.bad{border-color:var(--bad)}
+button{font:inherit;font-weight:600;height:40px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .14s var(--out),filter .15s}
+@media(hover:hover){button:not(:disabled):hover{filter:brightness(1.08)}}
+button:not(:disabled):active{transform:scale(.97)}button:disabled{opacity:.7;cursor:default}
+button i{display:none;width:14px;height:14px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}button.busy i{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+#e{min-height:19px;color:var(--bad);font-size:13px;opacity:0;transform:translateY(-3px);transition:opacity .15s,transform .15s var(--out)}#e.on{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body><form id="f"><div class="logo" aria-hidden="true">HR</div><h1>HRSystem Dashboard</h1><p>Shkruaj fjalëkalimin për të hyrë.</p><input id="k" type="password" autocomplete="off" placeholder="Fjalëkalimi i dashboard-it" autofocus required aria-describedby="e"><button id="b"><i></i><span id="bt">Hyr</span></button><p id="e" role="alert"></p><p>Harrove fjalëkalimin? Fshi skedarin manager\\dashboard.key (vetëm administratori).</p></form><script>
+f.onsubmit=async function(ev){ev.preventDefault();b.disabled=true;b.classList.add("busy");bt.textContent="Po hyhet...";e.className="";k.classList.remove("bad");
+var r;try{r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k.value})})}catch(x){r={ok:false,status:0}}
+if(r.ok){bt.textContent="Po hapet...";location.reload();return}
+b.disabled=false;b.classList.remove("busy");bt.textContent="Hyr";k.classList.add("bad");e.textContent=r.status===429?"Shumë provime. Prit një minutë.":r.status===0?"Dashboard-i nuk përgjigjet.":"Fjalëkalimi nuk është i saktë.";e.className="on";k.select()};
+k.oninput=function(){k.classList.remove("bad");e.className=""};
+var h=/[#&]key=([0-9a-f]+)/.exec(location.hash);if(h){history.replaceState(null,"",location.pathname);k.value=h[1];f.requestSubmit()}</script></body></html>`;
 
 // A random key per run: every action that changes something (backup) must carry it, so a web page cannot trigger it.
 const SESSION_KEY = crypto.randomBytes(24).toString('hex');

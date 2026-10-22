@@ -267,9 +267,126 @@
   .gear { border-radius:10px; box-shadow:var(--shadow); }
   .toast { border-radius:10px; }
   @media (max-width:980px) { .main { padding:18px 16px; } .nav button.on::before { display:none; } .top { margin-bottom:16px; } }
+
+  /* --- polish v3 (2026-10-22): the type Claude uses, app-like fields, calm warnings, a loading screen, and motion by the book
+     (only transform / opacity, ease-out entrances, exits faster than entrances, press feedback, hover only where a hover exists). */
+  :root {
+    /* Claude's own faces first (they apply where installed); the rest is the closest system face */
+    --font:"Anthropic Sans", "Styrene B", "Styrene A", ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --ease-out:cubic-bezier(.23, 1, .32, 1); --ease-io:cubic-bezier(.77, 0, .175, 1);
+    --ring:0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  html { -webkit-tap-highlight-color:transparent; }
+  body { overscroll-behavior:none; font-feature-settings:"cv11", "ss01"; }
+  .top h1 { font-weight:600; letter-spacing:-.022em; }
+  .card h2 { font-weight:600; }
+
+  /* fields: one size, one radius, a clear hover and a soft focus ring */
+  input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=hidden]), select, textarea {
+    font:inherit; font-size:13.5px; color:var(--text); background-color:var(--card); border:1px solid var(--line); border-radius:9px;
+    height:36px; padding:0 12px; min-width:0; outline:none;
+    transition:border-color .15s var(--ease-out), box-shadow .15s var(--ease-out), background-color .15s;
+  }
+  textarea { height:auto; padding:9px 12px; line-height:1.5; }
+  select { padding-right:34px; appearance:none; -webkit-appearance:none; cursor:pointer;
+    background-image:linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position:calc(100% - 17px) 15px, calc(100% - 12px) 15px; background-size:5px 5px, 5px 5px; background-repeat:no-repeat; }
+  .inst select { height:auto; padding:0 18px 0 0; border:0; background-color:transparent; box-shadow:none; border-radius:0; background-position:calc(100% - 6px) 7px, calc(100% - 1px) 7px; }
+  .inst select:focus { box-shadow:none; }
+  input::placeholder, textarea::placeholder { color:var(--muted); opacity:.75; }
+  input:disabled, select:disabled, textarea:disabled { opacity:.55; background-color:var(--soft); cursor:not-allowed; }
+  input:user-invalid, textarea:user-invalid { border-color:var(--bad); }
+  input[type=time], input[type=number] { font-variant-numeric:tabular-nums; }
+  @media (hover:hover) and (pointer:fine) {
+    input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not(:disabled):hover, select:not(:disabled):hover, textarea:not(:disabled):hover { border-color:color-mix(in srgb, var(--muted) 55%, var(--line)); }
+    .inst select:hover { border-color:transparent; }
+  }
+  input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):focus, select:focus, textarea:focus { border-color:var(--accent); box-shadow:var(--ring); outline:none; }
+  html.a11y-focus input:focus-visible, html.a11y-focus select:focus-visible, html.a11y-focus textarea:focus-visible { outline:3px solid #f59e0b !important; }
+  input[type=checkbox], input[type=radio] { accent-color:var(--accent); }
+
+  /* buttons: press feedback, hover only with a real pointer, and a busy state that appears only when the wait is long enough to notice */
+  button.btn, .iconbtn, .nav button, .gearbtn, .side .foot button, .gear { transition:background-color .15s, border-color .15s, color .15s, filter .15s, box-shadow .15s, transform .14s var(--ease-out); }
+  button:not(:disabled):active, .gear:active { transform:scale(.97); }
+  .nav button:not(:disabled):active { transform:scale(.985); }
+  button.btn { box-shadow:0 1px 0 rgba(255,255,255,.14) inset, 0 1px 2px rgba(15,23,42,.14); }
+  button.btn.ghost, button.btn.danger, button.btn.sm { box-shadow:none; }
+  button.btn.danger:not(:disabled):hover { background:var(--badbg); }
+  button.is-busy { pointer-events:none; position:relative; }
+  button.is-busy::before { content:""; flex:none; width:12px; height:12px; margin-right:7px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%;
+    animation:spin .7s linear infinite, popin .16s var(--ease-out) .12s backwards; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes popin { from { opacity:0; transform:scale(.6); } }
+  @media (hover:hover) and (pointer:fine) { .card:hover { border-color:var(--line) !important; } }
+  .card:hover { border-color:var(--line) !important; }
+
+  /* warnings: an icon, a calm tinted surface and a coloured edge instead of a hard frame */
+  .banner { position:relative; grid-template-columns:auto minmax(0,1fr); column-gap:12px; row-gap:8px; align-items:start; padding:13px 16px 13px 14px; border:1px solid color-mix(in srgb, var(--warn) 28%, transparent); border-left:3px solid var(--warn); border-radius:12px; background:var(--warnbg); }
+  .banner > * { grid-column:2; min-width:0; }
+  .banner::before { content:"!"; grid-column:1; grid-row:1 / span 3; width:22px; height:22px; margin-top:0; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:12px; background:var(--warn); color:var(--warnbg); }
+  .banner.ok { border-color:color-mix(in srgb, var(--ok) 28%, transparent); border-left-color:var(--ok); background:var(--okbg); } .banner.ok::before { content:"✓"; background:var(--ok); color:var(--okbg); }
+  .banner.bad { border-color:color-mix(in srgb, var(--bad) 28%, transparent); border-left-color:var(--bad); background:var(--badbg); } .banner.bad::before { content:"✕"; background:var(--bad); color:var(--badbg); }
+  .banner.run { border-color:color-mix(in srgb, var(--accent) 28%, transparent); border-left-color:var(--accent); background:var(--accent-soft); }
+  .banner.run::before { content:"i"; background:var(--accent); color:var(--accent-text); font-style:italic; font-family:Georgia, serif; }
+  #jobbar.banner::before { content:""; background:none; border:2px solid var(--accent); border-right-color:transparent; border-radius:50%; width:18px; height:18px; margin:2px; animation:spin .8s linear infinite; }
+  .progress { height:5px; } .progress i { transition:transform .5s var(--ease-out), width .5s var(--ease-out); }
+  .progress.indet i { margin-left:0; animation:slide2 1.3s var(--ease-io) infinite; }
+  @keyframes slide2 { from { transform:translateX(-100%); } to { transform:translateX(290%); } }
+
+  /* toast: enters with ease-out, leaves faster; one icon, two moods */
+  .toast { display:flex; align-items:flex-start; gap:10px; right:20px; bottom:20px; max-width:min(440px, calc(100vw - 32px)); padding:11px 14px 11px 12px; border-radius:12px;
+    background:var(--side-2); color:#fff; border:1px solid rgba(255,255,255,.09); box-shadow:0 12px 32px rgba(2,6,23,.32); line-height:1.45;
+    opacity:0; transform:translateY(10px) scale(.98); transition:opacity .15s ease-out, transform .15s ease-out; }
+  .toast.show { opacity:1; transform:none; transition:opacity .22s var(--ease-out), transform .22s var(--ease-out); pointer-events:auto; }
+  .toast .ti { flex:none; width:18px; height:18px; margin-top:1px; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:800; background:#34d399; color:#052e22; }
+  .toast.err { background:#3a1418; border-color:rgba(248,113,113,.38); } .toast.err .ti { background:#f87171; color:#450a0a; }
+
+  /* motion: a section change fades in (small and quick, it happens often); the very first screen rises in with a short stagger */
+  .page.enter { animation:pagein .18s var(--ease-out) both; }
+  @keyframes pagein { from { opacity:0; transform:translateY(4px); } }
+  .page.first > * { animation:rise .34s var(--ease-out) both; }
+  .page.first > *:nth-child(2) { animation-delay:40ms; } .page.first > *:nth-child(3) { animation-delay:80ms; } .page.first > *:nth-child(4) { animation-delay:120ms; } .page.first > *:nth-child(n+5) { animation-delay:160ms; }
+  @keyframes rise { from { opacity:0; transform:translateY(8px); } }
+  .nav button.on::before { transition:opacity .15s; }
+
+  /* skeleton lines while a page reads something */
+  .skel { display:grid; gap:10px; padding:4px 2px; } .skel i { display:block; height:12px; border-radius:6px; background:linear-gradient(90deg, var(--soft) 25%, color-mix(in srgb, var(--soft) 55%, var(--line)) 50%, var(--soft) 75%); background-size:200% 100%; animation:shimmer 1.3s linear infinite; }
+  .skel i:nth-child(2) { width:82%; } .skel i:nth-child(3) { width:64%; } .skel i:nth-child(4) { width:74%; }
+  @keyframes shimmer { from { background-position:200% 0; } to { background-position:-200% 0; } }
+
+  /* loading screen: shown until the first status arrives, then it leaves in 200 ms */
+  .boot { position:fixed; inset:0; z-index:100; display:grid; place-items:center; background:var(--bg); }
+  .boot-in { display:grid; justify-items:center; gap:14px; width:min(280px, 80vw); text-align:center; }
+  .boot-logo { width:52px; height:52px; border-radius:14px; background:linear-gradient(135deg,#6366f1,#4338ca); display:grid; place-items:center; color:#fff; font-weight:800; font-size:18px; letter-spacing:-.5px; box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 10px 24px rgba(67,56,202,.35); animation:bootpulse 1.8s var(--ease-io) infinite; }
+  @keyframes bootpulse { 50% { transform:scale(1.05); } }
+  .boot-name { font-size:17px; font-weight:600; letter-spacing:-.015em; }
+  .boot-bar { width:100%; height:4px; border-radius:99px; background:var(--line); overflow:hidden; } .boot-bar i { display:block; width:36%; height:100%; border-radius:99px; background:var(--accent); animation:slide2 1.2s var(--ease-io) infinite; }
+  .boot-text { color:var(--muted); font-size:13px; min-height:20px; }
+  .boot.fail .boot-bar, .boot.fail .boot-logo { animation:none; } .boot.fail .boot-bar i { animation:none; width:0; }
+  .boot.fail .boot-text { color:var(--bad); }
+  .boot button { margin-top:4px; }
+  .boot.done { opacity:0; visibility:hidden; pointer-events:none; transition:opacity .2s ease-out, visibility 0s .2s; }
+  @media (forced-colors: active) { .banner { border:1px solid CanvasText; } .toast { border:1px solid CanvasText; } }
+
+  /* phone: a compact header (brand, installation, live) and one swipeable row of sections, like an app's tab bar */
+  @media (max-width:980px) {
+    .app { grid-template-columns:minmax(0,1fr); } .side { min-width:0; }
+    .side { flex-direction:row; flex-wrap:wrap; align-items:center; padding:12px 14px 6px; gap:8px 10px; border-right:0; border-bottom:1px solid var(--side-2); }
+    .brand { padding:0; margin:0; border:0; flex:none; } .brand span { display:none; }
+    .inst { margin:0; flex:1 1 130px; min-width:0; padding:7px 10px; }
+    .nav { order:5; flex-basis:100%; flex-direction:row; flex-wrap:nowrap; overflow-x:auto; gap:4px; margin:0 -14px; padding:2px 14px 8px; scrollbar-width:none; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; scroll-padding-inline:14px; }
+    .nav::-webkit-scrollbar { display:none; }
+    .nav button { flex:none; width:auto; white-space:nowrap; padding:8px 13px; scroll-snap-align:start; }
+    .nav button.on { background:var(--accent); color:var(--accent-text); }
+    .side .tools { order:3; margin:0; padding:0; }
+    .side .credit-side { display:none; }
+    .side .foot { order:4; margin:0; padding:0; border:0; display:flex; align-items:center; }
+    .side .foot button { display:none; }
+  }
 </style>
 </head>
 <body>
+<div class="boot" id="boot" role="status" aria-live="polite"><div class="boot-in"><div class="boot-logo" aria-hidden="true">HR</div><div class="boot-name">HRSystem</div><div class="boot-bar" aria-hidden="true"><i></i></div><div class="boot-text" id="boottext"></div></div></div>
 <a class="skip" href="#page" id="skip">Kalo te përmbajtja</a>
 <div class="app">
   <aside class="side" id="side" aria-label="Menu"></aside>
@@ -303,7 +420,7 @@ const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch {
 
 // ---- Language of the whole dashboard (sq default, en, sr): [Albanian, English, Serbian]. Exact strings first, then longer fragments (so dynamic texts are translated too).
 const TR_LIST = [
-  ["Ka version të ri","A new version is available","Dostupna je nova verzija"], ["Dashboard-i u përditësua","The dashboard was updated","Dashboard je ažuriran"], [" skedarë","files","datoteka"], ["Backup i vjetër","Old backup","Stari backup"],["Adresa u kthye","Address is back","Adresa je ponovo dostupna"], ["Adresa nuk hapet","Address does not open","Adresa se ne otvara"], ["Aplikacioni nuk përgjigjet","The application is not responding","Aplikacija ne odgovara"], ["Aplikacioni u ndez vetë (kishte rënë)","The application restarted by itself (it had crashed)","Aplikacija se sama pokrenula (bila je pala)"], ["Kopja jashtë PC-së","Off-site copy","Kopija van računara"], ["Raporti i ditës u dërgua","The daily report was sent","Dnevni izveštaj je poslat"], ["Ky version nuk ndodhet në këtë PC.","This version is not on this PC.","Ova verzija nije na ovom računaru."], ["Backup-i nuk u gjet.","The backup was not found.","Backup nije pronađen."],
+  ["Po hapet dashboard-i...","Opening the dashboard...","Dashboard se otvara..."], ["Dashboard-i nuk përgjigjet.","The dashboard is not answering.","Dashboard ne odgovara."], ["Provo përsëri","Try again","Pokušaj ponovo"], ["Ka version të ri","A new version is available","Dostupna je nova verzija"],["Dashboard-i u përditësua","The dashboard was updated","Dashboard je ažuriran"], [" skedarë","files","datoteka"], ["Backup i vjetër","Old backup","Stari backup"],["Adresa u kthye","Address is back","Adresa je ponovo dostupna"], ["Adresa nuk hapet","Address does not open","Adresa se ne otvara"], ["Aplikacioni nuk përgjigjet","The application is not responding","Aplikacija ne odgovara"], ["Aplikacioni u ndez vetë (kishte rënë)","The application restarted by itself (it had crashed)","Aplikacija se sama pokrenula (bila je pala)"], ["Kopja jashtë PC-së","Off-site copy","Kopija van računara"], ["Raporti i ditës u dërgua","The daily report was sent","Dnevni izveštaj je poslat"], ["Ky version nuk ndodhet në këtë PC.","This version is not on this PC.","Ova verzija nije na ovom računaru."], ["Backup-i nuk u gjet.","The backup was not found.","Backup nije pronađen."],
   ["Gabimet", "Errors", "Greške"], ["Dashboard-i", "Dashboard", "Dashboard"], ["Dashboard (dalja)", "Dashboard (output)", "Dashboard (izlaz)"], ["Filtro...", "Filter...", "Filtriraj..."], ["Filtro", "Filter", "Filter"], ["Po lexohet...", "Reading...", "Čita se..."], ["Asnjë gabim. Gjithçka punon.", "No errors. Everything works.", "Nema grešaka. Sve radi."], ["Asnjë rezultat.", "No result.", "Nema rezultata."], ["Ky log është bosh ose nuk ekziston ende.", "This log is empty or does not exist yet.", "Ovaj log je prazan ili još ne postoji."], ["Ora", "Time", "Vreme"], ["Ku dhe çfarë", "Where and what", "Gde i šta"], ["gabim", "error", "greška"], ["Pastro gabimet", "Clear the errors", "Obriši greške"], ["Pastroj listën e gabimeve të dashboard-it?", "Clear the dashboard's list of errors?", "Obrisati listu grešaka dashboard-a?"], ["U pastrua.", "Cleared.", "Obrisano."], ["Gabimet gjatë punës së dashboard-it, aplikacionit dhe përditësimit.", "Errors while the dashboard, the application and the update were running.", "Greške tokom rada dashboard-a, aplikacije i ažuriranja."], ["Skedari: ", "File: ", "Datoteka: "], [" · përditësuar ", " · updated ", " · ažurirano "], [" · më e reja lart", " · newest first", " · najnovije gore"], ["Gabime në 24 orët e fundit", "Errors in the last 24 hours", "Greške u poslednja 24 sata"], ["Vendndodhja e serverit", "Server location", "Lokacija servera"], ["Adresa publike (IP)", "Public address (IP)", "Javna adresa (IP)"], ["Kompjuteri", "Computer", "Računar"], [" · qendra Cloudflare: ", " · Cloudflare data centre: ", " · Cloudflare centar: "], ["po përcaktohet...", "being determined...", "određuje se..."], ["Nuk u lexua: ", "Could not read: ", "Nije pročitano: "],
   ["Testo", "Test", "Testiraj"], ["I provuar", "Tested", "Testirano"], ["Testi dështoi", "The test failed", "Test nije uspeo"], ["Testi filloi...", "The test started...", "Test je počeo..."], ["Test backup: ", "Backup test: ", "Test backup-a: "], ["Raport i përditshëm", "Daily report", "Dnevni izveštaj"], ["Ora e raportit", "Report time", "Vreme izveštaja"], ["Ora e raportit u ruajt.", "The report time was saved.", "Vreme izveštaja je sačuvano."], ["Dërgo raportin tani", "Send the report now", "Pošalji izveštaj sada"], ["Raporti i ditës", "The daily report", "Dnevni izveštaj"], ["Dërgon tani raportin: aplikacioni, backup-i, disku, adresat dhe versioni.", "Sends the report now: application, backup, disk, addresses and version.", "Šalje izveštaj sada: aplikacija, backup, disk, adrese i verzija."], ["Raporti u dërgua: shiko telefonin.", "The report was sent: look at your phone.", "Izveštaj je poslat: pogledaj telefon."], ["Raporti u krijua (njoftimet janë të fikura).", "The report was created (notifications are off).", "Izveštaj je napravljen (obaveštenja su isključena)."], ["Njoftim kur aplikacioni bie (1 minutë), kur backup-i i fundit është më i vjetër se 2 ditë, kur një adresë nuk hapet 5 minuta, kur backup-i ose përditësimi dështon, kur mbaron hapësira, kur përditësimi kryhet, dhe një raport çdo ditë në orën që zgjedh ti. Mesazhet nuk kanë të dhëna personale.", "A message when the application is down (1 minute), when the newest backup is older than 2 days, when an address does not open for 5 minutes, when a backup or update fails, when space runs out, when an update completes, and a report every day at the hour you choose. Messages contain no personal data.", "Poruka kada aplikacija ne radi (1 minut), kada je najnoviji backup stariji od 2 dana, kada se adresa ne otvara 5 minuta, kada backup ili ažuriranje ne uspe, kada ponestane prostora, kada se ažuriranje završi, i izveštaj svaki dan u sat koji izabereš. Poruke ne sadrže lične podatke."], ["E ngarkon backup-in në një databazë të përkohshme dhe e kontrollon; pastaj e fshin.", "Loads the backup into a temporary database and checks it; then deletes it.", "Učitava backup u privremenu bazu i proverava je; zatim je briše."], ["1/4 Po krijohet një databazë e përkohshme (", "1/4 Creating a temporary database (", "1/4 Pravi se privremena baza ("],
   ["Fjalëkalimi:", "Password:", "Lozinka:"], ["Dil nga dashboard-i", "Sign out of the dashboard", "Odjavi se sa dashboard-a"], ["Aktiv: kur dashboard-i mbyllet dhe hapet përsëri, kërkon fjalëkalimin. Për ta ndryshuar ose hequr shkruaj fjalëkalimin aktual.", "Active: when the dashboard is closed and opened again, it asks for the password. To change or remove it, type the current password.", "Aktivno: kada se dashboard zatvori i ponovo otvori, traži lozinku. Da je promeniš ili ukloniš, upiši trenutnu lozinku."], ["Fjalëkalimi aktual (i fshehur)", "Current password (hidden)", "Trenutna lozinka (skrivena)"], ["(nuk shfaqet)", "(not shown)", "(ne prikazuje se)"],
@@ -469,10 +586,48 @@ const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2
 let toastTimer = null;
 { const c = window.confirm.bind(window), q = window.prompt.bind(window); window.confirm = (m) => c(t(m)); window.prompt = (m, d) => q(t(m), d); }
 function toast(msg, err) {
-  const tt = $('toast'); tt.textContent = t(msg); tt.className = 'toast show' + (err ? ' err' : '');
+  const tt = $('toast'); tt.replaceChildren(el('span', { class: 'ti', 'aria-hidden': 'true' }, err ? '!' : '✓'), el('span', {}, msg)); tt.className = 'toast show' + (err ? ' err' : '');
   clearTimeout(toastTimer);
   tt.onclick = () => { tt.className = 'toast' + (err ? ' err' : ''); };
   if (store.get('toastStay', '0') !== '1') toastTimer = setTimeout(() => { tt.className = 'toast' + (err ? ' err' : ''); }, err ? 8000 : 4500);
+}
+
+// ---- polish: a button whose handler returns a promise shows a spinner (after 120 ms, so a quick action never flashes) and ignores a second click until it ends
+(function () {
+  const d = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'onclick');
+  if (!d || !d.set) return;
+  Object.defineProperty(HTMLButtonElement.prototype, 'onclick', {
+    configurable: true,
+    get() { return d.get.call(this); },
+    set(fn) {
+      if (typeof fn !== 'function') return d.set.call(this, fn);
+      d.set.call(this, function (ev) {
+        const r = fn.call(this, ev);
+        if (r && typeof r.then === 'function') {
+          const b = this; b.classList.add('is-busy'); b.setAttribute('aria-busy', 'true');
+          const end = () => { b.classList.remove('is-busy'); b.removeAttribute('aria-busy'); };
+          r.then(end, end);
+        }
+        return r;
+      });
+    },
+  });
+})();
+// ---- polish: the loading screen leaves once the first status is drawn (or tells that the dashboard does not answer)
+const bootEl = () => document.getElementById('boot');
+function pageIn(cls) {
+  const p = document.getElementById('page'); if (!p) return;
+  p.classList.remove('enter', 'first'); void p.offsetWidth; p.classList.add(cls);
+  setTimeout(() => p.classList.remove(cls), cls === 'first' ? 800 : 300);
+}
+function hideBoot() {
+  const b = bootEl(); if (!b || b.classList.contains('done')) return;
+  b.classList.add('done'); setTimeout(() => b.remove(), 400);
+}
+function bootFail(msg) {
+  const b = bootEl(); if (!b || b.classList.contains('done')) return;
+  b.classList.add('fail'); $('boottext').textContent = t(msg);
+  if (!b.querySelector('button')) { const r = el('button', { type: 'button', class: 'btn' }, 'Provo përsëri'); r.onclick = () => { b.classList.remove('fail'); $('boottext').textContent = t('Po hapet dashboard-i...'); b.querySelector('button').remove(); load(); }; b.querySelector('.boot-in').append(r); }
 }
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); }
@@ -1115,7 +1270,7 @@ function view(s) {
     const SOURCES = [['dashboard', 'Dashboard-i'], ['app', 'Aplikacioni'], ['updater', 'Përditësimi'], ['dashboardlog', 'Dashboard (dalja)']];
     const tabs = el('div', { class: 'row', role: 'tablist' }, ...SOURCES.map(([k, l]) => { const b = el('button', { type: 'button', role: 'tab', 'aria-selected': String(k === src), class: k === src ? 'btn sm' : 'btn ghost sm' }, l); b.onclick = () => { state.errSource = k; render(); }; return b; }));
     const filter = el('input', { type: 'search', placeholder: 'Filtro...', 'aria-label': 'Filtro', value: state.errFilter || '', style: 'font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);min-width:220px' });
-    const body = el('div', { class: 'card' }, el('div', { class: 'empty' }, 'Po lexohet...'));
+    const body = el('div', { class: 'card' }, el('div', { class: 'skel', 'aria-label': 'Po lexohet...', role: 'status' }, el('i'), el('i'), el('i'), el('i')));
     let data = null;
     const fill = () => {
       const f = (state.errFilter || '').toLowerCase();
@@ -1155,7 +1310,7 @@ function view(s) {
 }
 
 // ---------------------------------------------------------------- shell: side navbar + page
-function go(section) { state.section = section; store.set('section', section); render(); }
+function go(section) { const changed = state.section !== section; state.section = section; store.set('section', section); render(); if (changed && state.booted) pageIn('enter'); }
 function render() {
   const j = state.data;
   if (!j) return;
@@ -1163,6 +1318,7 @@ function render() {
   if (!j.instances.length) {
     side.replaceChildren(el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))));
     page.replaceChildren(el('div', { class: 'card' }, el('b', {}, 'Asnjë instalim nuk u gjet në këtë kompjuter.'), el('div', { style: 'color:var(--muted)' }, 'Hap Install.bat për të instaluar HRSystem.')));
+    state.booted = true; hideBoot();
     return;
   }
   if (!j.instances.some((i) => i.id === state.cur)) state.cur = j.instances[0].id;
@@ -1200,7 +1356,9 @@ function render() {
     const pr = progressOf(job);
     done = el('div', { class: 'banner run', id: 'jobbar' }, el('p', {}, el('b', { class: 'bartext' }, jobName(job.title) + ' · ' + pr.label + (pr.pct === null ? '' : ' · ' + pr.pct + '%'))), el('div', { class: 'progress' + (pr.pct === null ? ' indet' : ''), role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-label': 'Progres' }, el('i', { style: 'width:' + (pr.pct === null ? 35 : pr.pct) + '%' })));
   }
+  if (!state.booted) pageIn('first');
   page.replaceChildren(...(done ? [done] : []), v.html);
+  if (!state.booted) { state.booted = true; hideBoot(); }
 }
 
 // One status request at a time (a slow measurement must not pile up), and background refreshes stay silent when the dashboard is briefly unreachable (e.g. while it restarts itself).
@@ -1317,9 +1475,10 @@ async function load(quiet) {
     const y = window.scrollY;
     render();
     window.scrollTo(0, y);
-  } catch (e) { if (quiet !== true) toast('GABIM: ' + e.message, true); }
+  } catch (e) { if (!state.data) bootFail('Dashboard-i nuk përgjigjet.'); else if (quiet !== true) toast('GABIM: ' + e.message, true); }
   finally { loading = false; if (again) { again = false; load(); } }
 }
+$('boottext').textContent = t('Po hapet dashboard-i...');
 load();
 startLive();
 // Refresh every 30 s, but not while the tab is hidden; coming back to the tab refreshes at once.

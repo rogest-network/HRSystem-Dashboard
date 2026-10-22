@@ -691,7 +691,14 @@ function stopQuick(inst) {
   return { ok: true };
 }
 setInterval(() => {
-  try { for (const inst of instances()) if (inst.root && readSettings(inst).quickWanted && !quickState(inst) && !quickStarting) startQuick(inst).catch(() => {}); } catch { /* next round */ }
+  try {
+    for (const inst of instances()) {
+      if (!(inst.root && readSettings(inst).quickWanted && !quickState(inst) && !quickStarting)) continue;
+      const before = (readSettings(inst).quickLast || {}).url || '';
+      // The temporary tunnel is gone (the PC restarted, or the process ended): a new one is made. Its address is NEW (Cloudflare gives a random one each time), so the phone is told which.
+      startQuick(inst).then((r) => { if (r && r.url && r.url !== before) { notify(inst, 'Adresa e përkohshme ndryshoi', 'Adresa e re: ' + r.url); addHistory(inst, { title: 'Adresa e përkohshme ndryshoi', ok: true, detail: r.url }); } }).catch(() => {});
+    }
+  } catch { /* next round */ }
 }, 20000).unref();
 
 // The dashboard updates itself from its own PUBLIC GitHub repo (owner, 2026-10-22): one repo for every installation, no token needed. The files

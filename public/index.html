@@ -113,6 +113,7 @@
   table.kv td { padding:11px 6px; }
   table.kv tr { transition:background .15s; }
   table.kv tr:hover td { background:var(--soft); }
+  .sub { color:var(--muted); font-size:12px; margin-top:2px; }
   .grid2.wide { grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); }
   .kpi .s { overflow-wrap:anywhere; word-break:normal; }
   .kpi .v { font-variant-numeric:tabular-nums; }
@@ -303,8 +304,7 @@ function view(s) {
       el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable()),
       el('div', { class: 'card' }, el('h2', {}, 'Gjendja'), el('table', { class: 'kv' },
         el('tr', {}, el('td', { class: 'k' }, 'Instaluar'), el('td', {}, verText)),
-        el('tr', {}, el('td', { class: 'k' }, 'Repo i programit'), el('td', {}, s.repo ? repoLink(s.repo) : el('span', { style: 'color:var(--muted)' }, 'nuk është lidhur me asnjë repo (update.json mungon)')), el('td', { class: 'a' }, s.repo ? pill('mute', 'kanali: ' + (s.channel || 'stable')) : '')),
-        el('tr', {}, el('td', { class: 'k' }, 'Repo i dashboard-it'), el('td', {}, state.data.dashboardRepo ? repoLink(state.data.dashboardRepo) : '-')),
+        el('tr', {}, el('td', { class: 'k' }, 'Repo i programit'), el('td', { colspan: '2' }, s.repo ? [repoLink(s.repo), el('div', { class: 'sub' }, 'kanali: ' + (s.channel || 'stable'))] : el('span', { style: 'color:var(--muted)' }, 'nuk është lidhur me asnjë repo (update.json mungon)'))),
         el('tr', {}, el('td', { class: 'k' }, 'Token GitHub'), el('td', {}, s.tokenSet ? pill('ok', 'vendosur') : pill('warn', 'mungon'))),
         el('tr', {}, el('td', { class: 'k' }, 'Backup-e'), el('td', {}, s.backups.length + (s.backups.length ? ' · e fundit ' + fmtTime(s.backups[0].time) : ''))),
         el('tr', {}, el('td', { class: 'k' }, 'Veprimi i fundit'), el('td', {}, s.job ? s.job.title + ' · ' + (s.job.state === 'running' ? 'po vazhdon...' : s.job.state === 'ok' ? 'SUKSES' : 'GABIM') : '-'))))));
@@ -426,7 +426,6 @@ function view(s) {
   };
   const dashText = !dash ? 'Ky dashboard punon nga folderi i zhvillimit: nuk përditësohet online.' : dash.error ? 'Nuk u kontrollua (' + dash.error + ').' : dash.files ? 'Ka version të ri (' + dash.files + ' skedar): përditësohet vetë brenda 10 minutash, ose shtyp butonin.' : 'Je në versionin e fundit (kontrollohet çdo 10 minuta dhe përditësohet vetë).';
   const repoLink = (name) => el('a', { class: 'dom', href: 'https://github.com/' + name, target: '_blank', rel: 'noopener' }, name);
-  const dashRepo = state.data && state.data.dashboardRepo;
   const item = (title, text, ...buttons) => el('div', { class: 'item' }, el('div', {}, el('b', {}, title), el('span', {}, text)), el('div', { class: 'row' }, ...buttons));
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë dhe lidhje', ''),
     s.ownerMissing ? ownerBanner() : '',
@@ -434,7 +433,7 @@ function view(s) {
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
         item('Përditëso aplikacionin', s.update ? 'Ka version të ri në GitHub (' + latText + ').' : 'Je në versionin e fundit (' + verText + ').', updBtn),
         item('Përditësim automatik natën', (au.on ? 'Çdo natë në orën ' + String(au.hour).padStart(2, '0') + ':00: backup i databazës, pastaj përditësimi nëse ka version të ri (nëse nuk përgjigjet, kthehet vetë te i vjetri). ' : 'Fikur: përditësimi bëhet vetëm me butonin (edhe ai fillon me backup të databazës). ') + autoLast, hourSel, autoBtn),
-        item('Përditëso dashboard-in', [dashText, dashRepo ? [' Lidhur me repo-n: ', repoLink(dashRepo)] : ''], dash ? dashBtn : ''))),
+        item('Përditëso dashboard-in', dashText, dash ? dashBtn : ''))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Emri, logoja, modulet dhe databaza e aplikacionit; hapet pa shkruar token.', devBtn),
         item('Ndalo, nise, rinis', 'Kontrollon detyrën e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin? Përdoruesit nuk do ta hapin deri sa ta nisësh.'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),

@@ -1161,6 +1161,41 @@ async function diagnostics(inst) {
   return mask(lines.join('\n'));
 }
 
+// A new GitHub token also brings the repository it is allowed to read (owner, 2026-10-22): a fine-grained token is made for one repo, so the repo of
+// the installation follows it. `list` = the full names the token can see; only the dashboard's own repo is never the program's repo.
+function pickRepo(list, current) {
+  const candidates = list.filter((n) => !/HRSystem-Dashboard$/i.test(n));
+  if (!candidates.length) return { repo: current, changed: false, choices: [] };
+  if (candidates.includes(current)) return { repo: current, changed: false, choices: [] };
+  if (candidates.length === 1) return { repo: candidates[0], changed: true, choices: [] };
+  return { repo: current, changed: false, choices: candidates }; // several: the owner's current repo stays, the choices are told
+}
+async function followTokenRepo(inst, token) {
+  try {
+    const r = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'hrsystem-dashboard', Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) return null;
+    const file = path.join(inst.root, 'update.json');
+    let upd = {}; try { upd = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* none */ }
+    const out = pickRepo((await r.json()).map((x) => x.full_name), upd.repo || '');
+    if (out.changed) { fs.writeFileSync(file, JSON.stringify({ ...upd, channel: upd.channel || 'stable', repo: out.repo }, null, 4)); latestCache.delete(inst.id); }
+    return out;
+  } catch { return null; }
+}
+// Also by itself: every 10 minutes (and once a minute after the start) the repo the stored token can read is compared with the installation's repo; with exactly one
+// repo that is not the installation's own, the installation follows it (a token changed on the PC brings its repo without pressing anything).
+async function followStoredToken() {
+  for (const inst of instances()) {
+    if (!inst.root || !inst.data) continue;
+    try {
+      const t = await token(inst);
+      if (!t) continue;
+      const out = await followTokenRepo(inst, t);
+      if (out && out.changed) { addHistory(inst, { title: 'Repo i programit ndryshoi', ok: true, detail: out.repo }); notify(inst, 'Repo i programit ndryshoi', 'Tokeni lexon repo-n ' + out.repo + ': instalimi e ndjek.'); }
+    } catch { /* next time */ }
+  }
+}
+setTimeout(() => { followStoredToken().catch(() => {}); }, 60000).unref();
+setInterval(() => { followStoredToken().catch(() => {}); }, 600000).unref();
 async function status(inst) {
   const [h, l] = await Promise.all([health(inst), latestCached(inst)]);
   const i = installed(inst);
@@ -1456,7 +1491,8 @@ const server = http.createServer(async (req, res) => {
         if (!fs.existsSync(common)) return send(res, 400, { error: 'hr-common.ps1 nuk u gjet te ' + inst.root });
         await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `. ${q(common)}; Save-GitHubToken $env:HR_NEW_TOKEN`], { HR_NEW_TOKEN: given, HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data });
         tokens.delete(inst.root || '');
-        return send(res, 200, { ok: true });
+        const followed = await followTokenRepo(inst, given);
+        return send(res, 200, { ok: true, repo: followed && followed.repo, changed: !!(followed && followed.changed), choices: (followed && followed.choices) || [] });
       }
       if (url.pathname === '/api/tunnel-remove') return send(res, 200, removeTunnel(inst));
       if (url.pathname === '/api/tunnel-token') {

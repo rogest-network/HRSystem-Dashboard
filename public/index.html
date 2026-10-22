@@ -302,6 +302,7 @@ const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch {
 
 // ---- Language of the whole dashboard (sq default, en, sr): [Albanian, English, Serbian]. Exact strings first, then longer fragments (so dynamic texts are translated too).
 const TR_LIST = [
+  [" Repo i ri i programit: ", " New program repo: ", " Novi repo programa: "], [" Ai sheh disa repo (", " It sees several repos (", " Vidi više repozitorijuma ("], ["): mbetet ", "): ", "): ostaje "],
   ["Pasqyra", "Overview", "Pregled"], ["Të dhënat", "Data", "Podaci"], ["Veprime", "Actions", "Akcije"], ["Backup-et", "Backups", "Backup-i"],
   ["Vendndodhja", "Location", "Lokacija"], ["Log-u", "Log", "Log"], ["Rrugët e instalimit", "Installation paths", "Putanje instalacije"],
   ["Rifresko", "Refresh", "Osveži"], ["Çinstalo HRSystem...", "Uninstall HRSystem...", "Deinstaliraj HRSystem..."], ["Mbyll", "Close", "Zatvori"], ["Shiko log-un", "See the log", "Vidi log"],
@@ -921,7 +922,7 @@ function view(s) {
   tokBtn.onclick = async () => {
     const t = prompt('Token GitHub vetëm-lexim (Contents: read), ruhet i enkriptuar:');
     if (!t) return;
-    try { const r = await postJson('github-token', { token: t.trim() }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Tokeni nuk u ruajt'); delete state.secrets[s.id]; toast('Tokeni u ruajt.'); load(); }
+    try { const r = await postJson('github-token', { token: t.trim() }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Tokeni nuk u ruajt'); delete state.secrets[s.id]; toast(j.changed ? 'Tokeni u ruajt. Repo i ri i programit: ' + j.repo : j.choices && j.choices.length ? 'Tokeni u ruajt. Ai sheh disa repo (' + j.choices.join(', ') + '): mbetet ' + (s.repo || '-') + '.' : 'Tokeni u ruajt.'); load(); }
     catch (e) { toast('GABIM: ' + e.message, true); }
   };
   const tunBtn = el('button', { type: 'button', class: 'btn ghost sm' }, a.tunnel ? 'Ndrysho tunelin' : 'Shto tunel');

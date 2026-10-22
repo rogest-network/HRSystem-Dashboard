@@ -241,14 +241,19 @@ function Backup-Database {
   if (-not $mysqldump) { throw 'mysqldump.exe nuk u gjet: backup-i i databazes nuk mund te behet.' }
   $cfg = Read-HrEnv
   New-Item -ItemType Directory -Force -Path $script:Backups | Out-Null
-  $file = Join-Path $script:Backups ('hrsystem-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.sql')
+  # <database name>-<date>-<time>.sql, e.g. regina-20261022-141108.sql
+  $dbLabel = if ($cfg['DB_NAME']) { $cfg['DB_NAME'] } else { 'hrsystem' }
+  $file = Join-Path $script:Backups ($dbLabel + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.sql')
   $old = $env:MYSQL_PWD
   $env:MYSQL_PWD = $cfg['DB_PASSWORD']
   try {
     & $mysqldump "--user=$($cfg['DB_USER'])" '--protocol=TCP' "--host=$($cfg['DB_HOST'])" "--port=$($cfg['DB_PORT'])" '--single-transaction' '--no-tablespaces' '--hex-blob' '--default-character-set=utf8mb4' "--result-file=$file" $cfg['DB_NAME']
     if ($LASTEXITCODE -ne 0) { throw 'mysqldump deshtoi.' }
   } finally { $env:MYSQL_PWD = $old }
-  Get-ChildItem $script:Backups -Filter 'hrsystem-*.sql' | Sort-Object LastWriteTime -Descending | Select-Object -Skip 14 | Remove-Item -Force -ErrorAction SilentlyContinue
+  # the newest 14 are kept, or more when the dashboard keeps more (its automatic-backup setting)
+  $keep = 14
+  try { $ds = Get-Content (Join-Path $script:Root 'dashboard-settings.json') -Raw | ConvertFrom-Json; if ($ds.autoBackupKeep -gt 14) { $keep = [int]$ds.autoBackupKeep } } catch { }
+  Get-ChildItem $script:Backups -Filter ($dbLabel + '-*.sql') | Sort-Object LastWriteTime -Descending | Select-Object -Skip $keep | Remove-Item -Force -ErrorAction SilentlyContinue
   return $file
 }
 

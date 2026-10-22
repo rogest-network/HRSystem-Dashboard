@@ -172,7 +172,7 @@ function mysqldumpPath() {
   return 'mysqldump';
 }
 
-async function backup(inst, tag) {
+async function backup(inst) {
   if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter: backup-in e bën nga paneli i hostit.');
   const cfg = readEnv(path.join(inst.root, '.env'));
   const dir = backupDir(inst);
@@ -180,7 +180,7 @@ async function backup(inst, tag) {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; // local time, like the updater's backups
-  const file = path.join(dir, `hrsystem-${tag ? tag + '-' : ''}${stamp}.sql`);
+  const file = path.join(dir, `${/^[A-Za-z][A-Za-z0-9_]*$/.test(cfg.DB_NAME || '') ? cfg.DB_NAME : 'hrsystem'}-${stamp}.sql`); // <database name>-<date>-<time>.sql
   await run(
     mysqldumpPath(),
     [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '--single-transaction', '--no-tablespaces', '--hex-blob', '--default-character-set=utf8mb4', `--result-file=${file}`, cfg.DB_NAME],
@@ -720,10 +720,14 @@ async function autoBackupTick() {
     const save = (result, name) => { const cur = readSettings(inst); cur.autoBackupLast = { ...record, result, name }; try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ } };
     save('started');
     try {
-      const made = await backup(inst, 'auto');
+      const made = await backup(inst);
       save('ok', made.name);
-      // keep the newest `keep` AUTOMATIC backups (hrsystem-auto-<stamp>.sql); manual ones and the updater's are never deleted here
-      const all = listBackups(inst).filter((b) => /^hrsystem-auto-\d{8}-\d{6}[.]sql$/.test(b.name));
+      // remember which files this schedule made: only those are ever deleted by the "keep N" rule
+      const mine = readSettings(inst); mine.autoBackupFiles = [...(mine.autoBackupFiles || []), made.name].slice(-400);
+      try { fs.writeFileSync(settingsFile(inst), JSON.stringify(mine, null, 2)); } catch { /* read-only folder */ }
+      // keep the newest `keep` of the AUTOMATIC backups; manual ones and the updater's are never deleted here
+      const madeHere = new Set(readSettings(inst).autoBackupFiles || []);
+      const all = listBackups(inst).filter((b) => madeHere.has(b.name));
       for (const old of all.slice(auto.keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
     } catch (e) { save('error: ' + String(e.message).slice(0, 120)); }
   }

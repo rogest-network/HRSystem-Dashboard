@@ -171,7 +171,10 @@ async function token(inst) {
 // The app zip of a Release: HRSystem-<version>.zip (from 1.0.2) or, in the older Releases, HRSystemV<version>-Hostinger.zip.
 const isAppAsset = (a) => /^HRSystem-\d+\.\d+\.\d+\.zip$/.test(a.name) || /-Hostinger\.zip$/.test(a.name);
 async function latest(inst) {
-  if (!inst.repo) return null;
+  // No repository saved (owner, 2026-10-22: nothing is built in): the GitHub token tells which one it reads.
+  if (!inst.repo) {
+    try { const tk = await token(inst); const out = tk ? await followTokenRepo(inst, tk) : null; if (out && out.repo) inst.repo = out.repo; else return null; } catch { return null; }
+  }
   const t = await token(inst);
   const res = await fetch(`https://api.github.com/repos/${inst.repo}/releases?per_page=30`, {
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'regina-manager', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
@@ -776,10 +779,9 @@ async function ghJson(url) {
   return res.json();
 }
 const dashSafe = (rel) => { const full = path.resolve(HERE, rel); return full.startsWith(HERE + path.sep) && !rel.startsWith('.previous') ? full : null; };
-// Besides manager/ the repo keeps root/<name>: the PowerShell scripts of the installation root (the updater kills the dashboard unless it has
-// the fixed hr-common.ps1), updated in the same way. Only these names, and only when the file already exists in the installation root.
-const ROOT_FILES = new Set(['hr-common.ps1', 'updater.ps1', 'sql-import.ps1']);
-const localPathOf = (rel) => (rel.startsWith('root/') ? (ROOT_FILES.has(rel.slice(5)) ? path.join(path.dirname(HERE), rel.slice(5)) : null) : dashSafe(rel));
+// The repo holds only the dashboard (owner, 2026-10-22): the installer scripts (setup, update, uninstall, SQL import) live in the Setup folder / zip and are
+// never in this repo, so the dashboard never replaces them. (Until then the repo also carried root/<script>.ps1 mirrors of three of them.)
+const localPathOf = (rel) => dashSafe(rel);
 async function dashboardDiff() {
   const tree = await ghJson(`https://api.github.com/repos/${DASH_REPO}/git/trees/main?recursive=1`);
   const changed = [];
@@ -1259,6 +1261,7 @@ function pickRepo(list, current) {
   if (!candidates.length) return { repo: current, changed: false, choices: [] };
   if (candidates.includes(current)) return { repo: current, changed: false, choices: [] };
   if (candidates.length === 1) return { repo: candidates[0], changed: true, choices: [] };
+  if (!current) { const best = candidates.find((n) => /\/HRSystem-/i.test(n) && !/-(Template|Test)$/i.test(n)) || candidates[0]; return { repo: best, changed: true, choices: [] }; } // no repo saved yet: the token decides
   return { repo: current, changed: false, choices: candidates }; // several: the owner's current repo stays, the choices are told
 }
 async function followTokenRepo(inst, token) {

@@ -19,7 +19,7 @@ Last updated: 2026-10-22. If you change behaviour, update this file in the same 
 1. **Local only.** Never add anything that watches, probes or changes the live site (Hostinger, staff.butikuregina.com), Cloudflare zone settings, or the live database. Probing the installation's *own* public address for the address-down alert is the only outward check.
 2. **Never use drive D:** (the owner's external HDD). Everything lives on C:.
 3. Never type/ask for the owner's passwords. Never print tokens/secrets (they are masked).
-4. Dashboard-only changes publish **only** to the Dashboard repo (no asking). Program (`Source/`) changes are a different workflow (ask which repos). Installer scripts stay in `Setup/Claude Studio/installer/` (except the three `root/` scripts, which are mirrored in the Dashboard repo).
+4. Dashboard-only changes publish **only** to the Dashboard repo (no asking). Program (`Source/`) changes are a different workflow (ask which repos). Installer scripts (setup, update, uninstall, SQL import) live ONLY in `Setup/Claude Studio/installer/` and the Setup zip; no repo carries them (owner, 2026-10-22: each repo holds only its own system).
 5. Reply to the owner in **Albanian, short**; the closing list ("Lista jote") contains only things that need his action now.
 6. Stay dependency-free (Node built-ins only) and `127.0.0.1`-only.
 
@@ -30,7 +30,7 @@ Last updated: 2026-10-22. If you change behaviour, update this file in the same 
 | Path / place | What it is |
 |---|---|
 | `Setup/Claude Studio/manager/` | **Working copy. Edit here.** |
-| GitHub `rogestshalaa/HRSystem-Dashboard`, branch `main` (public) | Published copy: `server.mjs`, `public/index.html`, `README.md`, `ARCHITECTURE.md`, `Dashboard.bat`, `instances.example.json`, `root/*.ps1` |
+| GitHub `rogestshalaa/HRSystem-Dashboard`, branch `main` (public) | Published copy: `server.mjs`, `public/index.html`, `README.md`, `ARCHITECTURE.md`, `Dashboard.bat` (only the dashboard: no installer scripts; `instances.example.json` stays local) |
 | `C:\HRSystem\manager\` | Installed copy (== repo). Self-updates. **Never hand-edit** except when deploying right after a publish (copy the same files). Only files that already exist there are replaced by self-update (new files such as ARCHITECTURE.md are not installed). |
 | `C:\HRSystem\` | The installation root: `.env` (DB + secrets), `update.json`, `start-hrsystem.ps1`, `updater.ps1`, `hr-common.ps1`, `sql-import.ps1`, `Uninstall.bat`, `HRSystem-Server.log`, `Updater.log`, `Dashboard.log`, `dashboard-url.txt` (port), `dashboard-settings.json`, `github.token` (DPAPI-encrypted), `releases/`, `current.txt` |
 | `C:\HRSystem\dashboard-settings.json` | All dashboard settings/state (section 7). |
@@ -71,7 +71,7 @@ Search the section comments (`// ======`, `// ----`). Order in the file, roughly
 | Settings | `readSettings`, `settingsWrite` | JSON file, read on demand. Never edit by hand while running. |
 | Domains/tunnels | `learnDomains`, `normalizeDomain`, `addressCheck`, quick tunnel (hidden cloudflared; `startQuick`), `removeTunnel`, `/api/tunnel-token` | Temporary `*.trycloudflare.com` address changes on every restart; the phone is told the new one. |
 | System control | `systemAction(inst, 'start'|'stop'|'restart')` | Stop = scheduled task, then the launcher `start-hrsystem.ps1` (it restarts node after 3 s), then node. Start = the task, else a new launcher. Sets `manualStop` so self-heal stays quiet. |
-| Dashboard self-update | `dashboardDiff`, `updateDashboard`, `autoUpdateDashboard`, `gitBlobSha`, `ROOT_FILES` | Compares GitHub tree blob hashes with local files, downloads changed ones, backs up to `.previous/`, writes `server.mjs` **last** (that restarts it), guard process restores old files if the new dashboard does not answer within 25 s. Also updates `root/hr-common.ps1`, `updater.ps1`, `sql-import.ps1` in the install root. |
+| Dashboard self-update | `dashboardDiff`, `updateDashboard`, `autoUpdateDashboard`, `gitBlobSha` | Compares GitHub tree blob hashes with local files, downloads changed ones, backs up to `.previous/`, writes `server.mjs` **last** (that restarts it), guard process restores old files if the new dashboard does not answer within 25 s. It never touches the installer scripts in the install root. |
 | Extras | `addHistory` (last 200), notifications, off-PC copy (`syncOffsite`), disk/resources, password, `diagnostics` (one .txt, secrets masked) | |
 | Notifications | `notify(inst,title,msg,level)`, `composeNote`, `sendNotify`, `NOTE_LEVELS`, `setNotify`, `notifyOf`, `hourOf` | Levels: critical, error, warn, ok, info. Target = ntfy topic (owner's: `hrsystem-home`) or https webhook. Title is "<company> · <what>", body ends with time. **Real messages reach the owner's phone during tests.** |
 | Watcher | `watchTick` every 30 s | App health, self-heal restart (not after manual Stop; retries at most every 10 min), disk, stale-backup alert, address alert, daily report. |
@@ -131,7 +131,7 @@ POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
 7. **Tests send real phone notifications** unless `notify.on` is false. Afterwards restore `dashboard-settings.json` (notify on, no fake domains such as `no-such-host.invalid`, no test keys), delete test `dashboard.key`, stop test servers (the dashboard on 3500, `mysqld` on 3399), and confirm the real app on 3000 is up.
 8. Never run uninstall / stop / restore / SQL import against the real `C:\HRSystem` while testing; use a sandbox on C:.
 9. Update `README.md` (Albanian, features) and this file.
-10. Publish (dashboard-only, no asking): clone the repo into the scratchpad (`git pull`), copy `server.mjs`, `public/index.html`, `README.md`, `ARCHITECTURE.md` (+ any changed `root/` script), `git commit` with the line `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`, `git push origin HEAD`. Then copy the same files to `C:\HRSystem\manager` (or wait ≤10 min for self-update). Verify: the installed dashboard's `/api/status` shows your new fields.
+10. Publish (dashboard-only, no asking): clone the repo into the scratchpad (`git pull`), copy `server.mjs`, `public/index.html`, `README.md`, `ARCHITECTURE.md`, `git commit` with the line `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`, `git push origin HEAD`. Then copy the same files to `C:\HRSystem\manager` (or wait ≤10 min for self-update). Verify: the installed dashboard's `/api/status` shows your new fields.
 
 ---------------------------------------------------------------------------
 
@@ -167,4 +167,6 @@ State on 2026-10-22 (Dashboard repo `main`, installed copy equal):
 
 - 2026-10-22 (late): **fixed dashboard port 3500** (see section on ports); tests now use `MANAGER_PORT=3700`.
 
-History (newest first): fixed dashboard port · new-version + dashboard-update notifications, uninstall wizard · daily-report hour setting · ARCHITECTURE.md · QA + translation boundary fix · error logs/location/alerts/backup test/daily report/notifications · password rework · hidden quick tunnel · app zip name `HRSystem-<x>.zip` · version log per backup · dashboard self-update repo.
+- 2026-10-22 (late): **the update repo comes from the GitHub token, not from a repo built into the setup** (owner's order; for the Setup zip only, NOT pushed to any repo): `hr-common.ps1` has no default repo any more and gained `Find-RepoFromToken` / `Resolve-UpdateRepo` (used by `updater.ps1`, `installer.ps1`); the setup window asks only for the token (`wizard.ps1` `Find-Repo`); `client.json` in the Setup zip has `"repo": ""`; `manager/server.mjs` `latest()`/`pickRepo` also resolve an empty repo from the token. `pack.py --setup-only <ver>` rebuilds only `Setup/HRSystemV<ver>-Setup.zip` (+ its copy in `Versions/`). **These changes are in `manager/` and `installer/` but NOT in the Dashboard repo** (the installed dashboard would replace its `server.mjs` with the repo copy within 10 min, so do not copy them to `C:\HRSystem` by hand); publish them to the Dashboard repo only when the owner says.
+
+History (newest first): token-based update repo (Setup zip only) · fixed dashboard port · new-version + dashboard-update notifications, uninstall wizard · daily-report hour setting · ARCHITECTURE.md · QA + translation boundary fix · error logs/location/alerts/backup test/daily report/notifications · password rework · hidden quick tunnel · app zip name `HRSystem-<x>.zip` · version log per backup · dashboard self-update repo.

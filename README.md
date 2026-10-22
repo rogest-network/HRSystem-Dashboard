@@ -21,7 +21,7 @@ Program i vogël që hapet vetëm në PC-në tënde (`http://127.0.0.1:<port>`, 
 - **Ekzekuto SQL** dhe **Importo databazën** (pas backup-it automatik); **/developer** hapet i zhbllokuar (dashboard-i dërgon SETUP_TOKEN te aplikacioni).
 
 ## Përditësimi i dashboard-it
-Vetë. Repoja e tij publike është `rogestshalaa/HRSystem-Dashboard` (skedarët në rrënjë; `root/` mban skriptet PowerShell të instalimit). Çdo 10 minuta krahason skedarët me hash-in git, shkarkon ata që ndryshojnë, i ruan të vjetrit te `manager\.previous`, kontrollon `server.mjs` dhe rinisët; një roje e rikthen versionin e vjetër nëse i riu nuk përgjigjet brenda 25 s. Nuk ka buton: nuk duhet bërë asgjë me dorë. Pas përditësimit faqja e hapur rifreskohet **një herë** vetë (versioni i faqes vjen me pulsin LIVE; një mbrojtje nuk lejon cikël). Vetëm për dashboard-in e instaluar.
+Vetë. Repoja e tij publike është `rogestshalaa/HRSystem-Dashboard` (vetëm dashboard-i; skriptet e instalimit nuk janë aty). Çdo 10 minuta krahason skedarët me hash-in git, shkarkon ata që ndryshojnë, i ruan të vjetrit te `manager\.previous`, kontrollon `server.mjs` dhe rinisët; një roje e rikthen versionin e vjetër nëse i riu nuk përgjigjet brenda 25 s. Nuk ka buton: nuk duhet bërë asgjë me dorë. Pas përditësimit faqja e hapur rifreskohet **një herë** vetë (versioni i faqes vjen me pulsin LIVE; një mbrojtje nuk lejon cikël). Vetëm për dashboard-in e instaluar.
 
 ## Instalime të tjera
 Opsionale: `instances.json` (kopje e `instances.example.json`, nuk shkon në GitHub) me fushat `id`, `name`, `url`, `repo`, `channel`, `root`, `data`, `task`. Pa të, gjendet vetë instalimi mbi `manager/`.

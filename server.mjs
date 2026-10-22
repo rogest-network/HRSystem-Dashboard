@@ -1336,7 +1336,7 @@ const server = http.createServer(async (req, res) => {
       let given = '';
       try { given = JSON.parse(body).key; } catch { /* wrong */ }
       if (!sameText(given, LOGIN_KEY)) { failures.push(now); return send(res, 403, { error: 'wrong_key' }); }
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000`, 'Cache-Control': 'no-store' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/`, 'Cache-Control': 'no-store' });
       return res.end('{"ok":true}');
     }
     if (!authed(req)) {
@@ -1466,6 +1466,15 @@ const server = http.createServer(async (req, res) => {
         const r = await syncOffsite(inst, true);
         return r && r.ok === false ? send(res, 400, { error: r.error }) : send(res, 200, r);
       }
+      if (url.pathname === '/api/dashboard-password-show') {
+        // The current password, for the Settings page (the request is already signed in: with a password set, nobody else reaches this).
+        if (!SIGN_IN || process.env.DASHBOARD_KEY) return send(res, 200, { password: null });
+        return send(res, 200, { password: LOGIN_KEY });
+      }
+      if (url.pathname === '/api/dashboard-logout') {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Set-Cookie': 'mgr=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' });
+        return res.end('{"ok":true}');
+      }
       if (url.pathname === '/api/dashboard-password') {
         let body = ''; for await (const c of req) { body += c; if (body.length > 1000) break; }
         let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
@@ -1477,7 +1486,7 @@ const server = http.createServer(async (req, res) => {
           if (!sameText(String(j.current || ''), LOGIN_KEY)) { failures.push(now); return send(res, 403, { error: 'Fjalëkalimi aktual nuk është i saktë.' }); }
         }
         try { setDashboardPassword(j.password); } catch (e) { return send(res, 400, { error: e.message }); }
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...(SIGN_IN ? { 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000` } : { 'Set-Cookie': 'mgr=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }) });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...(SIGN_IN ? { 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/` } : { 'Set-Cookie': 'mgr=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }) });
         return res.end(JSON.stringify({ password: SIGN_IN }));
       }
       if (url.pathname === '/api/versions') return send(res, 200, await versionsOf(inst));

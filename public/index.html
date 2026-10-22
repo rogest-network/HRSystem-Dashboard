@@ -302,6 +302,7 @@ const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch {
 
 // ---- Language of the whole dashboard (sq default, en, sr): [Albanian, English, Serbian]. Exact strings first, then longer fragments (so dynamic texts are translated too).
 const TR_LIST = [
+  ["Fjalëkalimi:", "Password:", "Lozinka:"], ["Dil nga dashboard-i", "Sign out of the dashboard", "Odjavi se sa dashboard-a"], ["Aktiv: kur dashboard-i mbyllet dhe hapet përsëri, kërkon fjalëkalimin. Për ta ndryshuar ose hequr shkruaj fjalëkalimin aktual.", "Active: when the dashboard is closed and opened again, it asks for the password. To change or remove it, type the current password.", "Aktivno: kada se dashboard zatvori i ponovo otvori, traži lozinku. Da je promeniš ili ukloniš, upiši trenutnu lozinku."], ["Fjalëkalimi aktual (i fshehur)", "Current password (hidden)", "Trenutna lozinka (skrivena)"], ["(nuk shfaqet)", "(not shown)", "(ne prikazuje se)"],
   ["Fjalëkalimi aktual", "Current password", "Trenutna lozinka"], ["Fjalëkalimi i ri", "New password", "Nova lozinka"], ["Përsërit fjalëkalimin e ri", "Repeat the new password", "Ponovi novu lozinku"], ["Ndrysho fjalëkalimin", "Change the password", "Promeni lozinku"], ["Vendos fjalëkalimin", "Set the password", "Postavi lozinku"], ["Fjalëkalimi u ndryshua.", "The password was changed.", "Lozinka je promenjena."], ["Aktiv: faqja kërkon fjalëkalim. Për ta ndryshuar ose hequr shkruaj fjalëkalimin aktual.", "Active: the page asks for a password. To change or remove it, type the current password.", "Aktivno: stranica traži lozinku. Da je promeniš ili ukloniš, upiši trenutnu lozinku."], ["Heq fjalëkalimin? Dashboard-i do të hapet pa fjalëkalim në këtë PC.", "Remove the password? The dashboard will open without a password on this PC.", "Ukloniti lozinku? Dashboard će se otvarati bez lozinke na ovom računaru."], ["shkruaj fjalëkalimin aktual.", "type the current password.", "upiši trenutnu lozinku."], ["shkruaj fjalëkalimin aktual për ta hequr.", "type the current password to remove it.", "upiši trenutnu lozinku da je ukloniš."], ["fjalëkalimi i ri duhet të ketë të paktën 6 shkronja.", "the new password must have at least 6 characters.", "nova lozinka mora imati najmanje 6 znakova."], ["dy fjalëkalimet e reja nuk përputhen.", "the two new passwords do not match.", "dve nove lozinke se ne poklapaju."], ["Fjalëkalimi aktual nuk është i saktë.", "The current password is not correct.", "Trenutna lozinka nije tačna."],
   [" Repo i ri i programit: ", " New program repo: ", " Novi repo programa: "], [" Ai sheh disa repo (", " It sees several repos (", " Vidi više repozitorijuma ("], ["): mbetet ", "): ", "): ostaje "],
   ["Pasqyra", "Overview", "Pregled"], ["Të dhënat", "Data", "Podaci"], ["Veprime", "Actions", "Akcije"], ["Backup-et", "Backups", "Backup-i"],
@@ -573,8 +574,8 @@ function settingsBody() {
     (() => { const input = el('input', { type: 'checkbox' }); input.checked = store.get('pause', '0') === '1'; input.onchange = () => setPause(input.checked); return el('label', { class: 'sw' }, input, el('i'), L.pause); })()));
   const securityCard = (() => {
     const sec = (state.data && state.data.security) || {};
-    const field = (label, autocomplete) => { const inp = el('input', { type: 'password', autocomplete, 'aria-label': label, placeholder: label, style: 'font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);width:100%;max-width:340px;box-sizing:border-box' }); return inp; };
-    const cur = field('Fjalëkalimi aktual', 'current-password'), next = field('Fjalëkalimi i ri', 'new-password'), again = field('Përsërit fjalëkalimin e ri', 'new-password');
+    const field = (label, autocomplete) => el('input', { type: 'password', autocomplete, 'aria-label': label, placeholder: label, style: 'font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);width:100%;box-sizing:border-box' });
+    const cur = field('Fjalëkalimi aktual', 'current-password'), next = field('Fjalëkalimi i ri', 'new-password');
     const send = async (current, pw) => {
       try {
         const r = await fetch('/api/dashboard-password?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ current, password: pw }) });
@@ -582,24 +583,40 @@ function settingsBody() {
         toast(pw ? (sec.password ? 'Fjalëkalimi u ndryshua.' : 'Fjalëkalimi u vendos.') : 'Fjalëkalimi u hoq.'); await load(); render();
       } catch (e) { toast('GABIM: ' + e.message, true); }
     };
-    // the new password: typed twice, 6 to 100 characters
+    // the new password is typed ONCE (with "Shfaq" to see what was typed)
+    const showNew = el('button', { type: 'button', class: 'iconbtn', 'aria-pressed': 'false' }, 'Shfaq');
+    showNew.onclick = () => { const on = next.type === 'password'; next.type = on ? 'text' : 'password'; showNew.textContent = on ? 'Fshih' : 'Shfaq'; showNew.setAttribute('aria-pressed', String(on)); };
     const save = el('button', { type: 'button', class: 'btn' }, sec.password ? 'Ndrysho fjalëkalimin' : 'Vendos fjalëkalimin');
     save.onclick = () => {
       if (sec.password && !cur.value) { toast('GABIM: shkruaj fjalëkalimin aktual.', true); return cur.focus(); }
       if (next.value.length < 6) { toast('GABIM: fjalëkalimi i ri duhet të ketë të paktën 6 shkronja.', true); return next.focus(); }
-      if (next.value !== again.value) { toast('GABIM: dy fjalëkalimet e reja nuk përputhen.', true); return again.focus(); }
       send(cur.value, next.value);
     };
-    // removing is its own button: it asks for the current password and a confirmation, never "leave it empty"
+    // removing is its own button: it asks for the current password and a confirmation
     const drop = el('button', { type: 'button', class: 'btn danger' }, 'Hiq fjalëkalimin');
     drop.onclick = () => {
       if (!cur.value) { toast('GABIM: shkruaj fjalëkalimin aktual për ta hequr.', true); return cur.focus(); }
       if (confirm('Heq fjalëkalimin? Dashboard-i do të hapet pa fjalëkalim në këtë PC.')) send(cur.value, '');
     };
     save.disabled = !!sec.env; drop.disabled = !sec.password || !!sec.env;
-    return card(L.security, el('p', { class: 'desc', style: 'margin:0 0 10px' }, sec.env ? 'Vendoset nga variabla DASHBOARD_KEY e kompjuterit.' : sec.password ? 'Aktiv: faqja kërkon fjalëkalim. Për ta ndryshuar ose hequr shkruaj fjalëkalimin aktual.' : 'Jo aktiv: dashboard-i hapet pa fjalëkalim (vetëm në këtë PC). Vendose nëse kompjuteri përdoret nga disa persona.'),
-      el('div', { style: 'display:grid;gap:8px' }, ...(sec.password && !sec.env ? [cur] : []), next, again),
-      el('div', { class: 'row', style: 'margin-top:12px' }, save, drop));
+    // the current password is shown hidden; "Shfaq" reveals it (the server gives it only to a signed-in page)
+    const shownRow = (() => {
+      if (!sec.password || sec.env) return '';
+      const val = el('span', { class: 'val mono', 'aria-label': 'Fjalëkalimi aktual (i fshehur)' }, '••••••••');
+      const eye = el('button', { type: 'button', class: 'iconbtn', 'aria-pressed': 'false' }, 'Shfaq');
+      let revealed = false;
+      eye.onclick = async () => {
+        if (revealed) { revealed = false; val.textContent = '••••••••'; eye.textContent = 'Shfaq'; eye.setAttribute('aria-pressed', 'false'); return; }
+        try { const r = await fetch('/api/dashboard-password-show?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY } }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); val.textContent = j.password || '(nuk shfaqet)'; revealed = true; eye.textContent = 'Fshih'; eye.setAttribute('aria-pressed', 'true'); }
+        catch (e) { toast('GABIM: ' + e.message, true); }
+      };
+      return el('div', { class: 'row', style: 'margin:0 0 10px;gap:10px' }, el('span', { style: 'color:var(--muted)' }, 'Fjalëkalimi:'), val, eye);
+    })();
+    const signOut = sec.password ? (() => { const b = el('button', { type: 'button', class: 'btn ghost' }, 'Dil nga dashboard-i'); b.onclick = async () => { await fetch('/api/dashboard-logout?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY } }).catch(() => {}); location.reload(); }; return b; })() : '';
+    return card(L.security, el('p', { class: 'desc', style: 'margin:0 0 10px' }, sec.env ? 'Vendoset nga variabla DASHBOARD_KEY e kompjuterit.' : sec.password ? 'Aktiv: kur dashboard-i mbyllet dhe hapet përsëri, kërkon fjalëkalimin. Për ta ndryshuar ose hequr shkruaj fjalëkalimin aktual.' : 'Jo aktiv: dashboard-i hapet pa fjalëkalim (vetëm në këtë PC). Vendose nëse kompjuteri përdoret nga disa persona.'),
+      shownRow,
+      el('div', { style: 'display:grid;gap:8px;max-width:360px' }, ...(sec.password && !sec.env ? [cur] : []), el('div', { style: 'display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center' }, next, showNew)),
+      el('div', { class: 'row', style: 'margin-top:12px' }, save, drop, signOut));
   })();
   const reset = el('button', { type: 'button', class: 'btn ghost' }, L.reset);
   reset.onclick = () => { for (const k of ['theme', 'textsize', 'contrast', 'motion', 'font', 'links', 'spacing', 'targets', 'cb', 'focus', 'toastStay']) store.set(k, k === 'theme' ? 'system' : '0'); if (store.get('pause', '0') === '1') setPause(false); applyPrefs(); render(); };

@@ -628,7 +628,7 @@ function liveBadge() {
   const b = document.getElementById('livebadge'), t = document.getElementById('livetext');
   if (!b || !t) return;
   b.className = 'live' + (liveOn ? '' : ' off');
-  t.textContent = liveOn ? 'LIVE · ' + two(new Date().getHours()) + ':' + two(new Date().getMinutes()) + ':' + two(new Date().getSeconds()) : 'OFFLINE';
+  t.textContent = liveOn ? 'LIVE' : 'OFFLINE';
 }
 function applyPulse(d) {
   if (!state.data) return;

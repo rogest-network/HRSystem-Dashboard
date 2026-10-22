@@ -1080,7 +1080,7 @@ function render() {
   const un = v.uninstall ? el('button', { type: 'button', class: 'danger' }, 'Çinstalo HRSystem...') : '';
   if (un) un.onclick = v.uninstall;
   side.replaceChildren(
-    el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))),
+    el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, s.name), el('span', {}, 'Dashboard'))),
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off'), role: 'img', 'aria-label': s.health.ok ? 'Online' : 'Offline' }), j.instances.length > 1 ? select : el('span', { class: 'instname' }, s.name)), // the list is only for several installations on one PC
     nav,
     (() => { const lab = A11Y[helpLang()].open; const gear = el('button', { type: 'button', class: 'gearbtn' + (state.section === 'settings' ? ' on' : ''), id: 'gear', 'aria-label': lab, title: lab }, icon('gear')); gear.onclick = () => go('settings'); return el('div', { class: 'tools' }, gear); })(),

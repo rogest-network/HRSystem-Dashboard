@@ -54,7 +54,8 @@
   .nav .count { margin-left:auto; font-size:11px; background:rgba(255,255,255,.12); padding:1px 8px; border-radius:99px; }
   .nav .grow { flex:1; }
   .side .instname { font-weight:600; font-size:13px; color:var(--side-text); padding:2px 4px; }
-  .side .credit-side { margin-top:auto; padding:0 10px 10px; font-size:11.5px; letter-spacing:.4px; color:var(--side-muted); } .side .credit-side b { color:var(--side-text); font-weight:600; }
+  .side .tools { margin-top:auto; padding:0 10px 10px; display:flex; } .side .gearbtn { width:36px; height:36px; display:grid; place-items:center; border-radius:9px; border:1px solid var(--side-2); background:transparent; color:var(--side-text); cursor:pointer; padding:0; } .side .gearbtn:hover { background:var(--side-2); color:#fff; } .side .gearbtn.on { background:rgba(129,140,248,.16); color:#fff; border-color:transparent; }
+  .side .credit-side { margin-top:0; padding:0 10px 10px; font-size:11.5px; letter-spacing:.4px; color:var(--side-muted); } .side .credit-side b { color:var(--side-text); font-weight:600; }
   .side .foot { margin-top:0; padding:10px 10px 0; border-top:1px solid var(--side-2); font-size:12px; color:var(--side-muted); display:grid; gap:8px; }
   .side .foot button { background:transparent; border:1px solid var(--side-2); color:var(--side-text); border-radius:8px; padding:6px 10px; font:inherit; cursor:pointer; }
   .side .foot button:hover { background:var(--side-2); }
@@ -175,7 +176,6 @@
   html.a11y-links a { text-decoration:underline !important; }
   .gear { position:fixed; top:12px; right:14px; z-index:20; width:38px; height:38px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); display:grid; place-items:center; cursor:pointer; }
   .gear:hover { border-color:var(--accent); color:var(--accent); } .gear:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  .page .top { padding-right:48px; }
   .a11y-overlay { position:fixed; inset:0; background:rgba(2,6,23,.55); z-index:50; display:grid; place-items:center; padding:16px; }
   .a11y-panel { width:min(460px,100%); max-height:92vh; overflow:auto; background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px; padding:18px 20px; box-shadow:0 20px 50px rgba(0,0,0,.35); }
   .a11y-panel h2 { margin:0 0 12px; font-size:15px; text-transform:none; letter-spacing:0; color:var(--text); }
@@ -548,7 +548,6 @@ function applyPrefs() {
   r.classList.toggle('a11y-links', store.get('links', '0') === '1');
   r.lang = helpLang();
   const sk = document.getElementById('skip'); if (sk) sk.textContent = A11Y[helpLang()].skip;
-  const g = document.getElementById('gear'); if (g) { g.setAttribute('aria-label', A11Y[helpLang()].open); g.title = A11Y[helpLang()].open; }
 }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (store.get('theme', 'system') === 'system') applyPrefs(); }); } catch { /* old browser */ }
 // ---- The Settings page (a page of its own, opened by the gear and by the menu): language, appearance, accessibility (and its extras), security. Every choice applies at once.
@@ -587,16 +586,9 @@ function settingsBody() {
   reset.onclick = () => { for (const k of ['theme', 'textsize', 'contrast', 'motion', 'font', 'links', 'spacing', 'targets', 'cb', 'focus', 'toastStay']) store.set(k, k === 'theme' ? 'system' : '0'); if (store.get('pause', '0') === '1') setPause(false); applyPrefs(); render(); };
   return el('div', { class: 'settings' }, el('div', { class: 'grid2' }, el('div', { class: 'stack' }, langCard, lookCard, securityCard), el('div', { class: 'stack' }, accessCard, extrasCard)), el('div', { class: 'row' }, reset));
 }
-{ // the settings gear: always at the top right, outside the redrawn page
-  const g = el('button', { type: 'button', class: 'gear', id: 'gear' });
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  for (const [k, v] of [['width', '20'], ['height', '20'], ['viewBox', '0 0 24 24'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '1.8'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']]) svg.setAttribute(k, v);
-  for (const d of ['M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z']) { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', d); svg.append(p); }
-  g.append(svg); g.onclick = () => go('settings'); document.body.append(g);
-}
 applyPrefs();
 
-const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['history', 'Historiku', 'clock'], ['settings', 'Cilësimet', 'gear'], ['help', 'Si ta përdorësh', 'help']];
+const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['history', 'Historiku', 'clock'], ['help', 'Si ta përdorësh', 'help']];
 const state = { cur: store.get('cur', ''), section: store.get('section', 'home') === 'access' ? 'data' : store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
@@ -1091,6 +1083,7 @@ function render() {
     el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))),
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off'), role: 'img', 'aria-label': s.health.ok ? 'Online' : 'Offline' }), j.instances.length > 1 ? select : el('span', { class: 'instname' }, s.name)), // the list is only for several installations on one PC
     nav,
+    (() => { const lab = A11Y[helpLang()].open; const gear = el('button', { type: 'button', class: 'gearbtn' + (state.section === 'settings' ? ' on' : ''), id: 'gear', 'aria-label': lab, title: lab }, icon('gear')); gear.onclick = () => go('settings'); return el('div', { class: 'tools' }, gear); })(),
     el('div', { class: 'credit-side' }, el('span', {}, 'Krijuar nga'), ' ', el('b', {}, 'Rogest Network')),
     el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, paused() ? 'NË PAUZË' : liveOn ? 'LIVE' : 'OFFLINE')), refresh, un));
   // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.

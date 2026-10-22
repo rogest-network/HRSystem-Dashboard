@@ -758,12 +758,20 @@ async function autostartState(inst, force) {
   try { out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]); } catch { out = ''; }
   const seen = Object.fromEntries(out.split(/\r?\n/).map((l) => l.trim().split('|')).filter((p) => p.length >= 3).map((p) => [p[0], { exists: p[1] === '1', on: p[2] === '1', detail: p[3] || '' }]));
   const list = items.map((i) => ({ key: i.key, label: i.label, exists: !!(seen[i.key] && seen[i.key].exists), on: !!(seen[i.key] && seen[i.key].on), detail: (seen[i.key] && seen[i.key].detail) || '' }));
-  autostartSeen.set(inst.id, { at: Date.now(), list });
-  return list;
+  // The application and its database start together (one switch): they are shown as one item; the dashboard and the tunnel are separate.
+  const app = list.find((x) => x.key === 'app'), db = list.find((x) => x.key === 'mysql');
+  const parts = [app, db].filter((x) => x && x.exists);
+  const grouped = [
+    { key: 'app', label: 'Aplikacioni + databaza', exists: parts.length > 0, on: parts.length > 0 && parts.every((x) => x.on), detail: parts.map((x) => x.label + (x.on ? ': po' : ': jo')).join(', ') },
+    ...list.filter((x) => x.key === 'dashboard' || x.key === 'tunnel'),
+  ];
+  autostartSeen.set(inst.id, { at: Date.now(), list: grouped });
+  return grouped;
 }
 async function setAutostart(inst, which, on) {
   needLocal(inst);
-  const items = autostartItems(inst).filter((i) => which === 'all' || i.key === which);
+  const keys = which === 'all' ? ['app', 'mysql', 'dashboard', 'tunnel'] : which === 'app' ? ['app', 'mysql'] : [which];
+  const items = autostartItems(inst).filter((i) => keys.includes(i.key));
   if (!items.length) throw new Error('Pjesë e panjohur.');
   const script = items.map((i) => i.kind === 'task'
     ? `if (Get-ScheduledTask -TaskName ${q(i.name)} -ErrorAction SilentlyContinue) { ${on ? 'Enable' : 'Disable'}-ScheduledTask -TaskName ${q(i.name)} | Out-Null }`

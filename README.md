@@ -47,3 +47,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **Alarme:** backup i vjetër (mbi 36 orë), adresa publike nuk hapet / u kthye, dhe **raporti i ditës** (një përmbledhje në telefon, ora e zgjedhur (parazgjedhje 08:00); ndizet/fiket te njoftimet).
 - **Testo backup-in** (faqja Backup-et): kontrollon strukturën e kopjes (tabelat, përdoruesit) pa e prekur databazën; backup-i shënohet "I provuar".
 - **Njoftimet:** çdo njoftim ka nivel (info, sukses, kujdes, gabim), titull dhe tekst të qartë.
+
+> Për Claude/zhvillues: shih `ARCHITECTURE.md` (si është ndërtuar, rregullat e ndryshimit, testimi).

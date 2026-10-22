@@ -1467,6 +1467,13 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/dashboard-password') {
         let body = ''; for await (const c of req) { body += c; if (body.length > 1000) break; }
         let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
+        // With a password already set, the CURRENT one must be given to change or remove it (5 wrong in a minute lock it for a minute, as the sign-in).
+        if (SIGN_IN) {
+          const now = Date.now();
+          failures = failures.filter((t) => now - t < 60000);
+          if (failures.length >= 5) return send(res, 429, { error: 'Shumë provime. Prit një minutë.' });
+          if (!sameText(String(j.current || ''), LOGIN_KEY)) { failures.push(now); return send(res, 403, { error: 'Fjalëkalimi aktual nuk është i saktë.' }); }
+        }
         try { setDashboardPassword(j.password); } catch (e) { return send(res, 400, { error: e.message }); }
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...(SIGN_IN ? { 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000` } : { 'Set-Cookie': 'mgr=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }) });
         return res.end(JSON.stringify({ password: SIGN_IN }));

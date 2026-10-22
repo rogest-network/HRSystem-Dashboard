@@ -941,6 +941,14 @@ const server = http.createServer(async (req, res) => {
         fs.unlinkSync(path.join(backupDir(inst), found.name));
         return send(res, 200, { ok: true, left: listBackups(inst).length });
       }
+      if (url.pathname === '/api/backup-restore') {
+        // Restore = the same import as a dump file, but only from a file in the installation's backup list (it makes a safety backup first).
+        needLocal(inst);
+        const name = url.searchParams.get('name');
+        const found = name && listBackups(inst).find((b) => b.name === name);
+        if (!found) return send(res, 404, { error: 'Backup-i nuk u gjet.' });
+        return send(res, 200, runImport(inst, found.name, fs.readFileSync(path.join(backupDir(inst), found.name), 'utf8')));
+      }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
       if (url.pathname === '/api/autostart') { needLocal(inst); return send(res, 200, { items: await setAutostart(inst, String(url.searchParams.get('item') || 'all'), url.searchParams.get('on') !== '0') }); }
       if (url.pathname === '/api/auto-backup') { needLocal(inst); const q = url.searchParams; return send(res, 200, setAutoBackup(inst, (q.get('backup') ?? q.get('on')) !== '0', q.has('hour') ? Number(q.get('hour')) : undefined, q.has('keep') ? Number(q.get('keep')) : undefined, q.has('update') ? q.get('update') !== '0' : undefined)); }

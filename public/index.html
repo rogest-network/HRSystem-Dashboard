@@ -273,7 +273,7 @@ const TR_LIST = [
   ["Lidhjet", "Connections", "Veze"], ["Ndrysho tokenin GitHub...", "Change the GitHub token...", "Promeni GitHub token..."], ["Vendos tokenin GitHub...", "Set the GitHub token...", "Postavi GitHub token..."],
   ["I vendosur (ruhet i enkriptuar).", "Set (stored encrypted).", "Postavljen (čuva se šifrovano)."], ["Mungon: pa të nuk bëhen përditësime.", "Missing: without it no updates are made.", "Nedostaje: bez njega nema ažuriranja."],
   ["Nuk është i lidhur.", "Not connected.", "Nije povezan."], ["I lidhur dhe punon.", "Connected and working.", "Povezan i radi."], ["Procesi punon por asnjë adresë nuk hapet.", "The process runs but no address opens.", "Proces radi ali nijedna adresa se ne otvara."],
-  ["Shkarko", "Download", "Preuzmi"], ["Fshi", "Delete", "Obriši"], ["Nuk ka backup ende.", "No backups yet.", "Još nema backup-a."],
+  ["Shkarko", "Download", "Preuzmi"], ["Rikthe", "Restore", "Vrati"], ["Rikthej databazën nga ", "Restore the database from ", "Vratiti bazu iz "], ["Bëhet fillimisht një backup i gjendjes së tanishme; pastaj FSHIHEN të gjitha tabelat dhe ngarkohet ky backup.", "A backup of the current state is made first; then ALL tables are DELETED and this backup is loaded.", "Prvo se pravi backup trenutnog stanja; zatim se BRIŠU sve tabele i učitava se ovaj backup."], ["Rikthimi filloi...", "The restore started...", "Vraćanje je počelo..."], ["Fshi", "Delete", "Obriši"], ["Nuk ka backup ende.", "No backups yet.", "Još nema backup-a."],
   ["Veprimi i fundit", "Last action", "Poslednja akcija"], ["Asnjë veprim ende (përditësim, SQL, import, tunel).", "No action yet (update, SQL, import, tunnel).", "Još nema akcije (ažuriranje, SQL, uvoz, tunel)."],
   ["Asnjë instalim nuk u gjet në këtë kompjuter.", "No installation was found on this computer.", "Na ovom računaru nije pronađena nijedna instalacija."], ["Hap Install.bat për të instaluar HRSystem.", "Open Install.bat to install HRSystem.", "Otvori Install.bat da instaliraš HRSystem."],
   ["Instalimi", "Installation", "Instalacija"], ["Krijuar nga", "Created by", "Napravio"],
@@ -768,6 +768,12 @@ function view(s) {
   pages.backup = () => el('div', {}, header('Backup-et', s.backups.length + ' kopje' + (s.backups.length ? ' · gjithsej ' + fmtSize(s.backups.reduce((n, b) => n + b.size, 0)) : ''), el('div', { class: 'row' }, backupBtn)),
     el('div', { class: 'card' }, el('ul', { class: 'list' }, ...(s.backups.length ? s.backups.map((b) => {
       const dl = el('a', { class: 'btn ghost sm', href: '/api/backup-file?id=' + encodeURIComponent(s.id) + '&name=' + encodeURIComponent(b.name), download: b.name, style: 'text-decoration:none;display:inline-block;border:1px solid var(--line);padding:3px 10px;border-radius:7px;color:var(--text)' }, 'Shkarko');
+      const restore = el('button', { type: 'button', class: 'btn ghost sm' }, 'Rikthe');
+      restore.disabled = busy;
+      restore.onclick = async () => {
+        if (!confirm('Rikthej databazën nga ' + b.name + '?' + NL + 'Bëhet fillimisht një backup i gjendjes së tanishme; pastaj FSHIHEN të gjitha tabelat dhe ngarkohet ky backup.')) return;
+        if (await call('backup-restore', '&name=' + encodeURIComponent(b.name), 'Rikthimi filloi...')) { go('log'); load(); }
+      };
       const show = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hap');
       show.onclick = () => call('open-folder', '&name=' + encodeURIComponent(b.name));
       const del = el('button', { type: 'button', class: 'btn danger sm' }, 'Fshi');
@@ -777,7 +783,7 @@ function view(s) {
         const j = await call('backup-delete', '&name=' + encodeURIComponent(b.name));
         if (j) { toast('Backup-i u fshi (mbeten ' + j.left + ').'); load(); }
       };
-      return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size)), el('span', {}, b.name)), el('div', { class: 'row' }, dl, show, del));
+      return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size)), el('span', {}, b.name)), el('div', { class: 'row' }, dl, restore, show, del));
     }) : [el('li', {}, el('span', { class: 'empty' }, 'Nuk ka backup ende.'))]))));
 
   pages.files = () => el('div', {}, header('Ku është instaluar', 'Rrugët e instalimit', ''),

@@ -6,7 +6,7 @@ Program i vogël që hapet vetëm në PC-në tënde (`http://127.0.0.1:<port>`, 
 - **Pasqyra:** gjendja e aplikacionit (online, ms, grafik), databaza, versioni, adresa; njoftim kur ka version të ri dhe rezultati i punës së fundit.
 - **Të dhënat:** adresat (lokale, domenet e zbuluara vetë, adresa e përkohshme, tuneli), instalimi (versioni, repo, kanali, folderët, databaza, portat) dhe cilësimet/sekretet (`.env`, token-at) me *Shfaq* dhe *Kopjo*; të fshehura derisa t'i shfaqësh.
 - **Veprime:** përditësimi i aplikacionit (aktiv vetëm kur ka version të ri), **Automatik në natë**, **Nisja me Windows**, Backup tani, SQL, import, token GitHub, tuneli Cloudflare, /developer, Stop/Start/Restart.
-- **Backup-et:** lista (shkarko, hap, fshi), **Ku është instaluar**, **Log-u**.
+- **Backup-et:** lista (shkarko, **rikthe**, hap, fshi; rikthimi bën para një backup të gjendjes së tanishme), **Ku është instaluar**, **Log-u**.
 - **Si ta përdorësh:** udhëzues në **Shqip** (parazgjedhja), **English** dhe **Srpski** (zgjedhja ruhet).
 - **Cilësimet** (ingranazhi lart djathtas, në çdo faqe): **gjuha e gjithë dashboard-it** (Shqip / English / Srpski; edhe udhëzuesi), tema **Sistemi / Drita / Errët**, madhësia e shkrimit (3 nivele), kontrast i lartë, pa animacione (respektohet edhe cilësimi i Windows), shkrim i lexueshëm (jo monospace), lidhje me nënvizim, rivendos. Përkthimi bëhet nga një fjalor në `index.html` (`TR_LIST`); tekstet që vijnë nga serveri dhe nuk janë në fjalor mbeten shqip. Vetë faqja ka lidhje "kalo te përmbajtja", fokus të dukshëm, rolet ARIA (njoftimet, shiritat e progresit, dialogu me kurth fokusi dhe Esc) dhe gjuhën e dokumentit.
 

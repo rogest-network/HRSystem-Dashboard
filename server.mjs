@@ -570,7 +570,7 @@ async function systemAction(inst, action) {
   const launcher = path.join(root, 'start-hrsystem.ps1');
   const start = `$t = Get-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; if ($t -and $t.Settings.Enabled) { Start-ScheduledTask -TaskName ${q(task)} } else { ` + // a task switched off in "Nisja me Windows" must not stop a manual Start
     `$running = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*start-hrsystem.ps1*' -and $_.CommandLine -like ${q('*' + root + '*')} }; ` +
-    `if (-not $running) { Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + launcher + '"')}; CurrentDirectory = ${q(root)} } | Out-Null } }`;
+    `if (-not $running) { $s = New-CimInstance -ClassName Win32_ProcessStartup -Namespace root/cimv2 -ClientOnly -Property @{ ShowWindow = [uint16]0 }; Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + launcher + '"')}; CurrentDirectory = ${q(root)}; ProcessStartupInformation = [CimInstance]$s } | Out-Null } }`;
   const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;
   if (!command) throw new Error('Veprim i panjohur.');
   await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);
@@ -669,7 +669,7 @@ async function startQuick(inst) {
     // scheduled task and survives its restarts and updates (a child was ended with the task: the temporary address vanished after an update).
     const cmd = '"' + exe + '" tunnel --no-autoupdate --url http://localhost:' + (env.PORT || 3000) + ' --logfile "' + log + '"';
     const pidOut = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
-      `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q(cmd)}; CurrentDirectory = ${q(path.dirname(exe))} }; if ($r.ReturnValue -eq 0) { $r.ProcessId } else { throw ('WMI ' + $r.ReturnValue) }`]);
+      `$s = New-CimInstance -ClassName Win32_ProcessStartup -Namespace root/cimv2 -ClientOnly -Property @{ ShowWindow = [uint16]0 }; $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q(cmd)}; CurrentDirectory = ${q(path.dirname(exe))}; ProcessStartupInformation = [CimInstance]$s }; if ($r.ReturnValue -eq 0) { $r.ProcessId } else { throw ('WMI ' + $r.ReturnValue) }`]);
     const proc = { pid: Number(String(pidOut).trim().split(/\s+/).pop()) };
     if (!proc.pid) throw new Error('cloudflared nuk u nis.');
     let url = '';
@@ -691,13 +691,16 @@ function stopQuick(inst) {
   setQuickWanted(inst, false);
   return { ok: true };
 }
+const quickBackoff = new Map(); // inst.id -> { next, fails }
 setInterval(() => {
   try {
     for (const inst of instances()) {
       if (!(inst.root && readSettings(inst).quickWanted && !quickState(inst) && !quickStarting)) continue;
+      const wait = quickBackoff.get(inst.id) || { next: 0, fails: 0 };
+      if (Date.now() < wait.next) continue;
       const before = (readSettings(inst).quickLast || {}).url || '';
       // The temporary tunnel is gone (the PC restarted, or the process ended): a new one is made. Its address is NEW (Cloudflare gives a random one each time), so the phone is told which.
-      startQuick(inst).then((r) => { if (r && r.url && r.url !== before) { notify(inst, 'Adresa e përkohshme ndryshoi', 'Adresa e re: ' + r.url); addHistory(inst, { title: 'Adresa e përkohshme ndryshoi', ok: true, detail: r.url }); } }).catch(() => {});
+      startQuick(inst).then((r) => { quickBackoff.delete(inst.id); if (r && r.url && r.url !== before) { notify(inst, 'Adresa e përkohshme ndryshoi', 'Adresa e re: ' + r.url); addHistory(inst, { title: 'Adresa e përkohshme ndryshoi', ok: true, detail: r.url }); } }).catch(() => { const f = (quickBackoff.get(inst.id) || { fails: 0 }).fails + 1; quickBackoff.set(inst.id, { fails: f, next: Date.now() + Math.min(60000 * 2 ** (f - 1), 900000) }); });
     }
   } catch { /* next round */ }
 }, 20000).unref();

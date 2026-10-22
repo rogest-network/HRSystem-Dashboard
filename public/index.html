@@ -374,10 +374,10 @@ function view(s) {
 
   // ---- actions
   const updBtn = el('button', { type: 'button', class: 'btn' }, s.update ? 'Përditëso tani' : 'Përditëso');
-  updBtn.disabled = busy || !s.update;
-  updBtn.title = s.update ? '' : 'Nuk ka version të ri';
+  updBtn.disabled = busy;
+  updBtn.title = s.update ? '' : 'Nuk shfaqet version i ri; mund ta nisësh gjithsesi.';
   updBtn.onclick = async () => {
-    if (!confirm('Përditësoj "' + s.name + '" në ' + s.latest.version + '?' + NL + 'Bëhet backup, pastaj build dhe migrimet; në dështim kthehet vetë te versioni i vjetër.')) return;
+    if (!confirm((s.update ? '' : 'Nuk shfaqet version i ri. Ta kontrolloj dhe ta përditësoj gjithsesi?' + NL + NL) + 'Përditësoj "' + s.name + '" në ' + (s.latest && s.latest.version || '?') + '?' + NL + 'Bëhet backup, pastaj build dhe migrimet; në dështim kthehet vetë te versioni i vjetër.')) return;
     if (await call('update', '', 'Përditësimi filloi...')) { go('log'); load(); }
   };
   // Automatic update at night: on/off and the hour.

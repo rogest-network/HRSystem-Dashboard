@@ -644,7 +644,9 @@ async function latestCached(inst) {
 function updateKind(i, l) {
   if (i && !i.error && l && !l.error) {
     if (cmp(l.version, i.version) > 0) return 'version';
-    if (cmp(l.version, i.version) === 0 && l.build && i.build && l.build !== i.build) return 'build';
+    // Same number (1.0.0 is re-released while it is stabilised): the build marker tells. An installation without a marker (installed by hand)
+    // cannot tell, so it is offered the update once; the updater writes the marker.
+    if (cmp(l.version, i.version) === 0 && l.build && (!i.build || l.build !== i.build)) return 'build';
   }
   return null;
 }

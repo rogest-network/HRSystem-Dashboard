@@ -309,8 +309,9 @@ async function versionsOf(inst) {
   try { repo = (await repoReleases(inst)).map(({ version, prerelease }) => ({ version, prerelease })); } catch (e) { repoError = e.message; }
   return { current: cur && cur.name, local: localVersions(inst), repo, repoError, pinned: pinOf(inst) };
 }
-function rollbackLocal(inst, name) {
+function rollbackLocal(inst, name, withBackup) {
   needLocal(inst);
+  const bk = withBackup ? backupText(inst, withBackup) : null;
   if (!localVersions(inst).includes(name)) throw new Error('Ky version nuk ndodhet në këtë PC.');
   const cur = installed(inst);
   if (cur && cur.name === name) throw new Error('Ky version është tashmë aktiv.');
@@ -323,12 +324,14 @@ function rollbackLocal(inst, name) {
     const out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data || '' });
     if (!/OK\s*$/.test(out.trim())) { add('Versioni ' + name + ' nuk u përgjigj: u kthye versioni i mëparshëm.'); return false; }
     await pinNow(inst);
-    add('SUKSES: aplikacioni punon me versionin ' + name + '. Përditësimet automatike janë ndalur deri në një version më të ri në GitHub.');
+    add('Aplikacioni punon me versionin ' + name + '. Përditësimet automatike janë ndalur deri në një version më të ri në GitHub.');
+    if (bk) { add('Po rikthehet edhe databaza nga ' + bk.name + '...'); await importSteps(inst, bk.name, bk.text, add); }
     return true;
   });
 }
-function rollbackRepo(inst, version) {
+function rollbackRepo(inst, version, withBackup) {
   needLocal(inst);
+  const bk = withBackup ? backupText(inst, withBackup) : null;
   return startJob(inst, 'Rikthim i versionit', async (add) => {
     const rel = (await repoReleases(inst)).find((r) => r.version === version);
     if (!rel) throw new Error('Versioni ' + version + ' nuk u gjet te GitHub.');
@@ -343,6 +346,7 @@ function rollbackRepo(inst, version) {
     try {
       const ok = await spawnUpdater(inst, add, zip);
       if (ok) { await pinNow(inst); add('Përditësimet automatike janë ndalur deri në një version më të ri në GitHub.'); }
+      if (ok && bk) { add('Po rikthehet edhe databaza nga ' + bk.name + '...'); await importSteps(inst, bk.name, bk.text, add); }
       return ok;
     } finally { fs.rmSync(zip, { force: true }); }
   });
@@ -367,6 +371,9 @@ function mysqlRun(inst, cfg, sqlFile, add) {
 // migrations the dump does not have yet (the installed release's own migrate-cli). The backup is the way back.
 function runImport(inst, name, text) {
   needLocal(inst);
+  return startJob(inst, 'Import databaze: ' + name, (add) => importSteps(inst, name, text, add));
+}
+async function importSteps(inst, name, text, add) {
   const cfg = readEnv(path.join(inst.root, '.env'));
   const dir = path.join(inst.data, 'Backups');
   fs.mkdirSync(dir, { recursive: true });
@@ -375,7 +382,7 @@ function runImport(inst, name, text) {
   const dumpFile = path.join(dir, `import-${stamp}.tmp.sql`);
   // MariaDB 11.4+ names a collation MySQL 8.4 does not know; the standard one is the same for this app.
   fs.writeFileSync(dumpFile, text.replace(/utf8mb4_uca1400_[a-z_]+/g, 'utf8mb4_unicode_ci').replace(/^\s*(CREATE DATABASE|USE)\b.*$/gim, '-- (skipped) $&'));
-  return startJob(inst, 'Import databaze: ' + name, async (add) => {
+  {
     try {
       add('1/4 Backup i databazes para importit...');
       const b = await backup(inst);
@@ -398,7 +405,13 @@ function runImport(inst, name, text) {
       fs.rmSync(dropFile, { force: true });
       fs.rmSync(dumpFile, { force: true });
     }
-  });
+  }
+}
+// The backup to put back together with a version (optional): only a file of the backup list.
+function backupText(inst, name) {
+  const found = name && listBackups(inst).find((b) => b.name === name);
+  if (!found) throw new Error('Backup-i nuk u gjet.');
+  return { name: found.name, text: fs.readFileSync(path.join(backupDir(inst), found.name), 'utf8') };
 }
 
 // One .sql file: backup first, then run it; it stops at the first error.
@@ -1075,8 +1088,8 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/versions') return send(res, 200, await versionsOf(inst));
       if (url.pathname === '/api/rollback') {
         const to = String(url.searchParams.get('to') || '');
-        if (url.searchParams.get('source') === 'repo') { if (!/^\d+\.\d+\.\d+$/.test(to)) return send(res, 400, { error: 'Version i pavlefshëm.' }); return send(res, 200, rollbackRepo(inst, to)); }
-        return send(res, 200, rollbackLocal(inst, to));
+        if (url.searchParams.get('source') === 'repo') { if (!/^\d+\.\d+\.\d+$/.test(to)) return send(res, 400, { error: 'Version i pavlefshëm.' }); return send(res, 200, rollbackRepo(inst, to, url.searchParams.get('backup') || '')); }
+        return send(res, 200, rollbackLocal(inst, to, url.searchParams.get('backup') || ''));
       }
       if (url.pathname === '/api/unpin') { needLocal(inst); savePin(inst, null); latestCache.delete(inst.id); return send(res, 200, { ok: true }); }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));

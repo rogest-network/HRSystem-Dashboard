@@ -319,6 +319,7 @@ const TR_LIST = [
   ["Në këtë PC (pa shkarkim)", "On this PC (no download)", "Na ovom računaru (bez preuzimanja)"], ["Nga GitHub", "From GitHub", "Sa GitHub-a"], ["Asnjë version tjetër në këtë PC.", "No other version on this PC.", "Nema druge verzije na ovom računaru."], ["Asnjë version tjetër.", "No other version.", "Nema druge verzije."], ["GitHub nuk u arrit (", "GitHub could not be reached (", "GitHub nije dostupan ("],
   ["Rikthej aplikacionin te versioni ", "Go back to version ", "Vratiti aplikaciju na verziju "], ["Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).", "It is downloaded from GitHub, the database is backed up and built (a few minutes).", "Preuzima se sa GitHub-a, pravi se backup baze i build (nekoliko minuta)."], ["Kalon menjëherë (kodi është në këtë PC).", "It switches at once (the code is already on this PC).", "Prelazi odmah (kod je već na ovom računaru)."],
   ["Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.", "The database stays as it is; automatic updates are paused until a newer version.", "Baza ostaje kakva jeste; automatska ažuriranja se zaustavljaju do novije verzije."], ["Rikthimi i versionit", "Version rollback", "Vraćanje verzije"],
+  ["Rikthe + databazën", "Restore + database", "Vrati + bazu"], [" DHE databazën nga ", " AND the database from ", " I bazu iz "], ["Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ", "A backup of the current state is made first; then the tables are DELETED and this is loaded: ", "Prvo se pravi backup trenutnog stanja; zatim se tabele BRIŠU i učitava se: "], ["backup: ", "backup: ", "backup: "], ["Po rikthehet edhe databaza nga ", "Also restoring the database from ", "Vraća se i baza iz "],
   ["Backup", "Backup", "Backup"], ["Instalimi i vjetër", "Old installation", "Stara instalacija"],
 ];
 const TR_EXACT = {}, TR_FRAG = { en: [], sr: [] };
@@ -594,13 +595,18 @@ function view(s) {
   const openVersions = (v) => {
     const prev = document.activeElement;
     const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
-    const go2 = async (name, source) => {
-      if (!confirm('Rikthej aplikacionin te versioni ' + name + '?' + NL + (source === 'repo' ? 'Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).' : 'Kalon menjëherë (kodi është në këtë PC).') + NL + 'Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.')) return;
+    const go2 = async (name, source, bk) => {
+      if (!confirm('Rikthej aplikacionin te versioni ' + name + (bk ? ' DHE databazën nga ' + bk.name : '') + '?' + NL + (bk ? 'Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ' + bk.name + '.' + NL : '') + (source === 'repo' ? 'Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).' : 'Kalon menjëherë (kodi është në këtë PC).') + NL + 'Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.')) return;
       close();
-      if (await call('rollback', '&to=' + encodeURIComponent(name) + '&source=' + source, 'Rikthimi filloi...')) { go('log'); load(); }
+      if (await call('rollback', '&to=' + encodeURIComponent(name) + '&source=' + source + (bk ? '&backup=' + encodeURIComponent(bk.name) : ''), 'Rikthimi filloi...')) { go('log'); load(); }
     };
     const curVer = String(v.current || '').replace(/-b\d+$/, '');
-    const row = (name, source, note) => { const b = el('button', { type: 'button', class: 'btn ghost sm' }, 'Rikthe'); b.onclick = () => go2(name, source); return el('li', {}, el('div', { class: 'p' }, el('b', {}, name), note ? el('span', {}, note) : ''), b); };
+    const row = (name, source, note) => {
+      const b = el('button', { type: 'button', class: 'btn ghost sm' }, 'Rikthe'); b.onclick = () => go2(name, source, null);
+      const bk = (s.backups || []).find((x) => x.version === name || (source === 'repo' && x.version && x.version.replace(/-b\d+$/, '') === name)); // the newest backup made with that version
+      const b2 = bk ? el('button', { type: 'button', class: 'btn sm' }, 'Rikthe + databazën') : ''; if (bk) { b2.title = bk.name; b2.onclick = () => go2(name, source, bk); }
+      return el('li', {}, el('div', { class: 'p' }, el('b', {}, name), note ? el('span', {}, note) : bk ? el('span', {}, 'backup: ' + fmtTime(bk.time)) : ''), el('div', { class: 'row' }, b, b2));
+    };
     const localOthers = v.local.filter((n) => n !== v.current);
     const repoOthers = v.repo.filter((r) => r.version !== curVer && !v.local.includes(r.version));
     const closeBtn = el('button', { type: 'button', class: 'btn' }, 'Mbyll'); closeBtn.onclick = close;

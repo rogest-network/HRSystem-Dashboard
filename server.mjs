@@ -641,14 +641,60 @@ async function latestCached(inst) {
   return value;
 }
 
+function updateKind(i, l) {
+  if (i && !i.error && l && !l.error) {
+    if (cmp(l.version, i.version) > 0) return 'version';
+    if (cmp(l.version, i.version) === 0 && l.build && i.build && l.build !== i.build) return 'build';
+  }
+  return null;
+}
+
+// Automatic update at night (owner, 2026-10-22): once a day, at the chosen hour (default 03:00), when GitHub has a newer version or build of the
+// program, the dashboard starts the same update as the button. The updater begins with a database backup and returns to the old version by
+// itself when the new one does not answer. The result of the last run is kept in dashboard-settings.json (autoUpdateLast).
+function autoUpdateOf(inst) {
+  const s = readSettings(inst);
+  return { on: s.autoUpdate !== false, hour: Number.isInteger(s.autoUpdateHour) ? s.autoUpdateHour : 3, last: s.autoUpdateLast || null };
+}
+function setAutoUpdate(inst, on, hour) {
+  const cur = readSettings(inst);
+  cur.autoUpdate = Boolean(on);
+  if (Number.isInteger(hour) && hour >= 0 && hour <= 23) cur.autoUpdateHour = hour;
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+  return autoUpdateOf(inst);
+}
+async function autoUpdateTick() {
+  const now = new Date();
+  for (const inst of instances()) {
+    if (!inst.root || !inst.data) continue;
+    const auto = autoUpdateOf(inst);
+    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    if (!auto.on || now.getHours() !== auto.hour || (auto.last && auto.last.date === today)) continue;
+    const running = jobs.get(inst.id);
+    if (running && running.state === 'running') continue;
+    const kind = updateKind(installed(inst), await latestCached(inst).catch(() => null));
+    const record = { date: today, at: new Date().toISOString(), result: kind ? 'started' : 'no_update' };
+    const cur = readSettings(inst); cur.autoUpdateLast = record;
+    try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+    if (!kind) continue;
+    try {
+      const job = runUpdate(inst);
+      job.lines.push('Perditesim automatik (nata): backup i databazes, pastaj versioni i ri.');
+      const done = setInterval(() => {
+        if (job.state === 'running') return;
+        clearInterval(done);
+        const again = readSettings(inst); again.autoUpdateLast = { ...record, result: job.state, ended: new Date().toISOString() };
+        try { fs.writeFileSync(settingsFile(inst), JSON.stringify(again, null, 2)); } catch { /* read-only folder */ }
+      }, 5000);
+    } catch { /* an action is already running: next night */ }
+  }
+}
+setInterval(() => { autoUpdateTick().catch(() => {}); }, 60000).unref();
+
 async function status(inst) {
   const [h, l] = await Promise.all([health(inst), latestCached(inst)]);
   const i = installed(inst);
-  let update = null;
-  if (i && !i.error && l && !l.error) {
-    if (cmp(l.version, i.version) > 0) update = 'version';
-    else if (cmp(l.version, i.version) === 0 && l.build && i.build && l.build !== i.build) update = 'build';
-  }
+  const update = updateKind(i, l);
   let env = {};
   try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
   const tokenSet = !!(await token(inst).catch(() => ''));
@@ -656,7 +702,7 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoUpdate: autoUpdateOf(inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
 }
 
 const send = (res, code, data, type = 'application/json') => {
@@ -756,6 +802,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, left: listBackups(inst).length });
       }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
+      if (url.pathname === '/api/auto-update') { needLocal(inst); return send(res, 200, setAutoUpdate(inst, url.searchParams.get('on') !== '0', url.searchParams.has('hour') ? Number(url.searchParams.get('hour')) : undefined)); }
       if (url.pathname === '/api/dashboard-update') return send(res, 200, await updateDashboard());
       if (url.pathname === '/api/github-token') {
         // The read-only GitHub token for updates, typed on this computer (never sent anywhere but stored encrypted by the installation's own tool).

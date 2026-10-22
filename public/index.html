@@ -365,9 +365,16 @@ function view(s) {
   updBtn.disabled = busy || !s.update;
   updBtn.title = s.update ? '' : 'Nuk ka version të ri';
   updBtn.onclick = async () => {
-    if (!confirm('Përditësoj "' + s.name + '" në ' + s.latest.version + '?' + NL + 'Bëhet backup, build, migrimet dhe kontrolli; nëse nuk përgjigjet, kthehet vetë te versioni i vjetër. Faqja mund të mos hapet disa minuta.')) return;
+    if (!confirm('Përditësoj "' + s.name + '" në ' + s.latest.version + '?' + NL + 'Fillimisht bëhet backup i databazës, pastaj build, migrimet dhe kontrolli; nëse nuk përgjigjet, kthehet vetë te versioni i vjetër. Faqja mund të mos hapet disa minuta.')) return;
     if (await call('update', '', 'Përditësimi filloi...')) { go('log'); load(); }
   };
+  // Automatic update at night: on/off and the hour.
+  const au = s.autoUpdate || { on: true, hour: 3, last: null };
+  const hourSel = el('select', { 'aria-label': 'Ora e përditësimit', style: 'font:inherit;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)' }, ...Array.from({ length: 24 }, (_, h) => { const o = el('option', { value: String(h) }, String(h).padStart(2, '0') + ':00'); if (h === au.hour) o.selected = true; return o; }));
+  hourSel.onchange = async () => { if (await call('auto-update', '&on=' + (au.on ? 1 : 0) + '&hour=' + hourSel.value, 'Ora u ruajt.')) load(); };
+  const autoBtn = el('button', { type: 'button', class: au.on ? 'btn ghost' : 'btn' }, au.on ? 'Fike' : 'Ndize');
+  autoBtn.onclick = async () => { if (await call('auto-update', '&on=' + (au.on ? 0 : 1) + '&hour=' + hourSel.value, au.on ? 'Përditësimi automatik u fik.' : 'Përditësimi automatik u ndez.')) load(); };
+  const autoLast = !au.last ? 'Ende nuk është ekzekutuar.' : 'Hera e fundit: ' + au.last.date + ' · ' + ({ no_update: 'nuk kishte version të ri', started: 'filloi', ok: 'u krye me sukses', error: 'dështoi (shiko Log-un)' }[au.last.result] || au.last.result);
   const backupBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Backup tani');
   backupBtn.disabled = busy;
   backupBtn.onclick = async () => {
@@ -417,6 +424,7 @@ function view(s) {
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
         item('Përditëso aplikacionin', s.update ? 'Ka version të ri në GitHub (' + latText + ').' : 'Je në versionin e fundit (' + verText + ').', updBtn),
+        item('Përditësim automatik natën', (au.on ? 'Çdo natë në orën ' + String(au.hour).padStart(2, '0') + ':00: backup i databazës, pastaj përditësimi nëse ka version të ri (nëse nuk përgjigjet, kthehet vetë te i vjetri). ' : 'Fikur: përditësimi bëhet vetëm me butonin (edhe ai fillon me backup të databazës). ') + autoLast, hourSel, autoBtn),
         item('Përditëso dashboard-in', [dashText, dashRepo ? [' Lidhur me repo-n: ', repoLink(dashRepo)] : ''], dash ? dashBtn : ''))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Emri, logoja, modulet dhe databaza e aplikacionit; hapet pa shkruar token.', devBtn),

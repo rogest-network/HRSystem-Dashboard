@@ -914,7 +914,7 @@ function setNotify(inst, on, target) {
   settingsWrite(inst, cur);
   return notifyOf(inst);
 }
-// Watcher: the app is down for 2 minutes -> a message; it is back -> a message. Not while an update / rollback runs. Low disk: once a day.
+// Watcher: the app is down for 1 minute -> a message; it is back -> a message. Not while an update / rollback runs. Low disk: once a day.
 const watch = new Map();
 async function watchTick() {
   for (const inst of instances()) {
@@ -929,7 +929,7 @@ async function watchTick() {
       w.down = 0; w.told = false;
     } else {
       if (!w.down) w.down = Date.now();
-      if (!w.told && Date.now() - w.down >= 120000) { w.told = true; notify(inst, 'Aplikacioni ka rënë', (inst.name || '') + ' nuk përgjigjet prej 2 minutash.'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
+      if (!w.told && Date.now() - w.down >= 60000) { w.told = true; notify(inst, 'Aplikacioni ka rënë', (inst.name || '') + ' nuk përgjigjet prej 1 minute.'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
     }
     const d = diskOf(inst.data || inst.root);
     if (d && d.total && d.free / d.total < 0.1) {

@@ -393,9 +393,9 @@ function view(s) {
   };
 
   // ---- actions
-  const updBtn = el('button', { type: 'button', class: 'btn' }, s.update ? 'Përditëso tani' : 'Përditëso');
-  updBtn.disabled = busy;
-  updBtn.title = s.update ? '' : 'Nuk shfaqet version i ri; mund ta nisësh gjithsesi.';
+  const updBtn = el('button', { type: 'button', class: s.update ? 'btn' : 'btn ghost' }, s.update ? 'Përditëso' : 'Përditësuar');
+  updBtn.disabled = busy || !s.update;
+  updBtn.title = s.update ? '' : 'Nuk ka version të ri.';
   updBtn.onclick = async () => {
     if (!confirm((s.update ? '' : 'Nuk shfaqet version i ri. Ta kontrolloj dhe ta përditësoj gjithsesi?' + NL + NL) + 'Përditësoj "' + s.name + '" në ' + (s.latest && s.latest.version || '?') + '?' + NL + 'Bëhet backup, pastaj build dhe migrimet; në dështim kthehet vetë te versioni i vjetër.')) return;
     if (await call('update', '', 'Përditësimi filloi...')) { go('log'); load(); }
@@ -408,6 +408,13 @@ function view(s) {
   const abSave = async (on, upd) => { if (await call('auto-backup', '&backup=' + (on ? 1 : 0) + '&hour=' + abHour.value + '&keep=' + abKeep.value + '&update=' + ((upd === undefined ? ab.updateToo : upd) ? 1 : 0), 'U ruajt.')) load(); };
   abHour.onchange = () => abSave(ab.on); abKeep.onchange = () => abSave(ab.on);
   const sw = (label, on, onChange) => { const input = el('input', { type: 'checkbox' }); input.checked = !!on; input.onchange = () => onChange(input.checked); return el('label', { class: 'sw' }, input, el('i'), label); };
+  // Start with Windows: one switch per part, and all at once.
+  const asList = (s.autostart || []).filter((x) => x.exists);
+  const asSet = async (item, on) => { const j = await call('autostart', '&item=' + item + '&on=' + (on ? 1 : 0), 'U ruajt.'); if (j) load(); };
+  const asRows = asList.map((x) => sw(x.label, x.on, (v) => asSet(x.key, v)));
+  const asAllOn = el('button', { type: 'button', class: 'btn ghost sm' }, 'Aktivizo të gjitha'); asAllOn.onclick = () => asSet('all', true);
+  const asAllOff = el('button', { type: 'button', class: 'btn ghost sm' }, 'Ndalo të gjitha');
+  asAllOff.onclick = () => { if (confirm('Ndaloj nisjen automatike të të gjitha? Pas rinisjes së kompjuterit asgjë nuk niset vetë (ato që punojnë tani vazhdojnë).')) asSet('all', false); };
   const abSwBackup = sw('Backup i databazës', ab.on, (v) => abSave(v, undefined));
   const abSwUpdate = sw('Përditëso programin', ab.updateToo, (v) => abSave(ab.on, v));
   const abLast = !ab.last ? 'Ende pa ekzekutim.' : 'Hera e fundit: ' + ab.last.date + ' · ' + ({ ok: 'backup u ruajt', update_started: 'përditësimi filloi', update_ok: 'përditësim i kryer (me backup)', update_error: 'përditësimi dështoi (shiko Log-un)' }[ab.last.result] || ab.last.result) + (ab.last.name && ab.last.result === 'ok' ? ' ' + ab.last.name : '');
@@ -443,7 +450,8 @@ function view(s) {
     catch (e) { toast('GABIM: ' + e.message, true); }
   };
   const dash = state.data && state.data.dashboard;
-  const dashBtn = el('button', { type: 'button', class: dash && dash.files ? 'btn' : 'btn ghost' }, dash && dash.files ? 'Përditëso dashboard-in' : 'Kontrollo');
+  const dashBtn = el('button', { type: 'button', class: dash && dash.files ? 'btn' : 'btn ghost' }, dash && dash.files ? 'Përditëso' : 'Përditësuar');
+  dashBtn.disabled = !(dash && dash.files);
   dashBtn.onclick = async () => {
     if (!(dash && dash.files)) { toast('Po kontrollohet...'); await load(); return toast(state.data.dashboard && state.data.dashboard.files ? 'Ka version të ri të dashboard-it.' : 'Dashboard-i është i përditësuar.'); }
     if (!confirm('Përditësoj dashboard-in nga repo i dashboard-it (' + dash.files + ' skedar)?' + NL + 'Skedarët e vjetër ruhen te manager\\.previous; faqja rifreskohet vetë.')) return;
@@ -451,15 +459,15 @@ function view(s) {
     const j = await call('dashboard-update');
     if (j) { toast(j.files ? 'U përditësua (' + j.files + ' skedar). Rifreskohet...' : 'Dashboard-i ishte i përditësuar.'); setTimeout(() => location.reload(), 9000); } else dashBtn.disabled = false;
   };
-  const dashText = !dash ? 'Punon nga folderi i zhvillimit.' : dash.error ? 'Nuk u kontrollua (' + dash.error + ').' : dash.files ? 'Ka version të ri (' + dash.files + ' skedar): përditësohet brenda 10 min.' : 'Versioni i fundit.';
+  const dashText = !dash ? 'Punon nga folderi i zhvillimit.' : dash.error ? 'Nuk u kontrollua (' + dash.error + ').' : dash.files ? 'Ka version të ri (' + dash.files + ' skedar): përditësohet brenda 10 min.' : 'Përditësuar' + (dash.since ? ' · kodi i ' + fmtTime(dash.since) : '') + '.';
   const repoLink = (name) => el('a', { class: 'dom', href: 'https://github.com/' + name, target: '_blank', rel: 'noopener' }, name);
   const item = (title, text, ...buttons) => el('div', { class: 'item' }, el('div', {}, el('b', {}, title), el('span', {}, text)), el('div', { class: 'row' }, ...buttons));
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë, lidhje', ''),
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
-        ...(s.update ? [item('Përditëso aplikacionin', 'Ka version të ri (' + latText + ').', updBtn)] : []),
-        ...(dash && dash.files ? [item('Përditëso dashboard-in', dashText, dashBtn)] : []))),
+        item('Aplikacioni', s.update ? 'Ka version të ri: ' + latText + ' (instaluar: ' + verText + ').' : 'Versioni ' + verText + ' · i përditësuar.', updBtn),
+        item('Dashboard-i', dashText, dashBtn))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Branding, module, databazë. Hapet pa token.', devBtn),
         item('Ndalo, nise, rinis', 'Detyra e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin?'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),
@@ -471,6 +479,10 @@ function view(s) {
           el('div', { class: 'line' }, el('span', { class: 'hint' }, 'Ora'), abHour, el('span', { class: 'hint' }, 'Mbaj'), abKeep),
           el('div', { class: 'line' }, abSwBackup, abSwUpdate),
           el('div', { class: 'hint' }, ((ab.on || ab.updateToo) ? '' : 'Të dyja fikura. ') + abLast))),
+        ...(asList.length ? [el('div', { class: 'item' }, el('div', { class: 'sched' },
+          el('div', {}, el('b', {}, 'Nisja me Windows'), el('span', {}, 'Çfarë niset vetë kur ndizet kompjuteri. Ato që punojnë tani nuk ndalen.')),
+          el('div', { class: 'line' }, ...asRows),
+          el('div', { class: 'line' }, asAllOn, asAllOff)))] : []),
         item('Ekzekuto SQL', 'Skedar .sql (backup para).', sqlBtn, sqlInput),
         s.ownerMissing ? '' : item('Importo databazën', 'Zëvendëson databazën me një dump (backup automatik).', importBtn, importInput))),
       el('div', { class: 'card' }, el('h2', {}, 'Lidhjet'), el('div', { class: 'act' },

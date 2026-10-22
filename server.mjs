@@ -562,7 +562,7 @@ async function dashboardState(force) {
   if (!INSTALLED_EARLY()) return null;
   if (!force && dashCache && Date.now() - dashCache.at < (dashCache.error ? 60000 : 300000)) return dashCache.value;
   let value = null, error = false;
-  try { value = { files: (await dashboardDiff()).length, auto: true }; } catch (e) { value = { error: e.message, auto: true }; error = true; }
+  try { value = { files: (await dashboardDiff()).length, auto: true, since: (() => { try { return fs.statSync(path.join(HERE, 'server.mjs')).mtime.toISOString(); } catch { return ''; } })() }; } catch (e) { value = { error: e.message, auto: true }; error = true; }
   dashCache = { at: Date.now(), value, error };
   return value;
 }
@@ -734,7 +734,43 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
+}
+
+// ---- Start with Windows (owner, 2026-10-22): the owner can stop or enable the automatic start of each part, or all at once ----
+// The application and the dashboard start from Task Scheduler tasks (at logon), MySQL and the Cloudflare tunnel are Windows services. Stopping the
+// automatic start does not stop what is running now; it only decides what starts after the next logon / restart of the computer.
+const autostartItems = (inst) => [
+  { key: 'app', label: 'Aplikacioni', kind: 'task', name: inst.task || 'HRSystem' },
+  { key: 'dashboard', label: 'Dashboard-i', kind: 'task', name: 'HRSystem-Dashboard' },
+  { key: 'mysql', label: 'Databaza (MySQL)', kind: 'service', name: 'HRSystemMySQL' },
+  { key: 'tunnel', label: 'Tuneli Cloudflare', kind: 'service', name: 'cloudflared' },
+];
+const autostartSeen = new Map(); // inst.id -> { at, list }
+async function autostartState(inst, force) {
+  const c = autostartSeen.get(inst.id);
+  if (!force && c && Date.now() - c.at < 15000) return c.list;
+  const items = autostartItems(inst);
+  const script = items.map((i) => i.kind === 'task'
+    ? `$t = Get-ScheduledTask -TaskName ${q(i.name)} -ErrorAction SilentlyContinue; if ($t) { '${i.key}|1|' + [int](@($t | Where-Object { $_.Settings.Enabled }).Count -gt 0) + '|' + (@($t | ForEach-Object { $_.TaskPath + $_.TaskName + '=' + $_.State + '/' + $_.Settings.Enabled }) -join ',') } else { '${i.key}|0|0|' }`
+    : `$s = Get-CimInstance Win32_Service -Filter "Name='${i.name}'" -ErrorAction SilentlyContinue; if ($s) { '${i.key}|1|' + [int]($s.StartMode -ne 'Disabled' -and $s.StartMode -ne 'Manual') } else { '${i.key}|0|0' }`).join('; ');
+  let out = '';
+  try { out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]); } catch { out = ''; }
+  const seen = Object.fromEntries(out.split(/\r?\n/).map((l) => l.trim().split('|')).filter((p) => p.length >= 3).map((p) => [p[0], { exists: p[1] === '1', on: p[2] === '1', detail: p[3] || '' }]));
+  const list = items.map((i) => ({ key: i.key, label: i.label, exists: !!(seen[i.key] && seen[i.key].exists), on: !!(seen[i.key] && seen[i.key].on), detail: (seen[i.key] && seen[i.key].detail) || '' }));
+  autostartSeen.set(inst.id, { at: Date.now(), list });
+  return list;
+}
+async function setAutostart(inst, which, on) {
+  needLocal(inst);
+  const items = autostartItems(inst).filter((i) => which === 'all' || i.key === which);
+  if (!items.length) throw new Error('Pjesë e panjohur.');
+  const script = items.map((i) => i.kind === 'task'
+    ? `if (Get-ScheduledTask -TaskName ${q(i.name)} -ErrorAction SilentlyContinue) { ${on ? 'Enable' : 'Disable'}-ScheduledTask -TaskName ${q(i.name)} | Out-Null }`
+    : `if (Get-Service -Name ${q(i.name)} -ErrorAction SilentlyContinue) { Set-Service -Name ${q(i.name)} -StartupType ${on ? 'Automatic' : 'Manual'} }`).join('; ');
+  await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "$ErrorActionPreference = 'Stop'; " + script]);
+  autostartSeen.delete(inst.id);
+  return autostartState(inst, true);
 }
 
 const statusShared = { at: 0, promise: null };
@@ -841,6 +877,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, left: listBackups(inst).length });
       }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
+      if (url.pathname === '/api/autostart') { needLocal(inst); return send(res, 200, { items: await setAutostart(inst, String(url.searchParams.get('item') || 'all'), url.searchParams.get('on') !== '0') }); }
       if (url.pathname === '/api/auto-backup') { needLocal(inst); const q = url.searchParams; return send(res, 200, setAutoBackup(inst, (q.get('backup') ?? q.get('on')) !== '0', q.has('hour') ? Number(q.get('hour')) : undefined, q.has('keep') ? Number(q.get('keep')) : undefined, q.has('update') ? q.get('update') !== '0' : undefined)); }
       if (url.pathname === '/api/dashboard-update') return send(res, 200, await updateDashboard());
       if (url.pathname === '/api/github-token') {

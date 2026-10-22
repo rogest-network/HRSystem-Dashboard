@@ -557,8 +557,18 @@ const q = (t) => "'" + String(t).replace(/'/g, "''") + "'";
 async function systemAction(inst, action) {
   needLocal(inst);
   const task = inst.task || 'HRSystem';
-  const stop = `Stop-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine -like ${q('*' + inst.root + '*server.mjs*')} -and $_.CommandLine -notlike '*\manager\*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
-  const start = `Start-ScheduledTask -TaskName ${q(task)}`;
+  const root = path.resolve(inst.root); // backslashes, as in the command lines of the processes
+  // The application is kept alive by a launcher (start-hrsystem.ps1) that starts node again 3 s after it ends, so stopping only node (or only the task)
+  // never worked when the launcher was not a task. Stop = the task, then the LAUNCHER, then node. Start = the task if there is one, otherwise a new
+  // launcher that does not depend on the dashboard (so it survives the dashboard's own restarts).
+  const stop = `Stop-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; ` +
+    `Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*start-hrsystem.ps1*' -and $_.CommandLine -like ${q('*' + root + '*')} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; ` +
+    `Start-Sleep -Seconds 1; ` +
+    `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine -like ${q('*' + root + '*server.mjs*')} -and $_.CommandLine -notlike '*\\manager\\*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+  const launcher = path.join(root, 'start-hrsystem.ps1');
+  const start = `if (Get-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskName ${q(task)} } else { ` +
+    `$running = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*start-hrsystem.ps1*' -and $_.CommandLine -like ${q('*' + root + '*')} }; ` +
+    `if (-not $running) { Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + launcher + '"')}; CurrentDirectory = ${q(root)} } | Out-Null } }`;
   const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;
   if (!command) throw new Error('Veprim i panjohur.');
   await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);

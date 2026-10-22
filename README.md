@@ -28,3 +28,12 @@ Opsionale: `instances.json` (kopje e `instances.example.json`, nuk shkon në Git
 
 ## Siguria
 Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon çdo `Host` tjetër, dhe çdo veprim që ndryshon diçka kërkon çelësin e sesionit të faqes (rifreskohet vetë pas rinisjes). Nëse kompjuteri ka disa përdorues, krijo `manager/dashboard.key` (ose `DASHBOARD_KEY`) dhe hyrja kërkon fjalëkalim. Skedarët që fshihen, shkarkohen ose hapen merren vetëm nga lista e brendshme (asnjë rrugë nuk vjen nga përdoruesi). Tokenat ruhen të enkriptuar me DPAPI (`github.token`).
+
+## Veçoritë profesionale
+- **Pasqyra:** hapësira që zë HR (programi, databaza, backup-et), CPU dhe RAM vetëm të sistemit HR (aplikacioni + databaza), sa kohë punon aplikacioni, backup-i i fundit me kontrollin OK / Dëmtuar. Kur aplikacioni është **Fikur** nuk matet çdo 3 sekonda (kontrollohet çdo 15 s).
+- **Historiku:** 200 veprimet e fundit (backup, përditësim, rikthim, probleme, kopje jashtë PC-së).
+- **Kopje jashtë PC-së** (Veprime): çdo backup kopjohet automatikisht te një folder i zgjedhur (disk i jashtëm, rrjet, folder cloud); kontrollohet çdo 5 minuta.
+- **Njoftime në telefon** (Veprime): ntfy.sh (emër teme) ose webhook; kur aplikacioni bie 2 minuta, backup/përditësim dështon, pak hapësirë, përditësim i kryer. Opsionale, fikur si parazgjedhje.
+- **Fjalëkalimi** (Cilësimet, ingranazhi): opsional; ruhet te `manager\dashboard.key`; harrova = fshi atë skedar.
+- **Diagnostika** (faqja Log-u): një skedar .txt me gjendjen dhe fundin e log-eve, sekretet të fshehura.
+- Kur dashboard-i rindizet, faqja e hapur rifreskohet vetë një herë (pa "forbidden").

@@ -19,16 +19,17 @@ function dashboardKey() {
   if (process.env.DASHBOARD_KEY) return process.env.DASHBOARD_KEY;
   return fs.existsSync(KEY_FILE) ? fs.readFileSync(KEY_FILE, 'utf8').trim() : '';
 }
-const LOGIN_KEY = dashboardKey();
-const COOKIE = crypto.createHash('sha256').update('dashboard:' + LOGIN_KEY).digest('hex');
-const SIGN_IN = LOGIN_KEY.length > 0;
+let LOGIN_KEY = dashboardKey();
+let COOKIE = crypto.createHash('sha256').update('dashboard:' + LOGIN_KEY).digest('hex');
+let SIGN_IN = LOGIN_KEY.length > 0;
 const sameText = (a, b) => typeof a === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const authed = (req) => { if (!SIGN_IN) return true; const m = /(?:^|;\s*)mgr=([0-9a-f]+)/.exec(req.headers.cookie || ''); return !!m && sameText(m[1], COOKIE); };
 let failures = []; // times of wrong keys: 5 in a minute locks the sign-in for a minute
-const LOGIN_HTML = '<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HRSystem Dashboard</title><style>:root{color-scheme:light dark}body{font:16px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}form{display:grid;gap:12px;width:min(320px,90vw)}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #8886}button{background:#2457d6;color:#fff;border:0;font-weight:600;cursor:pointer}p{margin:0;font-size:13px;opacity:.75}#e{color:#c0392b;min-height:18px}</style></head><body><form id="f"><h1 style="margin:0;font-size:20px">HRSystem Dashboard</h1><input id="k" type="password" autocomplete="off" placeholder="Celesi i dashboard-it" autofocus required><button>Hyr</button><p>Celesi ndodhet te skedari manager/dashboard.key (vetem administratori).</p><p id="e"></p></form><script>f.onsubmit=async function(ev){ev.preventDefault();const r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k.value})});if(r.ok)location.reload();else e.textContent=r.status===429?"Shume provime. Prit nje minute.":"Celesi nuk eshte i sakte."};var h=/[#&]key=([0-9a-f]+)/.exec(location.hash);if(h){history.replaceState(null,"",location.pathname);k.value=h[1];f.requestSubmit()}</script></body></html>';
+const LOGIN_HTML = '<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HRSystem Dashboard</title><style>:root{color-scheme:light dark}body{font:16px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}form{display:grid;gap:12px;width:min(320px,90vw)}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #8886}button{background:#2457d6;color:#fff;border:0;font-weight:600;cursor:pointer}p{margin:0;font-size:13px;opacity:.75}#e{color:#c0392b;min-height:18px}</style></head><body><form id="f"><h1 style="margin:0;font-size:20px">HRSystem Dashboard</h1><input id="k" type="password" autocomplete="off" placeholder="Fjalekalimi i dashboard-it" autofocus required><button>Hyr</button><p>Harrove fjalekalimin? Fshi skedarin manager\\dashboard.key (vetem administratori).</p><p id="e"></p></form><script>f.onsubmit=async function(ev){ev.preventDefault();const r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k.value})});if(r.ok)location.reload();else e.textContent=r.status===429?"Shume provime. Prit nje minute.":"Fjalekalimi nuk eshte i sakte."};var h=/[#&]key=([0-9a-f]+)/.exec(location.hash);if(h){history.replaceState(null,"",location.pathname);k.value=h[1];f.requestSubmit()}</script></body></html>';
 
 // A random key per run: every action that changes something (backup) must carry it, so a web page cannot trigger it.
 const SESSION_KEY = crypto.randomBytes(24).toString('hex');
+const BOOT_ID = crypto.createHash('sha256').update(SESSION_KEY).digest('hex').slice(0, 10); // shown to the page, not the key itself
 // A broken connection or an error in one request must never stop the dashboard: it is logged and the dashboard keeps running.
 process.on('uncaughtException', (e) => console.error('uncaughtException:', e && e.stack ? e.stack : e));
 process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e && e.stack ? e.stack : e));
@@ -174,6 +175,9 @@ function mysqldumpPath() {
 }
 
 async function backup(inst) {
+  try { return await backupRaw(inst); } catch (e) { addHistory(inst, { title: 'Backup', ok: false, detail: String(e.message).slice(0, 160) }); notify(inst, 'Backup-i dështoi', String(e.message).slice(0, 160)); throw e; }
+}
+async function backupRaw(inst) {
   if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter: backup-in e bën nga paneli i hostit.');
   const cfg = readEnv(path.join(inst.root, '.env'));
   const dir = backupDir(inst);
@@ -188,6 +192,8 @@ async function backup(inst) {
     { MYSQL_PWD: cfg.DB_PASSWORD },
   );
   noteBackupVersion(inst, path.basename(file));
+  addHistory(inst, { title: 'Backup', ok: true, detail: path.basename(file) });
+  syncOffsite(inst).catch(() => {});
   return { name: path.basename(file), size: fs.statSync(file).size };
 }
 
@@ -232,8 +238,8 @@ function startJob(inst, title, launch) {
   const add = (t) => { for (const l of clean(String(t)).split('\n')) if (l.trim()) job.lines.push(l); job.lines = job.lines.slice(-200); };
   Promise.resolve()
     .then(() => launch(add))
-    .then((ok) => { job.state = ok === false ? 'error' : 'ok'; job.ended = Date.now(); })
-    .catch((e) => { add('GABIM: ' + e.message); job.state = 'error'; job.ended = Date.now(); });
+    .then((ok) => { job.state = ok === false ? 'error' : 'ok'; job.ended = Date.now(); try { jobDone(inst, job); } catch { /* history only */ } })
+    .catch((e) => { add('GABIM: ' + e.message); job.state = 'error'; job.ended = Date.now(); try { jobDone(inst, job); } catch { /* history only */ } });
   return job;
 }
 
@@ -858,10 +864,239 @@ async function autoBackupTick() {
 }
 setInterval(() => { autoBackupTick().catch(() => {}); }, 60000).unref();
 
+// ======================= Professional extras (owner, 2026-10-22) =======================
+// History of actions, notifications to the phone, an off-PC copy of every backup, backup check, disk space, resources, optional password, diagnostics.
+const settingsWrite = (inst, cur) => { try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ } };
+
+// ---- history (the last 200 actions, kept in dashboard-settings.json)
+function addHistory(inst, entry) {
+  const cur = readSettings(inst), h = Array.isArray(cur.history) ? cur.history : [];
+  h.push({ at: Date.now(), ...entry });
+  cur.history = h.slice(-200);
+  settingsWrite(inst, cur);
+}
+function jobDone(inst, job) {
+  const last = job.lines[job.lines.length - 1] || '';
+  const ok = job.state === 'ok';
+  addHistory(inst, { title: job.title, ok, detail: last.slice(0, 160) });
+  if (!ok) notify(inst, 'Veprimi dështoi', job.title + (last ? ': ' + last.slice(0, 140) : ''));
+  else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') notify(inst, job.title === 'Perditesim' ? 'Përditësimi u krye' : 'Rikthimi i versionit u krye', (inst.name || '') + ' · versioni ' + ((installed(inst) || {}).name || '?'));
+}
+
+// ---- notifications: ntfy.sh (a topic name the owner subscribes to in the free ntfy phone app) or any webhook URL; opt-in, off until set
+function notifyOf(inst) { const n = readSettings(inst).notify || {}; return { on: !!n.on, target: String(n.target || '') }; }
+async function sendNotify(target, title, message) {
+  if (!target) throw new Error('Mungon adresa e njoftimit.');
+  const isUrl = /^https?:\/\//i.test(target);
+  const r = await fetch(isUrl ? target : 'https://ntfy.sh/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isUrl ? { title, message, text: title + ': ' + message } : { topic: target, title, message, priority: 4 }), signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error('Shërbimi i njoftimit u përgjigj ' + r.status + '.');
+}
+function notify(inst, title, message) {
+  const n = notifyOf(inst);
+  if (!n.on || !n.target) return;
+  sendNotify(n.target, title, message).catch(() => { /* a failed notification never breaks anything */ });
+}
+function setNotify(inst, on, target) {
+  const cur = readSettings(inst);
+  const t = target === undefined ? String((cur.notify || {}).target || '') : String(target).trim();
+  if (t && !/^[A-Za-z0-9_-]{3,64}$/.test(t) && !/^https?:\/\/\S+$/i.test(t)) throw new Error('Adresa: një emër teme (shkronja, shifra, - _ ; min. 3) ose një URL https.');
+  cur.notify = { on: !!on && !!t, target: t };
+  settingsWrite(inst, cur);
+  return notifyOf(inst);
+}
+// Watcher: the app is down for 2 minutes -> a message; it is back -> a message. Not while an update / rollback runs. Low disk: once a day.
+const watch = new Map();
+async function watchTick() {
+  for (const inst of instances()) {
+    if (!inst.root || !inst.local) continue;
+    const w = watch.get(inst.id) || { down: 0, told: false };
+    watch.set(inst.id, w);
+    const job = jobs.get(inst.id);
+    let ok = false;
+    try { ok = (await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(5000) })).ok; } catch { ok = false; }
+    if (ok || (job && job.state === 'running')) {
+      if (ok && w.told) { notify(inst, 'Aplikacioni u kthye', (inst.name || '') + ' punon përsëri.'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
+      w.down = 0; w.told = false;
+    } else {
+      if (!w.down) w.down = Date.now();
+      if (!w.told && Date.now() - w.down >= 120000) { w.told = true; notify(inst, 'Aplikacioni ka rënë', (inst.name || '') + ' nuk përgjigjet prej 2 minutash.'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
+    }
+    const d = diskOf(inst.data || inst.root);
+    if (d && d.total && d.free / d.total < 0.1) {
+      const cur = readSettings(inst), day = new Date().toISOString().slice(0, 10);
+      if (cur.lastDiskAlert !== day) { cur.lastDiskAlert = day; settingsWrite(inst, cur); notify(inst, 'Pak hapësirë në disk', 'Mbeten ' + (d.free / 1073741824).toFixed(1) + ' GB (' + Math.round((100 * d.free) / d.total) + '%).'); addHistory(inst, { title: 'Pak hapësirë në disk', ok: false, detail: (d.free / 1073741824).toFixed(1) + ' GB të lira' }); }
+    }
+  }
+}
+setInterval(() => { watchTick().catch(() => {}); }, 30000).unref();
+
+// ---- off-PC copy: every .sql of the backup folder is copied to a folder the owner chooses (external disk, network share, a cloud-synced folder)
+function offsiteOf(inst) { const o = readSettings(inst).offsite || {}; return { on: !!o.on, path: String(o.path || ''), last: readSettings(inst).offsiteLast || null }; }
+function checkOffsitePath(p) {
+  if (!/^[A-Za-z]:[\\/]/.test(p) && !/^\\\\[^\\]+\\[^\\]+/.test(p)) throw new Error('Shkruaj një rrugë të plotë, p.sh. E:\\HRBackup ose \\\\server\\share.');
+  fs.mkdirSync(p, { recursive: true });
+  const t = path.join(p, '.hrsystem-write-test');
+  fs.writeFileSync(t, 'ok'); fs.rmSync(t, { force: true });
+}
+function setOffsite(inst, on, p) {
+  const cur = readSettings(inst);
+  const target = p === undefined ? String((cur.offsite || {}).path || '') : String(p).trim();
+  if (target) checkOffsitePath(target);
+  cur.offsite = { on: !!on && !!target, path: target };
+  settingsWrite(inst, cur);
+  return offsiteOf(inst);
+}
+let offsiteBusy = false;
+async function syncOffsite(inst, force) {
+  const o = offsiteOf(inst);
+  if ((!o.on && !force) || !o.path || offsiteBusy) return o.last;
+  offsiteBusy = true;
+  const record = { at: new Date().toISOString(), ok: true, copied: 0, error: '' };
+  try {
+    checkOffsitePath(o.path);
+    for (const b of listBackups(inst)) {
+      if (/\.tmp\.sql$/i.test(b.name)) continue;
+      const to = path.join(o.path, b.name);
+      let same = false; try { same = fs.statSync(to).size === b.size; } catch { /* not there */ }
+      if (same) continue;
+      fs.copyFileSync(path.join(backupDir(inst), b.name), to + '.part');
+      fs.renameSync(to + '.part', to);
+      record.copied++;
+    }
+  } catch (e) { record.ok = false; record.error = String(e.message).slice(0, 160); }
+  finally { offsiteBusy = false; }
+  const cur = readSettings(inst), before = cur.offsiteLast;
+  cur.offsiteLast = record; settingsWrite(inst, cur);
+  if (!record.ok && (!before || before.ok)) { notify(inst, 'Kopja jashtë PC-së dështoi', record.error); addHistory(inst, { title: 'Kopja jashtë PC-së', ok: false, detail: record.error }); }
+  if (record.ok && record.copied) addHistory(inst, { title: 'Kopja jashtë PC-së', ok: true, detail: record.copied + ' backup u kopjuan te ' + o.path });
+  return record;
+}
+setInterval(() => { for (const inst of instances()) if (inst.root && inst.data) syncOffsite(inst).catch(() => {}); }, 300000).unref();
+
+// ---- backup check: a dump that ends with mysqldump's closing line is complete
+const checkSeen = new Map();
+function checkBackup(inst, b) {
+  const k = b.name + '|' + b.size + '|' + b.time;
+  if (checkSeen.has(k)) return checkSeen.get(k);
+  let ok = false;
+  try {
+    const fd = fs.openSync(path.join(backupDir(inst), b.name), 'r');
+    try { const n = Math.min(400, b.size), buf = Buffer.alloc(n); fs.readSync(fd, buf, 0, n, b.size - n); ok = b.size > 1024 && buf.toString('utf8').includes('Dump completed'); } finally { fs.closeSync(fd); }
+  } catch { ok = false; }
+  if (checkSeen.size > 500) checkSeen.clear();
+  checkSeen.set(k, ok);
+  return ok;
+}
+
+// ---- disk and resources
+function diskOf(p) {
+  try { const s = fs.statfsSync(p); return { path: p, free: Number(s.bavail) * Number(s.bsize), total: Number(s.blocks) * Number(s.bsize) }; } catch { return null; }
+}
+// How much disk the HR system uses (its program folder, its database files and its backups), not the whole disk. Counted in the background every 10 minutes.
+const usageSeen = new Map();
+async function refreshUsage(inst) {
+  const prev = usageSeen.get(inst.id) || { at: 0, value: null };
+  usageSeen.set(inst.id, { ...prev, busy: true });
+  let value = prev.value;
+  try {
+    const q2 = (t) => String(t).replace(/'/g, "''");
+    const data = inst.data || '';
+    const out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+      `$ErrorActionPreference='SilentlyContinue'; function Sz($p) { if ($p -and (Test-Path -LiteralPath $p)) { [int64](Get-ChildItem -LiteralPath $p -Recurse -File -Force | Measure-Object Length -Sum).Sum } else { 0 } }; ` +
+      `'root|' + (Sz '${q2(inst.root)}'); 'data|' + (Sz '${q2(data)}'); 'db|' + (Sz '${q2(path.join(data, 'MySQLData'))}'); 'bk|' + (Sz '${q2(path.join(data, 'Backups'))}')`]);
+    const m = Object.fromEntries(out.split(/\r?\n/).map((l) => l.trim().split('|')).filter((p) => p.length === 2).map((p) => [p[0], Number(p[1]) || 0]));
+    const inside = data && data.toLowerCase().startsWith(inst.root.toLowerCase().replace(/[\\/]+$/, '') + '\\');
+    const program = Math.max(0, (m.root || 0) - (inside ? m.data || 0 : 0));
+    value = { program, db: m.db || 0, backups: m.bk || 0, total: program + (m.data || 0) };
+  } catch { /* keep the last value */ }
+  usageSeen.set(inst.id, { at: Date.now(), value, busy: false });
+}
+function usageOf(inst) {
+  if (!inst.root) return null;
+  const c = usageSeen.get(inst.id);
+  if (!c || (!c.busy && Date.now() - c.at > 600000)) refreshUsage(inst).catch(() => {});
+  return (c && c.value) || null;
+}
+// CPU and RAM of the HR system ONLY (the application's node process and its MySQL), not of the whole computer. One PowerShell look every 15 s per installation.
+const procSeen = new Map();
+async function procStats(inst) {
+  const c = procSeen.get(inst.id);
+  if (c && Date.now() - c.at < 15000) return c.value;
+  let value = { appSince: null, cpu: 0, ram: 0, appRam: 0, dbRam: 0 };
+  try {
+    let env = {}; try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
+    const appPort = Number(env.PORT) || 3000, dbPort = Number(env.DB_PORT) || 3306;
+    // The processes are found by the port they listen on (the application's PORT and the database's DB_PORT): exactly this installation's, whatever the command line.
+    const net = await run('netstat', ['-ano']);
+    const pidOn = (port) => { for (const l of net.split(/\r?\n/)) { const m = /^\s*TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)/i.exec(l); if (m && Number(m[1]) === port) return Number(m[2]); } return 0; };
+    const appPid = pidOn(appPort), dbPid = pidOn(dbPort);
+    const out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+      `$ErrorActionPreference='SilentlyContinue'; $cores=[Environment]::ProcessorCount; $appPid=${appPid}; $dbPid=${dbPid}; ` +
+      `if ($appPid) { 'since|' + (Get-Process -Id $appPid).StartTime.ToUniversalTime().ToString('o') }; ` +
+      `foreach ($pp in (Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.IDProcess -gt 0 -and $_.IDProcess -in @($appPid, $dbPid) })) { ($(if ($pp.IDProcess -eq $appPid) { 'app' } else { 'db' })) + '|' + $pp.PercentProcessorTime + '|' + $pp.WorkingSetPrivate }; "cores|$cores"`]);
+    let cores = 1, cpu = 0;
+    for (const l of out.split(/\r?\n/)) {
+      const p = l.trim().split('|');
+      if (p[0] === 'since') value.appSince = p[1];
+      else if (p[0] === 'cores') cores = Number(p[1]) || 1;
+      else if (p[0] === 'app') { cpu += Number(p[1]) || 0; value.appRam = Number(p[2]) || 0; }
+      else if (p[0] === 'db') { cpu += Number(p[1]) || 0; value.dbRam = Number(p[2]) || 0; }
+    }
+    value.cpu = Math.min(100, Math.round((cpu / cores) * 10) / 10); value.ram = value.appRam + value.dbRam;
+  } catch { /* leave zeros */ }
+  procSeen.set(inst.id, { at: Date.now(), value });
+  return value;
+}
+async function systemOf(inst) {
+  const hr = inst.root ? await procStats(inst) : { appSince: null, cpu: 0, ram: 0, appRam: 0, dbRam: 0 };
+  return { cpu: hr.cpu, ram: hr.ram, appRam: hr.appRam, dbRam: hr.dbRam, memTotal: os.totalmem(), up: os.uptime(), appSince: hr.appSince, disk: { data: diskOf(inst.data || inst.root || '.'), root: inst.root ? diskOf(inst.root) : null } };
+}
+
+// ---- the sign-in password: optional, set from the settings (manager/dashboard.key; DASHBOARD_KEY in the environment cannot be changed here)
+function setDashboardPassword(pw) {
+  if (process.env.DASHBOARD_KEY) throw new Error('Fjalëkalimi vjen nga variabla DASHBOARD_KEY: ndryshoje atje.');
+  const p = String(pw || '');
+  if (!p) { try { fs.rmSync(KEY_FILE, { force: true }); } catch { /* none */ } }
+  else {
+    if (p.length < 6 || p.length > 100) throw new Error('Fjalëkalimi: 6 deri në 100 shkronja.');
+    fs.writeFileSync(KEY_FILE, p);
+  }
+  LOGIN_KEY = dashboardKey();
+  COOKIE = crypto.createHash('sha256').update('dashboard:' + LOGIN_KEY).digest('hex');
+  SIGN_IN = LOGIN_KEY.length > 0;
+}
+
+// ---- diagnostics: one text file with the state and the log tails (secrets masked), for when a problem has to be sent to someone
+const mask = (t) => String(t).replace(/((?:pass(?:word)?|secret|token|key|authorization)[A-Za-z_]*\s*[=:]\s*)\S+/gi, '$1***');
+function tailOf(file, n) { try { return fs.readFileSync(file, 'utf8').split(/\r?\n/).slice(-n).join('\n'); } catch { return '(nuk ekziston)'; } }
+async function diagnostics(inst) {
+  const s = await status(inst);
+  const sys = await systemOf(inst);
+  let env = {}; try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
+  const safeEnv = Object.entries(env).map(([k, v]) => k + '=' + (/^(PORT|DB_HOST|DB_PORT|DB_NAME|APP_ORIGIN|NODE_ENV)$/.test(k) ? v : '***')).join('\n');
+  const gb = (n) => (n / 1073741824).toFixed(1) + ' GB';
+  const lines = [
+    'HRSystem Dashboard · diagnostikë', 'Krijuar: ' + new Date().toISOString(), 'Instalimi: ' + inst.name, '',
+    '== Sistemi ==', 'Windows ' + os.release() + ' · Node ' + process.version + ' · kompjuteri ' + os.hostname(), 'Sistemi HR: CPU ' + sys.cpu + '% të kompjuterit · RAM ' + Math.round(sys.ram / 1048576) + ' MB (aplikacioni ' + Math.round(sys.appRam / 1048576) + ', databaza ' + Math.round(sys.dbRam / 1048576) + ') · kompjuteri ndezur ' + Math.round(sys.up / 3600) + ' orë',
+    'Disku i të dhënave: ' + (sys.disk.data ? gb(sys.disk.data.free) + ' të lira nga ' + gb(sys.disk.data.total) + ' (' + sys.disk.data.path + ')' : '?'), '',
+    '== Aplikacioni ==', 'Instaluar: ' + JSON.stringify(s.installed), 'Më i ri në repo: ' + JSON.stringify(s.latest), 'Version i ngjitur: ' + JSON.stringify(s.pinned), 'Shëndeti: ' + JSON.stringify(s.health && { ok: s.health.ok, ms: s.health.ms, database: s.health.database }), 'Aplikacioni ndezur prej: ' + (sys.appSince || '?'), '',
+    '== Cilësimet (.env, sekretet të fshehura) ==', safeEnv, '',
+    '== Backup-et ==', ...s.backups.map((b) => b.name + ' · ' + Math.round(b.size / 1024) + ' KB · ' + b.time + ' · versioni ' + (b.version || '?') + ' · ' + (b.check ? 'OK' : 'DËMTUAR')),
+    'Kopja jashtë PC-së: ' + JSON.stringify(offsiteOf(inst)), 'Automatik: ' + JSON.stringify(autoBackupOf(inst)), '',
+    '== Historiku (të fundit) ==', ...(readSettings(inst).history || []).slice(-30).map((h) => new Date(h.at).toISOString() + ' · ' + h.title + ' · ' + (h.ok ? 'OK' : 'GABIM') + ' · ' + (h.detail || '')), '',
+    '== Veprimi i fundit ==', ...((jobs.get(inst.id) || { lines: ['-'] }).lines), '',
+    '== Updater.log (fundi) ==', tailOf(path.join(inst.root, 'Updater.log'), 60), '',
+    '== HRSystem-Server.log (fundi) ==', tailOf(path.join(inst.root, 'HRSystem-Server.log'), 60), '',
+    '== Dashboard.log (fundi) ==', tailOf(path.join(inst.root, 'Dashboard.log'), 40),
+  ];
+  return mask(lines.join('\n'));
+}
+
 async function status(inst) {
   const [h, l] = await Promise.all([health(inst), latestCached(inst)]);
   const i = installed(inst);
   recordVersion(inst);
+  const sys = await systemOf(inst);
   const update = updateKindPinned(inst, i, l);
   let env = {};
   try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
@@ -870,7 +1105,7 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), offsite: offsiteOf(inst), job: jobs.get(inst.id) || null };
 }
 
 // ---- Start with Windows (owner, 2026-10-22): the owner can stop or enable the automatic start of each part, or all at once ----
@@ -929,15 +1164,21 @@ function pageVersion() {
 const liveClients = new Set();
 const liveLast = new Map(); // inst.id -> signature
 let liveTimer = null;
+const downSeen = new Map(); // inst.id -> when the application was last found off (an off application is checked every 15 s, not every 3 s)
 async function pulseOnce() {
   return Promise.all(instances().map(async (inst) => {
     const t0 = performance.now();
     let ok = false, ms = 0, database = null;
-    try {
-      const r = await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(2500), cache: 'no-store' });
-      const j = await r.json().catch(() => null);
-      ok = r.status === 200 && !!j && j.ok === true; ms = Math.max(1, Math.round(performance.now() - t0)); database = (j && j.database) || null;
-    } catch { ok = false; }
+    const was = downSeen.get(inst.id);
+    if (was && Date.now() - was < 15000) { /* off: not asked again for 15 s */ }
+    else {
+      try {
+        const r = await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(2500), cache: 'no-store' });
+        const j = await r.json().catch(() => null);
+        ok = r.status === 200 && !!j && j.ok === true; ms = Math.max(1, Math.round(performance.now() - t0)); database = (j && j.database) || null;
+      } catch { ok = false; }
+      if (ok) downSeen.delete(inst.id); else downSeen.set(inst.id, Date.now());
+    }
     const job = jobs.get(inst.id) || null;
     let backups = [];
     try { backups = inst.data ? listBackups(inst) : []; } catch { backups = []; }
@@ -954,7 +1195,7 @@ function liveStart() {
       const list = await pulseOnce();
       let changed = false;
       for (const p of list) { if (liveLast.has(p.id) && liveLast.get(p.id) !== p.sig) changed = true; liveLast.set(p.id, p.sig); }
-      const body = JSON.stringify({ at: new Date().toISOString(), v: pageVersion(), instances: list.map(({ sig, ...rest }) => rest) });
+      const body = JSON.stringify({ at: new Date().toISOString(), v: pageVersion(), k: BOOT_ID, instances: list.map(({ sig, ...rest }) => rest) });
       for (const res of liveClients) {
         try { res.write('event: pulse\ndata: ' + body + '\n\n'); if (changed) res.write('event: changed\ndata: {}\n\n'); } catch { liveClients.delete(res); }
       }
@@ -1000,7 +1241,7 @@ const server = http.createServer(async (req, res) => {
         // Usually a process without administrator rights in a folder closed to ordinary users: say what to do instead of a raw error.
         return send(res, 500, '<!doctype html><meta charset="utf-8"><body style="font:16px system-ui;padding:24px"><h2>Dashboard-i nuk lexon skedaret e veta</h2><p>' + String(e.code || e.message).replace(/[<>&]/g, '') + '</p><p>Mbylle dhe hape perseri me <b>Dashboard.bat</b> (kerkon Administrator), ose ekzekuto ne PowerShell Administrator:<br><code>icacls C:\\HRSystem\\manager /grant "*S-1-5-32-545:(OI)(CI)RX" /T</code></p></body>', 'text/html');
       }
-      return send(res, 200, page.replace('__KEY__', SESSION_KEY).replace('__VER__', pageVersion()), 'text/html');
+      return send(res, 200, page.replace('__KEY__', SESSION_KEY).replace('__VER__', pageVersion()).replace('__BOOT__', BOOT_ID), 'text/html');
     }
     if (req.method === 'GET' && url.pathname === '/api/live') {
       if (liveClients.size >= 8) return send(res, 429, { error: 'too_many_pages' });
@@ -1014,7 +1255,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/status') {
       if (!statusShared.promise || Date.now() - statusShared.at > 3000) {
         statusShared.at = Date.now();
-        statusShared.promise = (async () => ({ instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, at: new Date().toISOString() }))();
+        statusShared.promise = (async () => ({ instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, security: { password: SIGN_IN, env: !!process.env.DASHBOARD_KEY }, at: new Date().toISOString() }))();
         statusShared.promise.catch(() => { statusShared.promise = null; });
       }
       return send(res, 200, await statusShared.promise);
@@ -1038,6 +1279,13 @@ const server = http.createServer(async (req, res) => {
       stream.on('error', () => res.destroy());
       res.on('error', () => stream.destroy());
       return stream.pipe(res);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/diagnostics') {
+      const inst = find(url.searchParams.get('id'));
+      if (!inst || !inst.root) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
+      const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="diagnostika-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.txt"`, 'Cache-Control': 'no-store' });
+      return res.end(await diagnostics(inst));
     }
     if (req.method === 'POST') statusShared.promise = null;
     if (req.method === 'POST' && url.pathname.startsWith('/api/') && url.pathname !== '/api/backup') {
@@ -1084,6 +1332,37 @@ const server = http.createServer(async (req, res) => {
         const found = name && listBackups(inst).find((b) => b.name === name);
         if (!found) return send(res, 404, { error: 'Backup-i nuk u gjet.' });
         return send(res, 200, runImport(inst, found.name, fs.readFileSync(path.join(backupDir(inst), found.name), 'utf8')));
+      }
+      if (url.pathname === '/api/notify') {
+        needLocal(inst);
+        let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; }
+        let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
+        return send(res, 200, setNotify(inst, j.on, j.target));
+      }
+      if (url.pathname === '/api/notify-test') {
+        needLocal(inst);
+        const n = notifyOf(inst);
+        try { await sendNotify(n.target, 'Provë nga HRSystem Dashboard', (inst.name || '') + ': njoftimet punojnë.'); } catch (e) { return send(res, 400, { error: e.message }); }
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === '/api/offsite') {
+        needLocal(inst);
+        let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; }
+        let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
+        try { return send(res, 200, setOffsite(inst, j.on, j.path)); } catch (e) { return send(res, 400, { error: e.message }); }
+      }
+      if (url.pathname === '/api/offsite-sync') {
+        needLocal(inst);
+        if (!offsiteOf(inst).path) return send(res, 400, { error: 'Zgjidh fillimisht folderin.' });
+        const r = await syncOffsite(inst, true);
+        return r && r.ok === false ? send(res, 400, { error: r.error }) : send(res, 200, r);
+      }
+      if (url.pathname === '/api/dashboard-password') {
+        let body = ''; for await (const c of req) { body += c; if (body.length > 1000) break; }
+        let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
+        try { setDashboardPassword(j.password); } catch (e) { return send(res, 400, { error: e.message }); }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...(SIGN_IN ? { 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000` } : { 'Set-Cookie': 'mgr=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0' }) });
+        return res.end(JSON.stringify({ password: SIGN_IN }));
       }
       if (url.pathname === '/api/versions') return send(res, 200, await versionsOf(inst));
       if (url.pathname === '/api/rollback') {

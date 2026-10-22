@@ -52,7 +52,8 @@
   .nav button svg { flex:none; opacity:.9; }
   .nav .count { margin-left:auto; font-size:11px; background:rgba(255,255,255,.12); padding:1px 8px; border-radius:99px; }
   .nav .grow { flex:1; }
-  .side .foot { margin-top:auto; padding:10px 10px 0; border-top:1px solid var(--side-2); font-size:12px; color:var(--side-muted); display:grid; gap:8px; }
+  .side .credit-side { margin-top:auto; padding:0 10px 10px; font-size:11.5px; letter-spacing:.4px; color:var(--side-muted); } .side .credit-side b { color:var(--side-text); font-weight:600; }
+  .side .foot { margin-top:0; padding:10px 10px 0; border-top:1px solid var(--side-2); font-size:12px; color:var(--side-muted); display:grid; gap:8px; }
   .side .foot button { background:transparent; border:1px solid var(--side-2); color:var(--side-text); border-radius:8px; padding:6px 10px; font:inherit; cursor:pointer; }
   .side .foot button:hover { background:var(--side-2); }
   .side .foot button.danger { color:#fca5a5; border-color:#4c1d24; } .side .foot button.danger:hover { background:#3f1519; }
@@ -201,12 +202,13 @@
 <a class="skip" href="#page" id="skip">Kalo te përmbajtja</a>
 <div class="app">
   <aside class="side" id="side" aria-label="Menu"></aside>
-  <main class="main" id="main"><div class="page" id="page" tabindex="-1"></div><footer class="credit"><span id="credit0">Krijuar nga</span> <b>Rogest Network</b></footer></main>
+  <main class="main" id="main"><div class="page" id="page" tabindex="-1"></div></main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
 const KEY = '__KEY__';
 const VER = '__VER__';
+const BOOT = '__BOOT__';
 // The key of this page is new on every start of the dashboard (it also restarts itself after an update): a request with the old key answers
 // 403 "forbidden". The page then reloads itself once to get the new key, instead of showing "forbidden" on every button.
 (() => {
@@ -320,6 +322,19 @@ const TR_LIST = [
   ["Rikthej aplikacionin te versioni ", "Go back to version ", "Vratiti aplikaciju na verziju "], ["Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).", "It is downloaded from GitHub, the database is backed up and built (a few minutes).", "Preuzima se sa GitHub-a, pravi se backup baze i build (nekoliko minuta)."], ["Kalon menjëherë (kodi është në këtë PC).", "It switches at once (the code is already on this PC).", "Prelazi odmah (kod je već na ovom računaru)."],
   ["Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.", "The database stays as it is; automatic updates are paused until a newer version.", "Baza ostaje kakva jeste; automatska ažuriranja se zaustavljaju do novije verzije."], ["Rikthimi i versionit", "Version rollback", "Vraćanje verzije"],
   ["Rikthe + databazën", "Restore + database", "Vrati + bazu"], [" DHE databazën nga ", " AND the database from ", " I bazu iz "], ["Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ", "A backup of the current state is made first; then the tables are DELETED and this is loaded: ", "Prvo se pravi backup trenutnog stanja; zatim se tabele BRIŠU i učitava se: "], ["backup: ", "backup: ", "backup: "], ["Po rikthehet edhe databaza nga ", "Also restoring the database from ", "Vraća se i baza iz "],
+  ["Fikur", "Off", "Isključeno"], ["Hapësira që zë HR", "Space used by HR", "Prostor koji zauzima HR"], ["po llogaritet...", "calculating...", "izračunava se..."], ["programi ", "program ", "program "], [" · databaza ", " · database ", " · baza "], [" · backup-et ", " · backups ", " · backup-i "], ["disku ", "disk ", "disk "], [" i lirë", " free", " slobodno"], ["Sistemi HR (CPU dhe RAM)", "HR system (CPU and RAM)", "HR sistem (CPU i RAM)"], ["aplikacioni ", "application ", "aplikacija "], [" MB · databaza ", " MB · database ", " MB · baza "], ["Disku", "Disk", "Disk"], [" të lira", " free", " slobodno"], ["nga ", "of ", "od "], ["Aplikacioni ndezur prej", "Application running for", "Aplikacija radi"], ["Kompjuteri ndezur prej ", "Computer on for ", "Računar uključen "], ["Backup i fundit", "Latest backup", "Poslednji backup"], ["asnjë", "none", "nijedan"], ["Dëmtuar", "Damaged", "Oštećen"], ["Historiku", "History", "Istorija"], ["Ende pa veprime.", "No actions yet.", "Još nema akcija."], ["Gabim", "Error", "Greška"],
+  ["Veprimet e fundit: backup-e, përditësime, rikthime dhe probleme.", "Latest actions: backups, updates, rollbacks and problems.", "Poslednje akcije: backup-i, ažuriranja, vraćanja i problemi."], ["Shkarko diagnostikën", "Download diagnostics", "Preuzmi dijagnostiku"],
+  ["Kopje jashtë PC-së", "Copy outside this PC", "Kopija van ovog računara"], ["Folderi", "Folder", "Fascikla"], ["Zgjidh folderin...", "Choose the folder...", "Izaberi fasciklu..."], ["Ndrysho folderin...", "Change the folder...", "Promeni fasciklu..."], ["Kopjo tani", "Copy now", "Kopiraj sada"], ["Kopjo çdo backup automatikisht", "Copy every backup automatically", "Automatski kopiraj svaki backup"],
+  ["Zgjidh një disk të jashtëm, një folder rrjeti ose një folder cloud (OneDrive, Google Drive): nëse prishet ky PC, backup-et mbeten.", "Choose an external disk, a network folder or a cloud folder (OneDrive, Google Drive): if this PC breaks, the backups remain.", "Izaberi spoljni disk, mrežnu ili cloud fasciklu (OneDrive, Google Drive): ako se ovaj računar pokvari, backup-i ostaju."],
+  ["Kopjon çdo backup që mungon te ai folder.", "Copies every backup that is missing in that folder.", "Kopira svaki backup koji nedostaje u toj fascikli."], ["Pa folder: backup-et mbeten vetëm në këtë PC.", "No folder: the backups stay only on this PC.", "Nema fascikle: backup-i ostaju samo na ovom računaru."], ["Ende pa kopje.", "No copy yet.", "Još nema kopije."], ["Kopja e fundit: ", "Last copy: ", "Poslednja kopija: "], [" të reja)", " new)", " novih)"], [" (gjithçka ishte e kopjuar)", " (everything was already copied)", " (sve je već kopirano)"], ["Po kopjohet...", "Copying...", "Kopira se..."], ["Kopja u kryer.", "The copy is done.", "Kopiranje je završeno."],
+  ["Folderi ku kopjohen backup-et (disk i jashtëm, folder rrjeti ose folder cloud), p.sh. E:\\HRBackup:", "The folder where backups are copied (external disk, network folder or cloud folder), e.g. E:\\HRBackup:", "Fascikla u koju se kopiraju backup-i (spoljni disk, mrežna ili cloud fascikla), npr. E:\\HRBackup:"],
+  ["Njoftime në telefon", "Phone notifications", "Obaveštenja na telefonu"], ["Tema", "Topic", "Tema"], ["Ndrysho temën...", "Change the topic...", "Promeni temu..."], ["Vendos temën...", "Set the topic...", "Postavi temu..."], ["Dërgo njoftime", "Send notifications", "Šalji obaveštenja"], ["Dërgo provë", "Send a test", "Pošalji probu"], ["Dërgon një mesazh provë tani.", "Sends a test message now.", "Šalje probnu poruku sada."], ["Njoftimi u dërgua: shiko telefonin.", "The notification was sent: look at your phone.", "Obaveštenje je poslato: pogledaj telefon."],
+  ["Instalo aplikacionin falas ntfy në telefon dhe abonohu te një emër teme që e zgjedh ti.", "Install the free ntfy app on your phone and subscribe to a topic name you choose.", "Instaliraj besplatnu ntfy aplikaciju na telefon i pretplati se na ime teme koje ti izabereš."],
+  ["Njoftim kur aplikacioni bie (2 minuta), kur backup-i ose përditësimi dështon, kur mbaron hapësira dhe kur përditësimi kryhet. Mesazhet nuk kanë të dhëna personale.", "A message when the application is down (2 minutes), when a backup or update fails, when space runs out and when an update completes. Messages contain no personal data.", "Poruka kada aplikacija ne radi (2 minuta), kada backup ili ažuriranje ne uspe, kada ponestane prostora i kada se ažuriranje završi. Poruke ne sadrže lične podatke."],
+  ["Emri i temës ntfy (shkronja, shifra, - _ ; i gjatë dhe i fshehtë, p.sh. hrsystem-k3m9x72q) ose një URL webhook https:", "The ntfy topic name (letters, digits, - _ ; long and secret, e.g. hrsystem-k3m9x72q) or an https webhook URL:", "Ime ntfy teme (slova, cifre, - _ ; dugo i tajno, npr. hrsystem-k3m9x72q) ili https webhook URL:"],
+  ["Fjalëkalimi i dashboard-it", "Dashboard password", "Lozinka dashboard-a"], ["Ruaj fjalëkalimin", "Save the password", "Sačuvaj lozinku"], ["Hiq fjalëkalimin", "Remove the password", "Ukloni lozinku"], ["Fjalëkalimi u vendos.", "The password was set.", "Lozinka je postavljena."], ["Fjalëkalimi u hoq.", "The password was removed.", "Lozinka je uklonjena."],
+  ["Vendoset nga variabla DASHBOARD_KEY e kompjuterit.", "It is set by the DASHBOARD_KEY variable of the computer.", "Postavlja se promenljivom DASHBOARD_KEY računara."], ["Aktiv: faqja kërkon fjalëkalim.", "Active: the page asks for a password.", "Aktivno: stranica traži lozinku."], ["Jo aktiv: dashboard-i hapet pa fjalëkalim (vetëm në këtë PC). Vendose nëse kompjuteri përdoret nga disa persona.", "Not active: the dashboard opens without a password (only on this PC). Set it if several people use the computer.", "Nije aktivno: dashboard se otvara bez lozinke (samo na ovom računaru). Postavi je ako računar koristi više osoba."],
+  ["Veprimi dështoi", "The action failed", "Akcija nije uspela"],
   ["Backup", "Backup", "Backup"], ["Instalimi i vjetër", "Old installation", "Stara instalacija"],
 ];
 const TR_EXACT = {}, TR_FRAG = { en: [], sr: [] };
@@ -353,6 +368,7 @@ const ICONS = {
   box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
   folder: 'M3 6a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z',
   term: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM7 10l3 2-3 2M12 15h5',
+  clock: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2',
   help: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7M12 17h.01',
 };
 const icon = (name) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('width', '18'); s.setAttribute('height', '18'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '1.8'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round'); const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]); s.append(p); return s; };
@@ -432,7 +448,6 @@ function applyPrefs() {
   r.classList.toggle('a11y-links', store.get('links', '0') === '1');
   r.lang = helpLang();
   const sk = document.getElementById('skip'); if (sk) sk.textContent = A11Y[helpLang()].skip;
-  const cr = document.getElementById('credit0'); if (cr) cr.textContent = t('Krijuar nga');
   const g = document.getElementById('gear'); if (g) { g.setAttribute('aria-label', A11Y[helpLang()].open); g.title = A11Y[helpLang()].open; }
 }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (store.get('theme', 'system') === 'system') applyPrefs(); }); } catch { /* old browser */ }
@@ -457,6 +472,20 @@ function openA11y() {
       input.onchange = () => { store.set('lang', k); applyPrefs(); close(); openA11y(); render(); };
       return el('label', { class: 'opt' }, input, HELP[k].name);
     }))),
+    (() => {
+      const sec = (state.data && state.data.security) || {};
+      const inp = el('input', { type: 'password', 'aria-label': 'Fjalëkalimi i dashboard-it', autocomplete: 'new-password', style: 'font:inherit;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);width:100%;box-sizing:border-box' });
+      const send = async (pw) => {
+        try { const r = await fetch('/api/dashboard-password?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(pw ? 'Fjalëkalimi u vendos.' : 'Fjalëkalimi u hoq.'); await load(); close(); openA11y(); }
+        catch (e) { toast('GABIM: ' + e.message, true); }
+      };
+      const save = el('button', { type: 'button', class: 'btn sm' }, 'Ruaj fjalëkalimin'); save.onclick = () => { if (inp.value) send(inp.value); else inp.focus(); };
+      const drop = el('button', { type: 'button', class: 'btn ghost sm' }, 'Hiq fjalëkalimin'); drop.onclick = () => send('');
+      drop.disabled = !sec.password || !!sec.env; save.disabled = !!sec.env;
+      return el('fieldset', {}, el('legend', {}, 'Fjalëkalimi i dashboard-it'),
+        el('p', { class: 'desc', style: 'margin:0 0 8px' }, sec.env ? 'Vendoset nga variabla DASHBOARD_KEY e kompjuterit.' : sec.password ? 'Aktiv: faqja kërkon fjalëkalim.' : 'Jo aktiv: dashboard-i hapet pa fjalëkalim (vetëm në këtë PC). Vendose nëse kompjuteri përdoret nga disa persona.'),
+        inp, el('div', { class: 'row', style: 'margin-top:8px' }, save, drop));
+    })(),
     radios(L.theme, 'theme', [['system', L.system], ['light', L.light], ['dark', L.dark]], 'system'),
     radios(L.size, 'textsize', [['0', L.s0], ['1', L.s1], ['2', L.s2]], '0'),
     el('div', { class: 'switches' }, sw(L.contrast, 'contrast'), sw(L.motion, 'motion'), sw(L.font, 'font'), sw(L.links, 'links')),
@@ -486,7 +515,7 @@ function openA11y() {
 }
 applyPrefs();
 
-const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Ku është instaluar', 'folder'], ['log', 'Log-u', 'term'], ['help', 'Si ta përdorësh', 'help']];
+const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Ku është instaluar', 'folder'], ['log', 'Log-u', 'term'], ['history', 'Historiku', 'clock'], ['help', 'Si ta përdorësh', 'help']];
 const state = { cur: store.get('cur', ''), section: store.get('section', 'home') === 'access' ? 'data' : store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
@@ -579,8 +608,14 @@ function view(s) {
     el('tr', {}, el('td', { class: 'k' }, 'Tuneli Cloudflare'), el('td', {}, !a.tunnel ? 'nuk është lidhur' : a.tunnelOk ? 'lidhur' : 'procesi punon, asnjë adresë nuk hapet'), el('td', { class: 'a' }, a.tunnel ? (a.tunnelOk ? pill('ok', 'aktiv') : pill('bad', 'nuk hapet')) : pill('warn', 'jo aktiv'), ' ', tunBtn, a.tunnel ? [' ', rmTunBtn] : '')));
 
   const spark = () => { const max = Math.max(1, ...h.history); return el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%' } : { class: 'down' }))); };
-  const appKpi = () => el('div', { class: 'card kpi', id: 'kpi-app' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Ndalur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : pill('bad', 'pa përgjigje')), el('div', { class: 's' }, a.local), spark());
-  state.repaint = () => { const old = document.getElementById('kpi-app'); if (old) old.replaceWith(appKpi()); const dot = document.querySelector('.inst .dot'); if (dot) dot.className = 'dot ' + (h.ok ? 'on' : 'off'); };
+  const appKpi = () => el('div', { class: 'card kpi', id: 'kpi-app' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Fikur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : ''), el('div', { class: 's' }, a.local), h.ok ? spark() : '');
+  const gbf = (n) => (n / 1073741824).toFixed(1) + ' GB';
+  const agoText = (iso) => { if (!iso) return '-'; const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)), d = Math.floor(m / 1440), hh = Math.floor((m % 1440) / 60); return d ? d + 'd ' + hh + 'h' : hh ? hh + 'h ' + (m % 60) + 'm' : m + 'm'; };
+  const sysKpi = (sys) => { sys = sys || {}; return el('div', { class: 'card kpi', id: 'kpi-sys' }, el('h2', {}, 'Sistemi HR (CPU dhe RAM)'), el('div', { class: 'v' }, 'CPU ' + (sys.cpu || 0) + '%', pill(sys.cpu > 60 ? 'bad' : sys.cpu > 30 ? 'warn' : 'ok', 'RAM ' + Math.round((sys.ram || 0) / 1048576) + ' MB')), el('div', { class: 's' }, 'aplikacioni ' + Math.round((sys.appRam || 0) / 1048576) + ' MB · databaza ' + Math.round((sys.dbRam || 0) / 1048576) + ' MB')); };
+  const diskKpi = () => { const u = s.usage, d = s.system && s.system.disk && s.system.disk.data; const f = d && d.total ? d.free / d.total : null; return el('div', { class: 'card kpi' }, el('h2', {}, 'Hapësira që zë HR'), el('div', { class: 'v' }, u ? gbf(u.total) : 'po llogaritet...', d ? pill(f < 0.05 ? 'bad' : f < 0.15 ? 'warn' : 'ok', 'disku ' + Math.round(f * 100) + '% i lirë') : ''), el('div', { class: 's' }, u ? 'programi ' + gbf(u.program) + ' · databaza ' + gbf(u.db) + ' · backup-et ' + gbf(u.backups) : '-')); };
+  const upKpi = () => el('div', { class: 'card kpi' }, el('h2', {}, 'Aplikacioni ndezur prej'), el('div', { class: 'v' }, h.ok ? agoText(s.system && s.system.appSince) : '-'), el('div', { class: 's' }, 'Kompjuteri ndezur prej ' + agoText(s.system && new Date(Date.now() - s.system.up * 1000).toISOString())));
+  const lastBkKpi = () => { const b = s.backups[0]; return el('div', { class: 'card kpi' }, el('h2', {}, 'Backup i fundit'), el('div', { class: 'v' }, b ? fmtTime(b.time) : 'asnjë', b ? pill(b.check ? 'ok' : 'bad', b.check ? 'OK' : 'Dëmtuar') : pill('warn', 'mungon')), el('div', { class: 's' }, b ? (b.version ? 'versioni ' + b.version + ' · ' : '') + fmtSize(b.size) : '-')); };
+  state.repaint = () => { const old = document.getElementById('kpi-app'); if (old) old.replaceWith(appKpi()); const sysOld = document.getElementById('kpi-sys'); const cur = state.data && state.data.instances.find((i) => i.id === s.id); if (sysOld && cur) sysOld.replaceWith(sysKpi(cur.system)); const dot = document.querySelector('.inst .dot'); if (dot) dot.className = 'dot ' + (h.ok ? 'on' : 'off'); };
 
   // ================= pages
   const pages = {};
@@ -658,6 +693,7 @@ function view(s) {
       el('div', { class: 'card kpi' }, el('h2', {}, 'Databaza'), el('div', { class: 'v' }, h.database === 'connected' ? 'Lidhur' : (h.database || '-')), el('div', { class: 's' }, s.database && s.database.name ? s.database.name + ' · porta ' + s.database.port : '-')),
       el('div', { class: 'card kpi' }, el('h2', {}, 'Versioni'), el('div', { class: 'v' }, verText, updPill || ''), el('div', { class: 's' }, 'I fundit (' + (s.channel || 'stable') + '): ' + latText + (s.repo ? ' · ' + s.repo : ''))),
       el('div', { class: 'card kpi' }, el('h2', {}, 'Adresa'), el('div', { class: 'v' }, publicUrl ? (a.domainOk ? 'Hapet' : 'Nuk hapet') : 'Pa domen', publicUrl ? pill(a.domainOk ? 'ok' : 'bad', a.domainOk ? 'online' : 'offline') : ''), el('div', { class: 's' }, publicUrl ? publicUrl.replace(/^https?:[/][/]/, '') : 'zbulohet vetë'))),
+    el('div', { class: 'kpis' }, diskKpi(), sysKpi(s.system), upKpi(), lastBkKpi()),
     el('div', { class: 'grid2 wide' },
       el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable()),
       el('div', { class: 'card' }, el('h2', {}, 'Gjendja'), el('table', { class: 'kv' },
@@ -804,6 +840,30 @@ function view(s) {
   const dashText = !dash ? 'Punon nga folderi i zhvillimit.' : dash.error ? 'Nuk u kontrollua (' + dash.error + ').' : dash.files ? 'Ka version të ri (' + dash.files + ' skedar): përditësohet brenda 10 min.' : 'Përditësuar' + (dash.since ? ' · kodi i ' + fmtTime(dash.since) : '') + '.';
   const repoLink = (name) => el('a', { class: 'dom', href: 'https://github.com/' + name, target: '_blank', rel: 'noopener' }, name);
   const item = (title, text, ...buttons) => el('div', { class: 'item' }, el('div', {}, el('b', {}, title), el('span', {}, text)), el('div', { class: 'row' }, ...buttons));
+  // ---- off-PC copy and notifications
+  const off = s.offsite || { on: false, path: '', last: null };
+  const offPost = async (body, okMsg) => { try { const r = await postJson('offsite', body); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(okMsg || 'U ruajt.'); load(); } catch (e) { toast('GABIM: ' + e.message, true); } };
+  const offPick = el('button', { type: 'button', class: 'btn ghost' }, off.path ? 'Ndrysho folderin...' : 'Zgjidh folderin...');
+  offPick.onclick = () => { const v = prompt('Folderi ku kopjohen backup-et (disk i jashtëm, folder rrjeti ose folder cloud), p.sh. E:\\HRBackup:', off.path); if (v) offPost({ on: true, path: v.trim() }); };
+  const offNow = el('button', { type: 'button', class: 'btn ghost' }, 'Kopjo tani'); offNow.disabled = !off.path;
+  offNow.onclick = async () => { offNow.disabled = true; toast('Po kopjohet...'); if (await call('offsite-sync', '', 'Kopja u kryer.')) load(); else offNow.disabled = false; };
+  const offSw = sw('Kopjo çdo backup automatikisht', off.on, (v) => offPost({ on: v }));
+  const offText = !off.path ? 'Pa folder: backup-et mbeten vetëm në këtë PC.' : !off.last ? 'Ende pa kopje.' : off.last.ok ? 'Kopja e fundit: ' + fmtTime(off.last.at) + (off.last.copied ? ' (' + off.last.copied + ' të reja)' : ' (gjithçka ishte e kopjuar)') : 'GABIM: ' + off.last.error;
+  const offsiteCard = () => el('div', { class: 'card' }, el('h2', {}, 'Kopje jashtë PC-së'), el('div', { class: 'act' },
+    item('Folderi', off.path || 'Zgjidh një disk të jashtëm, një folder rrjeti ose një folder cloud (OneDrive, Google Drive): nëse prishet ky PC, backup-et mbeten.', offPick),
+    el('div', { class: 'item' }, el('div', { class: 'sched' }, el('div', { class: 'line' }, offSw), el('div', { class: 'hint' }, offText))),
+    item('Kopjo tani', 'Kopjon çdo backup që mungon te ai folder.', offNow)));
+  const nf = s.notify || { on: false, target: '' };
+  const nfPost = async (body, okMsg) => { try { const r = await postJson('notify', body); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(okMsg || 'U ruajt.'); load(); } catch (e) { toast('GABIM: ' + e.message, true); } };
+  const nfSet = el('button', { type: 'button', class: 'btn ghost' }, nf.target ? 'Ndrysho temën...' : 'Vendos temën...');
+  nfSet.onclick = () => { const v = prompt('Emri i temës ntfy (shkronja, shifra, - _ ; i gjatë dhe i fshehtë, p.sh. hrsystem-k3m9x72q) ose një URL webhook https:', nf.target); if (v) nfPost({ on: true, target: v.trim() }); };
+  const nfTest = el('button', { type: 'button', class: 'btn ghost' }, 'Dërgo provë'); nfTest.disabled = !nf.target;
+  nfTest.onclick = () => call('notify-test', '', 'Njoftimi u dërgua: shiko telefonin.');
+  const nfSw = sw('Dërgo njoftime', nf.on, (v) => nfPost({ on: v }));
+  const notifyCard = () => el('div', { class: 'card' }, el('h2', {}, 'Njoftime në telefon'), el('div', { class: 'act' },
+    item('Tema', nf.target || 'Instalo aplikacionin falas ntfy në telefon dhe abonohu te një emër teme që e zgjedh ti.', nfSet),
+    el('div', { class: 'item' }, el('div', { class: 'sched' }, el('div', { class: 'line' }, nfSw), el('div', { class: 'hint' }, 'Njoftim kur aplikacioni bie (2 minuta), kur backup-i ose përditësimi dështon, kur mbaron hapësira dhe kur përditësimi kryhet. Mesazhet nuk kanë të dhëna personale.'))),
+    item('Dërgo provë', 'Dërgon një mesazh provë tani.', nfTest)));
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë, lidhje', ''),
     pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
@@ -830,7 +890,8 @@ function view(s) {
         s.ownerMissing ? '' : item('Importo databazën', 'Zëvendëson databazën me një dump (backup automatik).', importBtn, importInput))),
       el('div', { class: 'card' }, el('h2', {}, 'Lidhjet'), el('div', { class: 'act' },
         item('Token GitHub', s.tokenSet ? 'I vendosur (ruhet i enkriptuar).' : 'Mungon: pa të nuk bëhen përditësime.', tokBtn),
-        item('Cloudflare Tunnel', !a.tunnel ? 'Nuk është i lidhur.' : a.tunnelOk ? 'I lidhur dhe punon.' : 'Procesi punon por asnjë adresë nuk hapet.', tunBtn, a.tunnel ? rmTunBtn : '')))));
+        item('Cloudflare Tunnel', !a.tunnel ? 'Nuk është i lidhur.' : a.tunnelOk ? 'I lidhur dhe punon.' : 'Procesi punon por asnjë adresë nuk hapet.', tunBtn, a.tunnel ? rmTunBtn : '')))),
+    el('div', { class: 'grid2' }, offsiteCard(), notifyCard()));
 
   // ---- backups
   pages.backup = () => el('div', {}, header('Backup-et', s.backups.length + ' kopje' + (s.backups.length ? ' · gjithsej ' + fmtSize(s.backups.reduce((n, b) => n + b.size, 0)) : ''), el('div', { class: 'row' }, backupBtn)),
@@ -851,7 +912,7 @@ function view(s) {
         const j = await call('backup-delete', '&name=' + encodeURIComponent(b.name));
         if (j) { toast('Backup-i u fshi (mbeten ' + j.left + ').'); load(); }
       };
-      return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size) + (b.version ? ' · versioni ' + b.version : '')), el('span', {}, b.name)), el('div', { class: 'row' }, dl, restore, show, del));
+      return el('li', {}, el('div', { class: 'p' }, el('b', {}, fmtTime(b.time) + ' · ' + fmtSize(b.size) + (b.version ? ' · versioni ' + b.version : '')), el('span', {}, b.name)), el('div', { class: 'row' }, b.check ? pill('ok', 'OK') : pill('bad', 'Dëmtuar'), dl, restore, show, del));
     }) : [el('li', {}, el('span', { class: 'empty' }, 'Nuk ka backup ende.'))]))));
 
   pages.files = () => el('div', {}, header('Ku është instaluar', 'Rrugët e instalimit', ''),
@@ -867,9 +928,12 @@ function view(s) {
     return el('div', { lang }, header(t.title, t.sub, ''),
       ...t.sections.map(([title, items]) => el('div', { class: 'card' }, el('h2', {}, title), el('ul', { class: 'guide' }, ...items.map((x) => el('li', {}, x))))));
   };
+  pages.history = () => el('div', {}, header('Historiku', 'Veprimet e fundit: backup-e, përditësime, rikthime dhe probleme.', ''),
+    el('div', { class: 'card' }, (s.history && s.history.length) ? el('table', { class: 'kv' }, ...s.history.map((x) => el('tr', {}, el('td', { class: 'k' }, fmtTime(x.at, true)), el('td', {}, el('b', {}, jobName(x.title)), x.detail ? el('div', { class: 'sub' }, x.detail) : ''), el('td', { class: 'a' }, x.ok ? pill('ok', 'OK') : pill('bad', 'Gabim'))))) : el('div', { class: 'empty' }, 'Ende pa veprime.')));
   pages.log = () => {
     const j = s.job;
-    return el('div', {}, header('Log-u', j ? j.title + ' · ' + (j.state === 'running' ? 'po vazhdon...' : j.state === 'ok' ? 'SUKSES' : 'GABIM') : 'Veprimi i fundit', ''),
+    const diag = el('a', { class: 'btn ghost sm', href: '/api/diagnostics?id=' + encodeURIComponent(s.id), download: '', style: 'text-decoration:none;display:inline-block;border:1px solid var(--line);padding:5px 12px;border-radius:8px;color:var(--text)' }, 'Shkarko diagnostikën');
+    return el('div', {}, header('Log-u', j ? j.title + ' · ' + (j.state === 'running' ? 'po vazhdon...' : j.state === 'ok' ? 'SUKSES' : 'GABIM') : 'Veprimi i fundit', diag),
       el('div', { class: 'card' }, j ? el('pre', { class: 'log', 'data-id': s.id }, j.lines.join(NL) || '...') : el('div', { class: 'empty' }, 'Asnjë veprim ende (përditësim, SQL, import, tunel).')));
   };
 
@@ -907,6 +971,7 @@ function render() {
     el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, 'HRSystem'), el('span', {}, 'Dashboard'))),
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off'), role: 'img', 'aria-label': s.health.ok ? 'Online' : 'Offline' }), select),
     nav,
+    el('div', { class: 'credit-side' }, el('span', {}, 'Krijuar nga'), ' ', el('b', {}, 'Rogest Network')),
     el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, liveOn ? 'LIVE' : 'OFFLINE')), refresh, un));
   // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.
   const job = s.job;
@@ -965,6 +1030,11 @@ function liveBadge() {
 }
 function applyPulse(d) {
   // The dashboard updated itself (new files): reload ONCE so the changes show (a guard stops any loop).
+  // The dashboard itself was restarted (Windows restart, update): its run key changed, so this page would answer "forbidden". Reload ONCE to get the new key.
+  if (d.k && BOOT !== '__BOOT__' && d.k !== BOOT) {
+    let seen = ''; try { seen = sessionStorage.getItem('reloadedBoot') || ''; } catch { /* no storage */ }
+    if (seen !== d.k) { try { sessionStorage.setItem('reloadedBoot', d.k); } catch { /* no storage */ } location.reload(); return; }
+  }
   if (d.v && VER !== '__VER__' && d.v !== VER) {
     let last = ''; try { last = sessionStorage.getItem('reloadedFor') || ''; } catch { /* no storage */ }
     if (last !== d.v) { try { sessionStorage.setItem('reloadedFor', d.v); } catch { /* no storage */ } location.reload(); return; }
@@ -975,7 +1045,8 @@ function applyPulse(d) {
     const s = state.data.instances.find((i) => i.id === p.id);
     if (!s) continue;
     s.health.ok = p.ok; s.health.ms = p.ms; if (p.database) s.health.database = p.database;
-    s.health.history = [...(s.health.history || []).slice(-23), p.ok ? Math.max(1, p.ms) : null];
+    const hist = s.health.history || [];
+    if (p.ok || hist[hist.length - 1] !== null) s.health.history = [...hist.slice(-23), p.ok ? Math.max(1, p.ms) : null]; // an off application adds nothing every 3 s
     const was = s.job && s.job.state;
     s.job = p.job ? { ...(s.job || {}), ...p.job } : s.job;
     if (p.job && p.job.state === 'running' && was !== 'running') needFull = true; // a job has just started: draw its bar
@@ -997,7 +1068,7 @@ function startLive() {
 }
 // What counts as a change: everything except the speed samples, the log lines and the clock.
 function stateSig(j) {
-  return JSON.stringify({ d: j.dashboard, i: j.instances.map((i) => ({ ...i, health: { ok: i.health.ok, database: i.health.database, status: i.health.status }, job: i.job ? { s: i.job.state, e: i.job.ended, t: i.job.title } : null })) });
+  return JSON.stringify({ d: j.dashboard, i: j.instances.map((i) => ({ ...i, health: { ok: i.health.ok, database: i.health.database, status: i.health.status }, system: i.system && { d: i.system.disk && i.system.disk.data && Math.round(i.system.disk.data.free / 1073741824), a: i.system.appSince }, usage: i.usage && Math.round(i.usage.total / 10485760), job: i.job ? { s: i.job.state, e: i.job.ended, t: i.job.title } : null })), x: j.security });
 }
 document.addEventListener('focusout', () => setTimeout(() => {
   const a = document.activeElement;

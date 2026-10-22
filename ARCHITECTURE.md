@@ -151,3 +151,16 @@ POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
 ## 10. Not yet verified (be honest in reports)
 
 Real clean install through the wizard on a blank PC, real uninstall, a real phone (layout and notifications on iOS/Android), screen readers (NVDA/VoiceOver), MariaDB, Windows Home vs Pro differences.
+
+---------------------------------------------------------------------------
+
+## 11. Current state and history (update this at the end of every dashboard task)
+
+State on 2026-10-22 (Dashboard repo `main`, installed copy equal):
+- Features done: password (set once, show/hide, change, remove), accessibility (WCAG 2.2 AA), three languages, hidden quick tunnel, self-update with rollback, off-PC backup copy, version log per backup, rollback of the program, **error logs page (Gabimet)**, **server location**, **alerts** (old backup >36 h, address down 5 min), **backup test**, **daily report with an hour chosen by the owner** (Veprime → Njoftime), professional notifications (levels, titles, time), live SSE.
+- QA done 2026-10-22: API matrix (key/host/traversal/JSON/size), all pages in sq/en/sr (no mixed language, no console errors), installer scripts parse (PowerShell 5.1), BOM fix for `installer.ps1`/`uninstall.ps1`, setup SQL = migrations 0001-0006 and equals `Setup/Versions/V1.0.1/DatabaseSchema.sql`, zips clean.
+- Program release at that time: V1.0.1 (versions go up from now: 1.0.2, 1.0.3 …; asset `HRSystem-<x>.zip` from 1.0.2).
+- Owner's standing preferences: short Albanian replies; no live-site (staff) reminders in the closing list; dashboard stays local-only; names in the UI without "HRSystem" prefix; keep the password "Show" behaviour as it is.
+- Open ideas, none started: none requested.
+
+History (newest first): daily-report hour setting · ARCHITECTURE.md · QA + translation boundary fix · error logs/location/alerts/backup test/daily report/notifications · password rework · hidden quick tunnel · app zip name `HRSystem-<x>.zip` · version log per backup · dashboard self-update repo.

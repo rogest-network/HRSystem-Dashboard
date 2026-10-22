@@ -304,6 +304,7 @@ function view(s) {
       el('div', { class: 'card' }, el('h2', {}, 'Gjendja'), el('table', { class: 'kv' },
         el('tr', {}, el('td', { class: 'k' }, 'Instaluar'), el('td', {}, verText)),
         el('tr', {}, el('td', { class: 'k' }, 'Kanali'), el('td', {}, (s.channel || 'stable') + (s.repo ? ' · ' + s.repo : ''))),
+        el('tr', {}, el('td', { class: 'k' }, 'Repo i dashboard-it'), el('td', {}, state.data.dashboardRepo ? repoLink(state.data.dashboardRepo) : '-')),
         el('tr', {}, el('td', { class: 'k' }, 'Token GitHub'), el('td', {}, s.tokenSet ? pill('ok', 'vendosur') : pill('warn', 'mungon'))),
         el('tr', {}, el('td', { class: 'k' }, 'Backup-e'), el('td', {}, s.backups.length + (s.backups.length ? ' · e fundit ' + fmtTime(s.backups[0].time) : ''))),
         el('tr', {}, el('td', { class: 'k' }, 'Veprimi i fundit'), el('td', {}, s.job ? s.job.title + ' · ' + (s.job.state === 'running' ? 'po vazhdon...' : s.job.state === 'ok' ? 'SUKSES' : 'GABIM') : '-'))))));
@@ -408,13 +409,15 @@ function view(s) {
     if (j) { toast(j.files ? 'U përditësua (' + j.files + ' skedar). Rifreskohet...' : 'Dashboard-i ishte i përditësuar.'); setTimeout(() => location.reload(), 9000); } else dashBtn.disabled = false;
   };
   const dashText = !dash ? 'Ky dashboard punon nga folderi i zhvillimit: nuk përditësohet online.' : dash.error ? 'Nuk u kontrollua (' + dash.error + ').' : dash.files ? 'Ka version të ri (' + dash.files + ' skedar): përditësohet vetë brenda 10 minutash, ose shtyp butonin.' : 'Je në versionin e fundit (kontrollohet çdo 10 minuta dhe përditësohet vetë).';
+  const repoLink = (name) => el('a', { class: 'dom', href: 'https://github.com/' + name, target: '_blank', rel: 'noopener' }, name);
+  const dashRepo = state.data && state.data.dashboardRepo;
   const item = (title, text, ...buttons) => el('div', { class: 'item' }, el('div', {}, el('b', {}, title), el('span', {}, text)), el('div', { class: 'row' }, ...buttons));
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë dhe lidhje', ''),
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
         item('Përditëso aplikacionin', s.update ? 'Ka version të ri në GitHub (' + latText + ').' : 'Je në versionin e fundit (' + verText + ').', updBtn),
-        item('Përditëso dashboard-in', dashText, dash ? dashBtn : ''))),
+        item('Përditëso dashboard-in', [dashText, dashRepo ? [' Lidhur me repo-n: ', repoLink(dashRepo)] : ''], dash ? dashBtn : ''))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Emri, logoja, modulet dhe databaza e aplikacionit; hapet pa shkruar token.', devBtn),
         item('Ndalo, nise, rinis', 'Kontrollon detyrën e aplikacionit në këtë PC.', sysBtn('Stop', 'stop', 'Ndaloj aplikacionin? Përdoruesit nuk do ta hapin deri sa ta nisësh.'), sysBtn('Start', 'start'), sysBtn('Restart', 'restart', 'Rinis aplikacionin?'))))),

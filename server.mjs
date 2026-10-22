@@ -696,7 +696,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, page.replace('__KEY__', SESSION_KEY), 'text/html');
     }
     if (req.method === 'GET' && url.pathname === '/api/status') {
-      return send(res, 200, { instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), at: new Date().toISOString() });
+      return send(res, 200, { instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, at: new Date().toISOString() });
     }
     if (req.method === 'POST' && url.pathname === '/api/backup') {
       if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });

@@ -91,6 +91,7 @@
   .kpi .s { color:var(--muted); font-size:12.5px; margin-top:4px; word-break:break-all; }
   .spark { display:flex; align-items:flex-end; gap:2px; height:26px; margin-top:10px; }
   .spark i { flex:1; min-width:2px; background:var(--accent); border-radius:2px 2px 0 0; opacity:.65; }
+  .spark i:hover { opacity:1; }
   .spark i.down { background:var(--bad); height:100% !important; opacity:.5; }
 
   table.kv { width:100%; border-collapse:collapse; }
@@ -717,7 +718,7 @@ function view(s) {
       : [el('tr', {}, el('td', { class: 'k' }, 'Adresa'), el('td', {}, a.tunnel ? 'zbulohet vetë' : el('span', { style: 'color:var(--muted)' }, 'pa adresë publike')), el('td', { class: 'a' }))]),
     el('tr', {}, el('td', { class: 'k' }, 'Tuneli Cloudflare'), el('td', {}, !a.tunnel ? 'nuk është lidhur' : a.tunnelOk ? 'lidhur' : 'procesi punon, asnjë adresë nuk hapet'), el('td', { class: 'a' }, a.tunnel ? (a.tunnelOk ? pill('ok', 'aktiv') : pill('bad', 'nuk hapet')) : pill('warn', 'jo aktiv'), ' ', (() => { const b = el('button', { type: 'button', class: 'btn sm', 'aria-haspopup': 'dialog' }, 'Ndrysho tani'); b.disabled = busy; b.onclick = changeAddress; return b; })())));
 
-  const spark = () => { const max = Math.max(1, ...h.history); return el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%' } : { class: 'down' }))); };
+  const spark = () => { const max = Math.max(1, ...h.history); return el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%', title: v + ' ms' } : { class: 'down', title: 'pa përgjigje' }))); };
   const appKpi = () => el('div', { class: 'card kpi', id: 'kpi-app' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Fikur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : ''), el('div', { class: 's' }, a.local), h.ok ? spark() : '');
   const gbf = (n) => (n / 1073741824).toFixed(1) + ' GB';
   const agoText = (iso) => { if (!iso) return '-'; const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)), d = Math.floor(m / 1440), hh = Math.floor((m % 1440) / 60); return d ? d + 'd ' + hh + 'h' : hh ? hh + 'h ' + (m % 60) + 'm' : m + 'm'; };

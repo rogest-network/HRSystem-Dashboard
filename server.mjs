@@ -376,6 +376,8 @@ async function learnDomains(inst) {
 }
 setInterval(() => { try { for (const inst of instances()) if (inst.local && inst.root) learnDomains(inst); } catch { /* none */ } }, 15000).unref();
 
+const domainHealth = new Map(); // url -> { at, ok }
+const tunnelSeen = { at: 0, list: '' }; // the list of cloudflared processes, 10 s
 async function accessOf(inst, env) {
   const settings = readSettings(inst);
   const isPublic = (o) => o && !o.includes('localhost') && !o.includes('127.0.0.1');
@@ -383,7 +385,10 @@ async function accessOf(inst, env) {
   const names = [...Object.keys(settings.domainsSeen || {}).sort(), env.APP_ORIGIN].filter(isPublic).filter((o, i, all) => all.indexOf(o) === i);
   const domains = await Promise.all(names.map(async (u) => {
     let ok = false;
-    try { ok = (await fetch(u.replace(/[/]$/, '') + '/api/health', { signal: AbortSignal.timeout(8000), cache: 'no-store' })).ok; } catch { ok = false; }
+    const seen = domainHealth.get(u);
+    if (seen && Date.now() - seen.at < 45000) return { url: u, ok: seen.ok };
+    try { ok = (await fetch(u.replace(/[/]$/, '') + '/api/health', { signal: AbortSignal.timeout(5000), cache: 'no-store' })).ok; } catch { ok = false; }
+    domainHealth.set(u, { at: Date.now(), ok });
     return { url: u, ok };
   }));
   // A name learned from the tunnel that no longer opens (the tunnel or its DNS record was deleted) is forgotten at once; only the one in
@@ -400,7 +405,8 @@ async function accessOf(inst, env) {
   const domainOk = domains.length ? domains[0].ok : null;
   // A permanent tunnel is any cloudflared process except the temporary one (its pid is in quick-tunnel.json), which is not "the tunnel".
   const quickPid = (quickState(inst) || {}).pid;
-  const tunnel = await run('tasklist', ['/FI', 'IMAGENAME eq cloudflared.exe', '/NH', '/FO', 'CSV']).then((o) => o.split(/\r?\n/).some((l) => /^"cloudflared[.]exe","(\d+)"/i.test(l) && Number(/^"[^"]*","(\d+)"/.exec(l)[1]) !== quickPid)).catch(() => false);
+  if (Date.now() - tunnelSeen.at > 10000) { tunnelSeen.list = await run('tasklist', ['/FI', 'IMAGENAME eq cloudflared.exe', '/NH', '/FO', 'CSV']).catch(() => ''); tunnelSeen.at = Date.now(); }
+  const tunnel = tunnelSeen.list.split(/\r?\n/).some((l) => /^"cloudflared[.]exe","(\d+)"/i.test(l) && Number(/^"[^"]*","(\d+)"/.exec(l)[1]) !== quickPid);
   // tunnelOk: a cloudflared process runs AND at least one of the names opens (a deleted tunnel keeps its process but nothing opens).
   return { local: 'http://localhost:' + (env.PORT || 3000), domain: publicDomain, domainOk, domains, tunnel, tunnelOk: tunnel && domains.some((d) => d.ok), quickUrl: quickUrlOf(inst) };
 }
@@ -651,61 +657,32 @@ function updateKind(i, l) {
   return null;
 }
 
-// Automatic update at night (owner, 2026-10-22): once a day, at the chosen hour (default 03:00), when GitHub has a newer version or build of the
-// program, the dashboard starts the same update as the button. The updater begins with a database backup and returns to the old version by
-// itself when the new one does not answer. The result of the last run is kept in dashboard-settings.json (autoUpdateLast).
-function autoUpdateOf(inst) {
-  const s = readSettings(inst);
-  return { on: s.autoUpdate !== false, hour: Number.isInteger(s.autoUpdateHour) ? s.autoUpdateHour : 3, last: s.autoUpdateLast || null };
-}
-function setAutoUpdate(inst, on, hour) {
-  const cur = readSettings(inst);
-  cur.autoUpdate = Boolean(on);
-  if (Number.isInteger(hour) && hour >= 0 && hour <= 23) cur.autoUpdateHour = hour;
-  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
-  return autoUpdateOf(inst);
-}
-async function autoUpdateTick() {
-  const now = new Date();
-  for (const inst of instances()) {
-    if (!inst.root || !inst.data) continue;
-    const auto = autoUpdateOf(inst);
-    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-    if (!auto.on || now.getHours() !== auto.hour || (auto.last && auto.last.date === today)) continue;
-    const running = jobs.get(inst.id);
-    if (running && running.state === 'running') continue;
-    const kind = updateKind(installed(inst), await latestCached(inst).catch(() => null));
-    const record = { date: today, at: new Date().toISOString(), result: kind ? 'started' : 'no_update' };
-    const cur = readSettings(inst); cur.autoUpdateLast = record;
-    try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
-    if (!kind) continue;
-    try {
-      const job = runUpdate(inst);
-      job.lines.push('Perditesim automatik (nata): backup i databazes, pastaj versioni i ri.');
-      const done = setInterval(() => {
-        if (job.state === 'running') return;
-        clearInterval(done);
-        const again = readSettings(inst); again.autoUpdateLast = { ...record, result: job.state, ended: new Date().toISOString() };
-        try { fs.writeFileSync(settingsFile(inst), JSON.stringify(again, null, 2)); } catch { /* read-only folder */ }
-      }, 5000);
-    } catch { /* an action is already running: next night */ }
-  }
-}
-setInterval(() => { autoUpdateTick().catch(() => {}); }, 60000).unref();
-
-// Automatic backup of the database: once a day at the chosen hour (default 02:00, before the update of 03:00), kept in the Backups folder like
-// the others. The owner chooses on/off and the hour (Veprime). Only the newest `keep` automatic backups are kept (default 14).
+// ONE automatic night job (owner, 2026-10-22: a backup at 02:00 and an update at 03:00 would save the database twice). Once a day, at the chosen hour
+// (default 02:00): when GitHub has a newer version or build of the program and "updateToo" is on, the update runs, and since the updater always begins
+// with a database backup, that is the day's backup (nothing is saved twice); otherwise the dashboard makes the backup itself. Only the newest `keep`
+// automatic backups are kept; manual ones and the updater's are never deleted by this rule. The result of the last run is shown in Veprime.
 function autoBackupOf(inst) {
   const s = readSettings(inst);
-  return { on: s.autoBackup !== false, hour: Number.isInteger(s.autoBackupHour) ? s.autoBackupHour : 2, keep: Number.isInteger(s.autoBackupKeep) ? s.autoBackupKeep : 14, last: s.autoBackupLast || null };
+  return { on: s.autoBackup !== false, hour: Number.isInteger(s.autoBackupHour) ? s.autoBackupHour : 2, keep: Number.isInteger(s.autoBackupKeep) ? s.autoBackupKeep : 14, updateToo: s.autoUpdate !== false, last: s.autoBackupLast || null };
 }
-function setAutoBackup(inst, on, hour, keep) {
+function setAutoBackup(inst, on, hour, keep, updateToo) {
   const cur = readSettings(inst);
   cur.autoBackup = Boolean(on);
   if (Number.isInteger(hour) && hour >= 0 && hour <= 23) cur.autoBackupHour = hour;
   if (Number.isInteger(keep) && keep >= 1 && keep <= 365) cur.autoBackupKeep = keep;
+  if (updateToo !== undefined) cur.autoUpdate = Boolean(updateToo);
   try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
   return autoBackupOf(inst);
+}
+function saveAutoResult(inst, record, result, name) {
+  const cur = readSettings(inst); cur.autoBackupLast = { ...record, result, name };
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
+}
+function rememberAndPrune(inst, names, keep) {
+  const mine = readSettings(inst); mine.autoBackupFiles = [...new Set([...(mine.autoBackupFiles || []), ...names])].slice(-400);
+  try { fs.writeFileSync(settingsFile(inst), JSON.stringify(mine, null, 2)); } catch { /* read-only folder */ }
+  const madeHere = new Set(mine.autoBackupFiles);
+  for (const old of listBackups(inst).filter((x) => madeHere.has(x.name)).slice(keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
 }
 async function autoBackupTick() {
   const now = new Date();
@@ -713,23 +690,35 @@ async function autoBackupTick() {
   for (const inst of instances()) {
     if (!inst.root || !inst.data) continue;
     const auto = autoBackupOf(inst);
-    if (!auto.on || now.getHours() !== auto.hour || (auto.last && auto.last.date === today)) continue;
+    // two independent switches (backup, update of the program), one shared hour: either, both or none
+    if ((!auto.on && !auto.updateToo) || now.getHours() !== auto.hour || (auto.last && auto.last.date === today)) continue;
     const running = jobs.get(inst.id);
-    if (running && running.state === 'running') continue; // an update makes its own backup first
+    if (running && running.state === 'running') continue;
     const record = { date: today, at: new Date().toISOString() };
-    const save = (result, name) => { const cur = readSettings(inst); cur.autoBackupLast = { ...record, result, name }; try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ } };
-    save('started');
+    const kind = auto.updateToo ? updateKind(installed(inst), await latestCached(inst).catch(() => null)) : null;
+    if (kind) {
+      // the update makes the backup (its first step): one backup, then the new version
+      saveAutoResult(inst, record, 'update_started');
+      try {
+        const job = runUpdate(inst);
+        job.lines.push('Perditesim automatik (nata): backup i databazes (nje here), pastaj versioni i ri.');
+        const started = job.started;
+        const done = setInterval(() => {
+          if (job.state === 'running') return;
+          clearInterval(done);
+          saveAutoResult(inst, record, job.state === 'ok' ? 'update_ok' : 'update_error');
+          try { rememberAndPrune(inst, listBackups(inst).filter((x) => Date.parse(x.time) >= started - 2000).map((x) => x.name), auto.keep); } catch { /* next time */ }
+        }, 5000);
+      } catch { saveAutoResult(inst, record, 'skipped: një veprim tjetër po ekzekutohej'); }
+      continue;
+    }
+    if (!auto.on) { saveAutoResult(inst, record, 'nothing'); continue; } // backup is off and there is no update
+    saveAutoResult(inst, record, 'started');
     try {
       const made = await backup(inst);
-      save('ok', made.name);
-      // remember which files this schedule made: only those are ever deleted by the "keep N" rule
-      const mine = readSettings(inst); mine.autoBackupFiles = [...(mine.autoBackupFiles || []), made.name].slice(-400);
-      try { fs.writeFileSync(settingsFile(inst), JSON.stringify(mine, null, 2)); } catch { /* read-only folder */ }
-      // keep the newest `keep` of the AUTOMATIC backups; manual ones and the updater's are never deleted here
-      const madeHere = new Set(readSettings(inst).autoBackupFiles || []);
-      const all = listBackups(inst).filter((b) => madeHere.has(b.name));
-      for (const old of all.slice(auto.keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
-    } catch (e) { save('error: ' + String(e.message).slice(0, 120)); }
+      saveAutoResult(inst, record, 'ok', made.name);
+      rememberAndPrune(inst, [made.name], auto.keep);
+    } catch (e) { saveAutoResult(inst, record, 'error: ' + String(e.message).slice(0, 120)); }
   }
 }
 setInterval(() => { autoBackupTick().catch(() => {}); }, 60000).unref();
@@ -745,9 +734,10 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoUpdate: autoUpdateOf(inst), autoBackup: autoBackupOf(inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: listBackups(inst).slice(0, 8), job: jobs.get(inst.id) || null };
 }
 
+const statusShared = { at: 0, promise: null };
 const send = (res, code, data, type = 'application/json') => {
   res.writeHead(code, { 'Content-Type': type + '; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
   res.end(typeof data === 'string' ? data : JSON.stringify(data));
@@ -785,7 +775,12 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, page.replace('__KEY__', SESSION_KEY), 'text/html');
     }
     if (req.method === 'GET' && url.pathname === '/api/status') {
-      return send(res, 200, { instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, at: new Date().toISOString() });
+      if (!statusShared.promise || Date.now() - statusShared.at > 3000) {
+        statusShared.at = Date.now();
+        statusShared.promise = (async () => ({ instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, at: new Date().toISOString() }))();
+        statusShared.promise.catch(() => { statusShared.promise = null; });
+      }
+      return send(res, 200, await statusShared.promise);
     }
     if (req.method === 'POST' && url.pathname === '/api/backup') {
       if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
@@ -807,6 +802,7 @@ const server = http.createServer(async (req, res) => {
       res.on('error', () => stream.destroy());
       return stream.pipe(res);
     }
+    if (req.method === 'POST') statusShared.promise = null;
     if (req.method === 'POST' && url.pathname.startsWith('/api/') && url.pathname !== '/api/backup') {
       if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
       const inst = find(url.searchParams.get('id'));
@@ -845,8 +841,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, left: listBackups(inst).length });
       }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
-      if (url.pathname === '/api/auto-backup') { needLocal(inst); const q = url.searchParams; return send(res, 200, setAutoBackup(inst, q.get('on') !== '0', q.has('hour') ? Number(q.get('hour')) : undefined, q.has('keep') ? Number(q.get('keep')) : undefined)); }
-      if (url.pathname === '/api/auto-update') { needLocal(inst); return send(res, 200, setAutoUpdate(inst, url.searchParams.get('on') !== '0', url.searchParams.has('hour') ? Number(url.searchParams.get('hour')) : undefined)); }
+      if (url.pathname === '/api/auto-backup') { needLocal(inst); const q = url.searchParams; return send(res, 200, setAutoBackup(inst, (q.get('backup') ?? q.get('on')) !== '0', q.has('hour') ? Number(q.get('hour')) : undefined, q.has('keep') ? Number(q.get('keep')) : undefined, q.has('update') ? q.get('update') !== '0' : undefined)); }
       if (url.pathname === '/api/dashboard-update') return send(res, 200, await updateDashboard());
       if (url.pathname === '/api/github-token') {
         // The read-only GitHub token for updates, typed on this computer (never sent anywhere but stored encrypted by the installation's own tool).

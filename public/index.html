@@ -119,6 +119,15 @@
   .pill { font-size:11px; padding:1px 8px; font-weight:500; }
   .act .item { padding:10px 12px; } .act .item span { font-size:12px; }
   .card:hover { border-color:var(--line) !important; }
+  .sw { display:inline-flex; align-items:center; gap:9px; cursor:pointer; user-select:none; font-size:12.5px; }
+  .sw input { position:absolute; opacity:0; width:0; height:0; }
+  .sw i { position:relative; width:34px; height:19px; border-radius:99px; background:var(--line); transition:background .15s; flex:none; }
+  .sw i::after { content:''; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.3); transition:transform .15s; }
+  .sw input:checked + i { background:var(--accent); } .sw input:checked + i::after { transform:translateX(15px); }
+  .sw input:focus-visible + i { outline:2px solid var(--accent); outline-offset:2px; }
+  .sched { display:grid; gap:10px; }
+  .sched .line { display:flex; flex-wrap:wrap; align-items:center; gap:14px; }
+  .sched .hint { color:var(--muted); font-size:12px; }
   .progress { height:6px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:8px; }
   .progress i { display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .6s ease; }
   .progress.indet i { width:35%; animation:slide 1.3s infinite ease-in-out; }
@@ -391,22 +400,17 @@ function view(s) {
     if (!confirm((s.update ? '' : 'Nuk shfaqet version i ri. Ta kontrolloj dhe ta përditësoj gjithsesi?' + NL + NL) + 'Përditësoj "' + s.name + '" në ' + (s.latest && s.latest.version || '?') + '?' + NL + 'Bëhet backup, pastaj build dhe migrimet; në dështim kthehet vetë te versioni i vjetër.')) return;
     if (await call('update', '', 'Përditësimi filloi...')) { go('log'); load(); }
   };
-  // Automatic update at night: on/off and the hour.
-  const au = s.autoUpdate || { on: true, hour: 3, last: null };
-  const hourSel = el('select', { 'aria-label': 'Ora e përditësimit', style: 'font:inherit;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)' }, ...Array.from({ length: 24 }, (_, h) => { const o = el('option', { value: String(h) }, String(h).padStart(2, '0') + ':00'); if (h === au.hour) o.selected = true; return o; }));
-  hourSel.onchange = async () => { if (await call('auto-update', '&on=' + (au.on ? 1 : 0) + '&hour=' + hourSel.value, 'Ora u ruajt.')) load(); };
-  const autoBtn = el('button', { type: 'button', class: au.on ? 'btn ghost' : 'btn' }, au.on ? 'Fike' : 'Ndize');
-  autoBtn.onclick = async () => { if (await call('auto-update', '&on=' + (au.on ? 0 : 1) + '&hour=' + hourSel.value, au.on ? 'Përditësimi automatik u fik.' : 'Përditësimi automatik u ndez.')) load(); };
-  const autoLast = !au.last ? 'Ende pa ekzekutim.' : 'Hera e fundit: ' + au.last.date + ' · ' + ({ no_update: 'nuk kishte version të ri', started: 'filloi', ok: 'u krye me sukses', error: 'dështoi (shiko Log-un)' }[au.last.result] || au.last.result);
   // Automatic backup: on/off, the hour and how many to keep.
-  const ab = s.autoBackup || { on: true, hour: 2, keep: 14, last: null };
+  const ab = s.autoBackup || { on: true, hour: 2, keep: 14, updateToo: true, last: null };
   const selStyle = 'font:inherit;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)';
   const abHour = el('select', { 'aria-label': 'Ora e backup-it', style: selStyle }, ...Array.from({ length: 24 }, (_, h) => { const o = el('option', { value: String(h) }, String(h).padStart(2, '0') + ':00'); if (h === ab.hour) o.selected = true; return o; }));
-  const abKeep = el('select', { 'aria-label': 'Sa backup të mbahen', style: selStyle }, ...[3, 7, 14, 30, 60, 90].map((n) => { const o = el('option', { value: String(n) }, 'mbaj ' + n); if (n === ab.keep) o.selected = true; return o; }));
-  const abSave = async (on) => { if (await call('auto-backup', '&on=' + (on ? 1 : 0) + '&hour=' + abHour.value + '&keep=' + abKeep.value, 'U ruajt.')) load(); };
+  const abKeep = el('select', { 'aria-label': 'Sa backup të mbahen', style: selStyle }, ...[3, 7, 14, 30, 60, 90].map((n) => { const o = el('option', { value: String(n) }, n + ' backup'); if (n === ab.keep) o.selected = true; return o; }));
+  const abSave = async (on, upd) => { if (await call('auto-backup', '&backup=' + (on ? 1 : 0) + '&hour=' + abHour.value + '&keep=' + abKeep.value + '&update=' + ((upd === undefined ? ab.updateToo : upd) ? 1 : 0), 'U ruajt.')) load(); };
   abHour.onchange = () => abSave(ab.on); abKeep.onchange = () => abSave(ab.on);
-  const abBtn = el('button', { type: 'button', class: ab.on ? 'btn ghost' : 'btn' }, ab.on ? 'Fike' : 'Ndize'); abBtn.onclick = () => abSave(!ab.on);
-  const abLast = !ab.last ? 'Ende pa ekzekutim.' : 'Hera e fundit: ' + ab.last.date + ' · ' + (ab.last.result === 'ok' ? 'u ruajt ' + ab.last.name : ab.last.result);
+  const sw = (label, on, onChange) => { const input = el('input', { type: 'checkbox' }); input.checked = !!on; input.onchange = () => onChange(input.checked); return el('label', { class: 'sw' }, input, el('i'), label); };
+  const abSwBackup = sw('Backup i databazës', ab.on, (v) => abSave(v, undefined));
+  const abSwUpdate = sw('Përditëso programin', ab.updateToo, (v) => abSave(ab.on, v));
+  const abLast = !ab.last ? 'Ende pa ekzekutim.' : 'Hera e fundit: ' + ab.last.date + ' · ' + ({ ok: 'backup u ruajt', update_started: 'përditësimi filloi', update_ok: 'përditësim i kryer (me backup)', update_error: 'përditësimi dështoi (shiko Log-un)' }[ab.last.result] || ab.last.result) + (ab.last.name && ab.last.result === 'ok' ? ' ' + ab.last.name : '');
   const backupBtn = el('button', { type: 'button', class: 'btn ghost' }, 'Backup tani');
   backupBtn.disabled = busy;
   backupBtn.onclick = async () => {
@@ -455,7 +459,6 @@ function view(s) {
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
         ...(s.update ? [item('Përditëso aplikacionin', 'Ka version të ri (' + latText + ').', updBtn)] : []),
-        item('Përditësim automatik natën', (au.on ? 'Çdo natë në ' + String(au.hour).padStart(2, '0') + ':00 · backup, pastaj përditësim nëse ka version të ri. ' : 'Fikur. ') + autoLast, hourSel, autoBtn),
         ...(dash && dash.files ? [item('Përditëso dashboard-in', dashText, dashBtn)] : []))),
       el('div', { class: 'card' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'act' },
         item('Paneli /developer', 'Branding, module, databazë. Hapet pa token.', devBtn),
@@ -463,7 +466,11 @@ function view(s) {
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Databaza'), el('div', { class: 'act' },
         item('Backup tani', 'Kopje e databazës.', backupBtn),
-        item('Backup automatik', (ab.on ? 'Çdo ditë në ' + String(ab.hour).padStart(2, '0') + ':00 · mbahen ' + ab.keep + '. ' : 'Fikur. ') + abLast, abHour, abKeep, abBtn),
+        el('div', { class: 'item' }, el('div', { class: 'sched' },
+          el('div', {}, el('b', {}, 'Automatik në natë'), el('span', {}, 'Një orar i përbashkët: backup dhe përditësim nuk dyfishohen (përditësimi përfshin backup-in).')),
+          el('div', { class: 'line' }, el('span', { class: 'hint' }, 'Ora'), abHour, el('span', { class: 'hint' }, 'Mbaj'), abKeep),
+          el('div', { class: 'line' }, abSwBackup, abSwUpdate),
+          el('div', { class: 'hint' }, ((ab.on || ab.updateToo) ? '' : 'Të dyja fikura. ') + abLast))),
         item('Ekzekuto SQL', 'Skedar .sql (backup para).', sqlBtn, sqlInput),
         s.ownerMissing ? '' : item('Importo databazën', 'Zëvendëson databazën me një dump (backup automatik).', importBtn, importInput))),
       el('div', { class: 'card' }, el('h2', {}, 'Lidhjet'), el('div', { class: 'act' },

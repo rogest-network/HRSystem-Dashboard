@@ -121,6 +121,19 @@
 <div class="toast" id="toast"></div>
 <script>
 const KEY = '__KEY__';
+// The key of this page is new on every start of the dashboard (it also restarts itself after an update): a request with the old key answers
+// 403 "forbidden". The page then reloads itself once to get the new key, instead of showing "forbidden" on every button.
+(() => {
+  const plainFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const res = await plainFetch(...args);
+    if (res.status === 403 && String(args[0]).startsWith('/api/') && !window.__reloading) {
+      const j = await res.clone().json().catch(() => ({}));
+      if (j.error === 'forbidden') { window.__reloading = true; const t = document.getElementById('toast'); if (t) { t.textContent = 'Dashboard-i u rinis: po rifreskohet...'; t.className = 'toast show'; } setTimeout(() => location.reload(), 1200); }
+    }
+    return res;
+  };
+})();
 const NL = String.fromCharCode(10);
 const $ = (id) => document.getElementById(id);
 const fmtSize = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';

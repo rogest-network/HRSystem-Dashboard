@@ -164,7 +164,7 @@ const store = { get(k, d) { try { return localStorage.getItem(k) || d; } catch {
 function el(tag, props = {}, ...kids) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n[k] = v; else n.setAttribute(k, v); }
-  for (const kid of kids) if (kid !== null && kid !== undefined && kid !== false) n.append(kid);
+  for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false) n.append(kid); // lists are flattened (a list used to show as [object HTMLButtonElement])
   return n;
 }
 const pill = (cls, text) => el('span', { class: 'pill ' + cls }, text);

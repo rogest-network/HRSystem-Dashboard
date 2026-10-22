@@ -1,65 +1,153 @@
-# Dashboard (manager) — architecture and rules, for Claude
+# HRSystem Dashboard ("manager") — complete technical reference for Claude
 
-Read this first when working on the dashboard. `README.md` here is the user-facing feature list (Albanian). This file is how it is built and how to change it safely.
-Last updated: 2026-10-22.
+Audience: a future Claude session. Read this whole file before touching anything in `manager/`.
+`README.md` (same folder) is the owner-facing feature list in Albanian. This file is the engineering truth.
+Last updated: 2026-10-22. If you change behaviour, update this file in the same turn.
 
-## What it is
-A local control panel for an HRSystem installation on the owner's PC (health, speed, backups, updates, versions, logs, errors, notifications).
-Dependency-free Node (`server.mjs`, ~1900 lines) + one static page (`public/index.html`, ~1350 lines, vanilla JS, no build step).
-It is **local only**: it never watches or touches the live site (Hostinger / staff.butikuregina.com). Do not add features that do.
+---------------------------------------------------------------------------
 
-## Where things are
-| Place | What |
+## 1. TL;DR
+
+- A **local-only control panel** for an HRSystem installation (Regina.HR: PWA + Node server + MySQL) on the owner's Windows PC.
+- Shows health/speed/backups/versions/logs/errors; can update, back up, restore, roll back, stop/start the app, send phone notifications.
+- Two source files do almost everything: `server.mjs` (Node, no dependencies, ~1900 lines) and `public/index.html` (vanilla JS + CSS, ~1350 lines, no build step).
+- Runs elevated, bound to `127.0.0.1`, protected by a per-run key (+ optional password).
+- Updates itself every 10 min from the public GitHub repo `rogestshalaa/HRSystem-Dashboard` with automatic rollback.
+- UI languages: Albanian (source), English, Serbian.
+
+### Hard rules (never break)
+1. **Local only.** Never add anything that watches, probes or changes the live site (Hostinger, staff.butikuregina.com), Cloudflare zone settings, or the live database. Probing the installation's *own* public address for the address-down alert is the only outward check.
+2. **Never use drive D:** (the owner's external HDD). Everything lives on C:.
+3. Never type/ask for the owner's passwords. Never print tokens/secrets (they are masked).
+4. Dashboard-only changes publish **only** to the Dashboard repo (no asking). Program (`Source/`) changes are a different workflow (ask which repos). Installer scripts stay in `Setup/Claude Studio/installer/` (except the three `root/` scripts, which are mirrored in the Dashboard repo).
+5. Reply to the owner in **Albanian, short**; the closing list ("Lista jote") contains only things that need his action now.
+6. Stay dependency-free (Node built-ins only) and `127.0.0.1`-only.
+
+---------------------------------------------------------------------------
+
+## 2. Where everything lives
+
+| Path / place | What it is |
 |---|---|
-| `Setup/Claude Studio/manager/` | the working copy (edit here) |
-| GitHub `rogestshalaa/HRSystem-Dashboard` (public, `main`) | the published copy: `server.mjs`, `public/index.html`, `README.md`, `Dashboard.bat`, `instances.example.json`, `root/` (PowerShell scripts of the installation root: `hr-common.ps1`, `updater.ps1`, `sql-import.ps1`) |
-| `C:\HRSystem\manager\` | the installed copy; equals the repo. Never hand-edit; it self-updates |
-| `C:\HRSystem\dashboard-settings.json` | all dashboard settings and state (see below) |
-| `C:\HRSystem\dashboard-url.txt` | the port of the running dashboard (random, e.g. 56308) |
-| `manager/dashboard-errors.log` | the dashboard's own runtime errors (JSON lines, ~1500 kept) |
-| `manager/dashboard.key` | optional sign-in password (hash); delete the file = no password |
+| `Setup/Claude Studio/manager/` | **Working copy. Edit here.** |
+| GitHub `rogestshalaa/HRSystem-Dashboard`, branch `main` (public) | Published copy: `server.mjs`, `public/index.html`, `README.md`, `ARCHITECTURE.md`, `Dashboard.bat`, `instances.example.json`, `root/*.ps1` |
+| `C:\HRSystem\manager\` | Installed copy (== repo). Self-updates. **Never hand-edit** except when deploying right after a publish (copy the same files). Only files that already exist there are replaced by self-update (new files such as ARCHITECTURE.md are not installed). |
+| `C:\HRSystem\` | The installation root: `.env` (DB + secrets), `update.json`, `start-hrsystem.ps1`, `updater.ps1`, `hr-common.ps1`, `sql-import.ps1`, `Uninstall.bat`, `HRSystem-Server.log`, `Updater.log`, `Dashboard.log`, `dashboard-url.txt` (port), `dashboard-settings.json`, `github.token` (DPAPI-encrypted), `releases/`, `current.txt` |
+| `C:\HRSystem\dashboard-settings.json` | All dashboard settings/state (section 7). |
+| `manager/dashboard-errors.log` | Dashboard's own runtime errors, JSON lines (about 1500 kept). |
+| `manager/dashboard.key` | Optional sign-in password (hash). Delete it = no password. |
+| `manager/.previous/` | Files kept by the last self-update, for rollback. |
+| `Setup/Claude Studio/installer/` | Windows setup scripts (`Install.bat`, `installer.ps1`, `wizard.ps1`, `updater.ps1`, `sql-import.ps1`, `uninstall.ps1`, `hr-common.ps1`). PowerShell 5.1: **a script with non-ASCII text must have a UTF-8 BOM** (wizard/installer/uninstall have it). |
+| `Setup/Claude Studio/scripts/pack.py` | Builds release zips (program, not dashboard). |
+| `Setup/Versions/`, `Regina Center SHPK/` | Program releases and the client project (not dashboard). |
 
-Publishing a dashboard-only change (owner's standing order, no asking, **only the Dashboard repo**, not Regina/Template): clone the repo to the scratchpad, copy `server.mjs`, `README.md`, `public/index.html` (and any `root/` script you changed), commit with the Co-Authored-By line, push, then copy the same files to `C:\HRSystem\manager`. Installed dashboards pick it up within 10 minutes.
-Installer scripts (`Setup/Claude Studio/installer/`) stay in `Setup` and are not pushed to repos, except the three `root/` scripts.
+Ports: the installed dashboard picks a random port (stored in `dashboard-url.txt`, e.g. 56308). `Dashboard.bat` and tests use `MANAGER_PORT` (3500 for tests). The real app listens on 3000. The test MySQL used by program tests is 3399 (scratchpad datadir, root pw `x`).
 
-## Runtime
-- Started by `Dashboard.bat` / the Windows scheduled task, elevated, listens on **127.0.0.1 only**; any other `Host` header gets 403.
-- Every run makes a random `SESSION_KEY` (embedded in the served HTML); every POST needs it as `X-Manager-Key` (403 otherwise). GETs of state need no key.
-- Optional password (`dashboard.key`): login page + session cookie; 5 wrong tries lock for a minute.
-- `MANAGER_PORT` env fixes the port (tests use 3500). **The server caches `index.html` at start: restart it after editing the page.**
-- Instances: found from `C:\HRSystem` (or `instances.json`). `inst.root` = install folder, `inst.data` = backups, `needLocal(inst)` guards local-only actions.
+---------------------------------------------------------------------------
 
-## server.mjs map (search the section comments)
-- Error logs: `logError`, `readErrorEntries`, `tailText`, `errorsOf` (routes `/api/errors`, `/api/errors-file`, `/api/errors-clear`).
-- Jobs (update, SQL import): run in the background, the page polls `/api/job`.
-- Rollback to an older program version (`/api/rollback`), versions list (`/api/versions`).
-- Where everything is (`status(inst)` builds the big status object), domains/tunnels (`learnDomains`, quick tunnel = hidden cloudflared, `/api/quick-tunnel`).
-- Self-update from the public repo: compares git blob hashes, applies, keeps `.previous/`, writes `server.mjs` last, a guard process restores the old files if the new one does not answer in 25 s. Only files that already exist locally are replaced.
-- Professional extras: history (last 200), notifications (`notify`, `composeNote`, `sendNotify`, levels critical/error/warn/ok/info; ntfy topic or webhook), off-PC backup copy, backup check, disk/resources, password, diagnostics file.
-- Alerts: `staleBackupCheck` (>36 h), `addressCheck` (down 5 min), `runBackupTest` (loads a dump into a temp DB, checks, drops it), `dailyReportText/Check` (hour = `notify.hour`, default 8, chosen on the Actions page).
-- Start with Windows (autostart per part), Live (`/api/live` SSE, one 3 s pulse while a page is open), `serverLocation()` (country, Cloudflare colo, IP, host).
-- `watchTick` every 30 s: app health, self-heal restart (not after a manual Stop), disk, stale backup, address check, daily report.
-- Other timers: auto backup (60 s tick, hour in settings), off-PC sync 5 min, token-follow 10 min, version recording 10 min, process stats 20 s, quick tunnel check 20 s.
-- Router at the bottom: GET routes first, then `POST /api/*` behind the key check. Thrown errors become `400 {error}` and are logged.
+## 3. Runtime model and security
 
-## Settings keys (`dashboard-settings.json`)
-`notify {on,target,daily,hour}`, `offsite`, `history`, `autoUpdate*`, `autoBackup*`, `versionLog`, `backupVersions`, `backupTests`, `pinned`, `domainsSeen/Hidden`, `quickLast`, `quickWanted`, `ioDay/netDay`, `lastStaleAlert`, `lastDailyReport`, `manualStop`. Edit by code (`readSettings`/`settingsWrite`), not by hand while running.
+- Started by Windows (scheduled task / `Dashboard.bat`), **elevated**, listens **only on 127.0.0.1**. A request with any other `Host` header gets 403.
+- On each start a random `SESSION_KEY` is generated and embedded in the served HTML. Every `POST /api/*` needs header `X-Manager-Key: <SESSION_KEY>` (403 otherwise; the page reloads itself once after a dashboard restart to pick up the new key).
+- Plain GETs (status, errors, files lists) need no key. No path comes from the user for file operations: deletes/downloads/opens map a name against an internal list (path traversal returns 404).
+- Optional password (`dashboard.key`): login page + session cookie valid while the browser stays open; 5 wrong tries lock for a minute; change requires the current one; "Hiq fjalëkalimin" removes it. `DASHBOARD_KEY` env var also works (cannot be changed from the UI).
+- Request bodies are capped (small JSON 2–4 KB; SQL 50 MB; import 300 MB).
+- Thrown errors in the router become `400 {error}` and are logged with `logError`.
+- **`index.html` is read once at start. After editing the page, restart the server** (a stale page is the #1 false "my change doesn't work").
 
-## public/index.html map
-- `pages.home | data | actions | backup | files | help | settings | errors | history | log`; menu array with icons; `render()` rebuilds the current page from `state.data` (the `/api/status` object), refreshed by SSE.
-- Helpers: `el()`, `sw()` (switch), `item()`, `pill()`, `call(name, query, okMsg)` (POST with the key + toast), `postJson`, `toast`, `header`.
-- **Languages: Albanian (source text), English, Serbian.** Every UI string is Albanian in the code; `TR_LIST` rows `[sq, en, sr]` build `TR_EXACT` and `TR_FRAG`; `t()` tries an exact match, then whole-word fragments (regex with Unicode word boundaries, so a fragment never matches inside a word). **Any new visible text needs a TR_LIST row**, and so does any message the server generates (history titles, notification text, job output). The Help page has three full guides (sq/en/sr) in `HELP`.
-- Accessibility (WCAG 2.2 AA): do not remove the Settings → Accessibility options, focus styles, 44 px targets, status symbols next to colours.
-- Theme: light/dark/auto with CSS variables; must work at phone width (375 px).
+---------------------------------------------------------------------------
 
-## Rules when changing it
-1. Edit with the Edit tool or byte-safe writes (the files use CRLF in places; Python text mode or a shell `sed` over backslashes has broken them before). Keep `\\` inside JS strings intact.
-2. After editing: `node --check server.mjs`; extract the `<script>` of `index.html` and `node --check` it; restart the test dashboard (`MANAGER_PORT=3500 node server.mjs` in `manager/`, kill it afterwards) and click every page in sq/en/sr, light/dark, phone width; check the browser console and the Gabimet page.
-3. Tests send **real** ntfy messages to the owner's phone unless `notify.on` is false; restore `dashboard-settings.json` (notify on, no fake domains, no test keys) when done, and never leave test servers or `dashboard.key` behind.
-4. Never run uninstall, stop, restore or SQL import against the real `C:\HRSystem` while testing; use a sandbox on C: (never D:).
-5. Never touch Hostinger, staff.butikuregina.com, Cloudflare zone settings or the live database from the dashboard.
-6. Keep it dependency-free (Node built-ins only) and keep `127.0.0.1`-only.
-7. Reply to the owner in Albanian, short; list only what needs his action.
+## 4. Backend map (`server.mjs`)
 
-## Known limits (not tested)
-Real clean install through the wizard, real uninstall, a real phone, screen readers, MariaDB.
+Search the section comments (`// ======`, `// ----`). Order in the file, roughly:
+
+| Section | Key functions | Notes |
+|---|---|---|
+| Error logs | `logError`, `readErrorEntries`, `errorsLastDay`, `tailText`, `errorsOf`, `LOG_FILES` | UTF-16 logs (PowerShell redirects) are detected by NUL bytes. Sources: `dashboard`, `app`, `updater`, `dashboardlog`. |
+| Backups | `backup`, `backupRaw` (mysqldump to `<data>/backups`), `listBackups`, `checkBackup` (ends with mysqldump's closing line), `withVersions` (adds program version + `tested`) | |
+| Jobs | `startJob`, `jobs` Map, `runUpdate`, `spawnUpdater` | One job per instance at a time; the page polls `/api/job`; output lines kept (200). |
+| Rollback | `versionsOf`, `rollbackRepo` | Go back to an older program version (from repo Releases) or restore a backup (`/api/backup-restore`). |
+| Instances/paths | `instances()`, `find(id)`, `needLocal(inst)`, `pathsOf`, `readEnv` | Without `instances.json` one instance is auto-detected from the install root. |
+| Settings | `readSettings`, `settingsWrite` | JSON file, read on demand. Never edit by hand while running. |
+| Domains/tunnels | `learnDomains`, `normalizeDomain`, `addressCheck`, quick tunnel (hidden cloudflared; `startQuick`), `removeTunnel`, `/api/tunnel-token` | Temporary `*.trycloudflare.com` address changes on every restart; the phone is told the new one. |
+| System control | `systemAction(inst, 'start'|'stop'|'restart')` | Stop = scheduled task, then the launcher `start-hrsystem.ps1` (it restarts node after 3 s), then node. Start = the task, else a new launcher. Sets `manualStop` so self-heal stays quiet. |
+| Dashboard self-update | `dashboardDiff`, `updateDashboard`, `autoUpdateDashboard`, `gitBlobSha`, `ROOT_FILES` | Compares GitHub tree blob hashes with local files, downloads changed ones, backs up to `.previous/`, writes `server.mjs` **last** (that restarts it), guard process restores old files if the new dashboard does not answer within 25 s. Also updates `root/hr-common.ps1`, `updater.ps1`, `sql-import.ps1` in the install root. |
+| Extras | `addHistory` (last 200), notifications, off-PC copy (`syncOffsite`), disk/resources, password, `diagnostics` (one .txt, secrets masked) | |
+| Notifications | `notify(inst,title,msg,level)`, `composeNote`, `sendNotify`, `NOTE_LEVELS`, `setNotify`, `notifyOf`, `hourOf` | Levels: critical, error, warn, ok, info. Target = ntfy topic (owner's: `hrsystem-home`) or https webhook. Title is "<company> · <what>", body ends with time. **Real messages reach the owner's phone during tests.** |
+| Watcher | `watchTick` every 30 s | App health, self-heal restart (not after manual Stop; retries at most every 10 min), disk, stale-backup alert, address alert, daily report. |
+| Alerts | `staleBackupCheck` (>36 h, env `HR_STALE_MS`), `addressCheck` (down 5 min, `HR_ADDR_DOWN_MS`), `runBackupTest` (loads dump into a temp DB via `mysqlQuery`, checks, drops it), `dailyReportText/Check` (hour = `notify.hour`, default 8, env `HR_DAILY_HOUR`) | The daily report is sent once per day, at the chosen hour or the first time the dashboard runs after it. |
+| Autostart | `autostartState`, `setAutostart` | Per part (app, database, tunnel, dashboard) or all. |
+| Live | `/api/live` (SSE), `liveClients` | While a page is open, one light pulse every 3 s (app down: every 15 s). |
+| Status | `status(inst)` | Builds the big object the page renders; cached 3 s in `statusShared`. |
+| Router | bottom of file | GET routes first; then `if POST … X-Manager-Key` check; `needLocal` for anything touching the PC. |
+
+### Status object (`GET /api/status`)
+`{ instances: [ { id, name, url, health, installed, latest, update, backups[{…, check, tested, versions}], system, usage, history[100], notify{on,target,daily,hour}, offsite, job, autoBackup, autostart[], tokenSet, paths, access, ownerMissing, canUninstall, pinned, database, repo, channel, local, note } ], dashboard, dashboardRepo, errors{day}, location{ip,country,colo,host,zone}, security{password,env}, at }`
+
+### API routes
+GET: `/api/status`, `/api/live` (SSE), `/api/job`, `/api/versions`, `/api/errors?id&source&limit`, `/api/errors-file`, `/api/backup-file` (download), `/api/diagnostics`.
+POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
+`backup`, `backup-delete`, `backup-restore`, `backup-test`, `open-folder`, `open`, `import` (SQL backup upload), `sql` (run SQL), `update`, `rollback`, `system?do=start|stop|restart`, `autostart`, `auto-backup`, `github-token`, `secrets`, `setup-link`, `developer-open`, `quick-tunnel`, `tunnel-token`, `tunnel-remove`, `address-remove`, `unpin`, `notify`, `notify-test`, `daily-report`, `offsite`, `offsite-sync`, `errors-clear`, `dashboard-update`, `dashboard-password`, `dashboard-password-show`, `dashboard-logout`, `uninstall`.
+
+---------------------------------------------------------------------------
+
+## 5. Frontend map (`public/index.html`)
+
+- Single page. Menu: Pasqyra (home), Të dhënat (data), Veprime (actions), Backup-et, Vendndodhja (files), Gabimet (errors, red count badge = errors in 24 h), Log-u, Historiku, Si ta përdorësh (help); Cilësimet (settings) in the footer/menu.
+- Pages are functions: `pages.home | data | actions | backup | files | help | settings | errors | history | log`. `render()` rebuilds the current page from `state.data` (the status object); SSE `/api/live` and a poll refresh it. `load()` re-fetches status.
+- Helpers: `el(tag, attrs, ...children)`, `sw(label, checked, onChange)` switch, `item(title, hint, control)`, `pill(kind, text)`, `call(name, query, okMsg)` (POST with key + toast, returns JSON or false), `postJson(name, body)`, `toast(msg, isError)`, `header(title, sub, actions)`, `fmtTime`.
+- Persistence in the browser: `localStorage` keys `lang` (`sq|en|sr`, default `sq`), `section` (current page), theme and accessibility options.
+- **i18n:** all UI source strings are Albanian. `TR_LIST` rows `[sq, en, sr]` build `TR_EXACT` (whole string) and `TR_FRAG` (fragments). `t(s)` = exact match, else whole-word fragment replacement (regexes with Unicode lookarounds, built once per language by `fragRegexes`) so a fragment never matches inside a longer word. **Every new visible string needs a TR_LIST row. Every message generated by the server (history titles, notification text, job output, error messages) needs one too**, otherwise English/Serbian show a mixed-language line. The Help page has three complete guides in `HELP` (sq/en/sr): update them when a feature changes.
+- Accessibility (WCAG 2.2 AA) is a requirement: 44 px targets, strong focus rings, status symbols beside colours, no motion-only cues, pause for live updates, text spacing, forced-colors support. Don't regress it.
+- Theme: CSS variables, light/dark/auto; must be usable at 375 px width.
+
+---------------------------------------------------------------------------
+
+## 6. Key flows (how things actually work)
+
+- **Backup:** `/api/backup` → `mysqldump` (`--single-transaction`, utf8mb4) to `<data>/backups/<name>.sql` → `checkBackup` → history entry → optional off-PC copy. Auto backup runs at `autoBackupHour` (default 2), keeps `autoBackupKeep` (7). Failure → error notification + history.
+- **Backup test:** creates temp DB, loads the dump, counts tables/users, drops the DB; result stored in `backupTests`, shown as "I provuar".
+- **Update of the program:** `runUpdate` → `updater.ps1` (reads `update.json` {repo, channel}; `stable` = newest non-pre-release, `test` = newest incl. pre-releases) → backup, build, migrations, health check, automatic return on failure. Release asset name: `HRSystemV<x>-Hostinger.zip` up to 1.0.1, `HRSystem-<x>.zip` from 1.0.2 (both accepted).
+- **Self-heal:** app down >1 min and not manually stopped and autostart on → start it, notify.
+- **Address alert:** each learned public domain is requested every 30 s; 5 min down → alert, back → "Adresa u kthye".
+- **Daily report:** composed from health, backup age/test, disk, addresses, version; level ok/warn/error by content.
+
+---------------------------------------------------------------------------
+
+## 7. Settings file keys (`dashboard-settings.json`)
+
+`notify {on, target, daily, hour}`, `offsite {path, on}`, `offsiteLast`, `history[]`, `autoUpdate`, `autoUpdateHour`, `autoUpdateLast`, `autoBackup`, `autoBackupHour`, `autoBackupKeep`, `autoBackupLast`, `versionLog[]`, `backupVersions{}`, `backupTests{}`, `pinned`, `domainsSeen{}`, `domainsHidden[]`, `quickLast`, `quickWanted`, `ioDay` / `netDay` (traffic counters), `lastStaleAlert`, `lastDailyReport`, `manualStop`. Change through the code paths above, not by hand while the dashboard runs.
+
+---------------------------------------------------------------------------
+
+## 8. How to change something (checklist)
+
+1. Edit with the **Edit tool** (or byte-safe writes). Files may contain CRLF and `\\` sequences; shell here-docs/Python text mode have corrupted backslashes and line endings before. After a Python rewrite check `git diff`-style that nothing else moved.
+2. New UI text → TR_LIST row (en + sr) and, if it is in a guide, the three `HELP` texts. New server message → TR_LIST row.
+3. Syntax checks: `node --check server.mjs`; extract the last `<script>…</script>` of `index.html` to a temp file and `node --check` it.
+4. Run a **test dashboard**: in `manager/` run `MANAGER_PORT=3500 node server.mjs` (hidden/background), restart it after every edit. Open it in the Browser pane. Note: a test dashboard needs the real install root to show an instance, otherwise it says "no installation found".
+5. UI QA: every page × `sq`/`en`/`sr` × light/dark × phone width (resize_window mobile) ; read the console (no errors) and the Gabimet page; in `en`/`sr` scan the page text for leftover Albanian words.
+6. API QA for new routes: no key → 403, bad id → 404, malformed JSON → 400, oversized body → 413/400, never a stack trace to the client.
+7. **Tests send real phone notifications** unless `notify.on` is false. Afterwards restore `dashboard-settings.json` (notify on, no fake domains such as `no-such-host.invalid`, no test keys), delete test `dashboard.key`, stop test servers (the dashboard on 3500, `mysqld` on 3399), and confirm the real app on 3000 is up.
+8. Never run uninstall / stop / restore / SQL import against the real `C:\HRSystem` while testing; use a sandbox on C:.
+9. Update `README.md` (Albanian, features) and this file.
+10. Publish (dashboard-only, no asking): clone the repo into the scratchpad (`git pull`), copy `server.mjs`, `public/index.html`, `README.md`, `ARCHITECTURE.md` (+ any changed `root/` script), `git commit` with the line `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`, `git push origin HEAD`. Then copy the same files to `C:\HRSystem\manager` (or wait ≤10 min for self-update). Verify: the installed dashboard's `/api/status` shows your new fields.
+
+---------------------------------------------------------------------------
+
+## 9. Gotchas learned the hard way
+
+- Stale page after editing `index.html` (cached at start) → restart the server.
+- Stopping "only node" does not stop the app: the launcher restarts it. Always use `systemAction`.
+- Windows PowerShell 5.1 + non-ASCII text without BOM = mojibake. Keep BOMs; avoid `&&`, ternaries, `?.` in `.ps1`.
+- WMI/CIM hidden-window process starts need correct syntax; the quick tunnel runs hidden (no console windows popping up).
+- A comment placed before code on the same line swallows the code; duplicate object keys are silent.
+- Fragment translation inside words caused "Application nuk përgjigjet" — fixed with word-boundary regexes; keep exact rows for generated sentences.
+- Cookies ignore ports, so the dashboard can hand a session cookie to the app on another 127.0.0.1 port (used by "open developer").
+- GitHub token for the installation is fine-grained, Contents read-only, one repo. The dashboard's own repo is public and needs no token.
+
+---------------------------------------------------------------------------
+
+## 10. Not yet verified (be honest in reports)
+
+Real clean install through the wizard on a blank PC, real uninstall, a real phone (layout and notifications on iOS/Android), screen readers (NVDA/VoiceOver), MariaDB, Windows Home vs Pro differences.

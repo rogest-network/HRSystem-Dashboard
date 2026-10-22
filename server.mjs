@@ -786,6 +786,10 @@ async function setAutostart(inst, which, on) {
 // /api/health request to the application per installation (not the 3 samples of the full status), the job (progress and log) and a signature of
 // what changes (job, backups, installed version). The pulse goes to every open page; when the signature changes a "changed" event makes the page
 // reload the full status at once. With no page open nothing runs, so the application feels no difference.
+// The id of what the page is made of (the two files' times): the pulse carries it, and a page that was loaded with another id reloads itself once.
+function pageVersion() {
+  try { return Math.round(fs.statSync(path.join(HERE, 'server.mjs')).mtimeMs) + '-' + Math.round(fs.statSync(path.join(HERE, 'public', 'index.html')).mtimeMs); } catch { return '0'; }
+}
 const liveClients = new Set();
 const liveLast = new Map(); // inst.id -> signature
 let liveTimer = null;
@@ -814,7 +818,7 @@ function liveStart() {
       const list = await pulseOnce();
       let changed = false;
       for (const p of list) { if (liveLast.has(p.id) && liveLast.get(p.id) !== p.sig) changed = true; liveLast.set(p.id, p.sig); }
-      const body = JSON.stringify({ at: new Date().toISOString(), instances: list.map(({ sig, ...rest }) => rest) });
+      const body = JSON.stringify({ at: new Date().toISOString(), v: pageVersion(), instances: list.map(({ sig, ...rest }) => rest) });
       for (const res of liveClients) {
         try { res.write('event: pulse\ndata: ' + body + '\n\n'); if (changed) res.write('event: changed\ndata: {}\n\n'); } catch { liveClients.delete(res); }
       }
@@ -860,7 +864,7 @@ const server = http.createServer(async (req, res) => {
         // Usually a process without administrator rights in a folder closed to ordinary users: say what to do instead of a raw error.
         return send(res, 500, '<!doctype html><meta charset="utf-8"><body style="font:16px system-ui;padding:24px"><h2>Dashboard-i nuk lexon skedaret e veta</h2><p>' + String(e.code || e.message).replace(/[<>&]/g, '') + '</p><p>Mbylle dhe hape perseri me <b>Dashboard.bat</b> (kerkon Administrator), ose ekzekuto ne PowerShell Administrator:<br><code>icacls C:\\HRSystem\\manager /grant "*S-1-5-32-545:(OI)(CI)RX" /T</code></p></body>', 'text/html');
       }
-      return send(res, 200, page.replace('__KEY__', SESSION_KEY), 'text/html');
+      return send(res, 200, page.replace('__KEY__', SESSION_KEY).replace('__VER__', pageVersion()), 'text/html');
     }
     if (req.method === 'GET' && url.pathname === '/api/live') {
       if (liveClients.size >= 8) return send(res, 429, { error: 'too_many_pages' });

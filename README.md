@@ -58,3 +58,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **Dashboard version:** v1.1.0; Veprime shows it with "Çfarë ka të re", and after each self-update the phone gets what is new.
 
 - **v1.2.0:** JetBrains Mono, icon cards, one set of status colours, "Kryesore" and a Ctrl+K search.
+
+- **v1.3.0:** the HRSystem logo (menu, loading screen, sign-in, favicon), the search in the page header, and a richer Kryesore (quick actions, fuller Databaza and Lidhja cards).

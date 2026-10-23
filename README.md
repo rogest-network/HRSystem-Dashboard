@@ -60,3 +60,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **v1.2.0:** JetBrains Mono, icon cards, one set of status colours, "Kryesore" and a Ctrl+K search.
 
 - **v1.3.0:** the HRSystem logo (menu, loading screen, sign-in, favicon), the search in the page header, and a richer Kryesore (quick actions, fuller Databaza and Lidhja cards).
+
+- **v1.4.0:** choose which kinds of phone notifications arrive (app, addresses, backups, disk, updates, daily report; `notify.events`), Export SQL, a "Kontakto Administratorin" card in Settings, and shorter texts (no "tani" on buttons).

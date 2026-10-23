@@ -1046,8 +1046,14 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.3.3';
+const DASH_VERSION = '1.4.0';
 const DASH_NOTES = [
+  { version: '1.4.0', date: '2026-10-24', notes: [
+    'Njoftimet: zgjedh çfarë të vijë në telefon (aplikacioni, adresat, backup-et, disku, përditësimet, raporti i ditës); teksti u shkurtua.',
+    'Eksporto SQL: shkarkon një dump të databazës me një klikim (te Veprime › Databaza).',
+    'Cilësimet: kartë e re "Kontakto Administratorin" me WhatsApp dhe email.',
+    'Butonat pa "tani" (Backup, Kopjo, Ndrysho, Dërgo raportin) dhe tekste më të shkurtra te Veprime.',
+  ] },
   { version: '1.3.3', date: '2026-10-23', notes: [
     'Kryesore: tekstet "e fundit", "në 24 orë" dhe "dashboard-i dhe programi" tani përkthehen edhe në anglisht e serbisht.',
   ] },
@@ -1102,7 +1108,16 @@ function jobDone(inst, job) {
 }
 
 // ---- notifications: ntfy.sh (a topic name the owner subscribes to in the free ntfy phone app) or any webhook URL; opt-in, off until set
-function notifyOf(inst) { const n = readSettings(inst).notify || {}; return { on: !!n.on, target: String(n.target || ''), daily: n.daily !== false, hour: hourOf(n.hour) }; }
+// What the owner can switch on or off on the phone: one switch per kind of message (all on by default). The daily report has its own switch.
+const NOTE_CATS = ['app', 'address', 'backup', 'disk', 'update'];
+function noteCategory(title) {
+  if (/^(Aplikacioni|Nisja me Windows)/.test(title)) return 'app';
+  if (/^Adresa/.test(title)) return 'address';
+  if (/^(Backup|Kopja)/.test(title)) return 'backup';
+  if (/^Pak hapësirë/.test(title)) return 'disk';
+  return 'update';
+}
+function notifyOf(inst) { const n = readSettings(inst).notify || {}; return { on: !!n.on, target: String(n.target || ''), daily: n.daily !== false, hour: hourOf(n.hour), events: Object.fromEntries(NOTE_CATS.map((c) => [c, (n.events || {})[c] !== false])) }; }
 function hourOf(v) { const h = Number(v); return v !== undefined && v !== null && v !== '' && Number.isInteger(h) && h >= 0 && h <= 23 ? h : DAILY_HOUR; }
 // Every message has a LEVEL: critical (the application is down), error (something failed), warn (attention), ok (all good / done), info (what was done by hand). The level sets
 // the priority and the icon on the phone; the title is "<company> · <what happened>" and the body ends with the time.
@@ -1117,16 +1132,19 @@ async function sendNotify(target, note) {
   const r = await fetch(isUrl ? target : 'https://ntfy.sh/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isUrl ? { title: note.title, message: note.message, level: note.level, text: note.title + ': ' + note.message } : { topic: target, title: note.title, message: note.message, priority: note.priority, tags: note.tags }), signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error('Shërbimi i njoftimit u përgjigj ' + r.status + '.');
 }
-function notify(inst, title, message, level = 'info') {
+function notify(inst, title, message, level = 'info', cat = noteCategory(title)) {
   const n = notifyOf(inst);
   if (!n.on || !n.target) return;
+  if (cat !== 'daily' && n.events[cat] === false) return;
   sendNotify(n.target, composeNote(inst, title, message, level)).catch(() => { /* a failed notification never breaks anything */ });
 }
-function setNotify(inst, on, target, daily, hour) {
+function setNotify(inst, on, target, daily, hour, events) {
   const cur = readSettings(inst);
+  const kept = { ...((cur.notify || {}).events || {}) };
+  if (events && typeof events === 'object') for (const c of NOTE_CATS) if (typeof events[c] === 'boolean') kept[c] = events[c];
   const t = target === undefined ? String((cur.notify || {}).target || '') : String(target).trim();
   if (t && !/^[A-Za-z0-9_-]{3,64}$/.test(t) && !/^https?:\/\/\S+$/i.test(t)) throw new Error('Adresa: një emër teme (shkronja, shifra, - _ ; min. 3) ose një URL https.');
-  cur.notify = { on: (on === undefined ? !!(cur.notify || {}).on : !!on) && !!t, target: t, daily: daily === undefined ? (cur.notify || {}).daily !== false : !!daily, hour: hour === undefined ? (cur.notify || {}).hour : (Number.isInteger(Number(hour)) && Number(hour) >= 0 && Number(hour) <= 23 ? Number(hour) : (() => { throw new Error('Ora duhet të jetë 0-23.'); })()) };
+  cur.notify = { events: kept, on: (on === undefined ? !!(cur.notify || {}).on : !!on) && !!t, target: t, daily: daily === undefined ? (cur.notify || {}).daily !== false : !!daily, hour: hour === undefined ? (cur.notify || {}).hour : (Number.isInteger(Number(hour)) && Number(hour) >= 0 && Number(hour) <= 23 ? Number(hour) : (() => { throw new Error('Ora duhet të jetë 0-23.'); })()) };
   settingsWrite(inst, cur);
   return notifyOf(inst);
 }
@@ -1527,7 +1545,7 @@ async function dailyReportCheck(inst) {
   if (now.getHours() < n.hour || cur.lastDailyReport === day) return;
   cur.lastDailyReport = day; settingsWrite(inst, cur);
   const r = await dailyReportText(inst);
-  notify(inst, r.title, r.message, r.level);
+  notify(inst, r.title, r.message, r.level, 'daily');
   addHistory(inst, { title: 'Raporti i ditës u dërgua', ok: true, detail: r.title });
 }
 
@@ -1841,7 +1859,7 @@ const server = http.createServer(async (req, res) => {
         needLocal(inst);
         let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; }
         let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
-        return send(res, 200, setNotify(inst, j.on, j.target, j.daily, j.hour));
+        return send(res, 200, setNotify(inst, j.on, j.target, j.daily, j.hour, j.events));
       }
       if (url.pathname === '/api/notify-test') {
         needLocal(inst);
@@ -1891,7 +1909,7 @@ const server = http.createServer(async (req, res) => {
         needLocal(inst);
         const r = await dailyReportText(inst);
         const n = notifyOf(inst);
-        notify(inst, r.title, r.message, r.level);
+        notify(inst, r.title, r.message, r.level, 'daily');
         return send(res, 200, { title: r.title, message: r.message, sent: !!(n.on && n.target) });
       }
       if (url.pathname === '/api/versions') return send(res, 200, await versionsOf(inst));

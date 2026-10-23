@@ -969,10 +969,13 @@ async function autoBackupTick() {
     if (!inst.root || !inst.data) continue;
     const auto = autoBackupOf(inst);
     // two independent switches (backup, update of the program), one shared hour: either, both or none
-    if ((!auto.on && !auto.updateToo) || now.getHours() !== auto.hour || (auto.last && auto.last.date === today)) continue;
+    // Once a day PER HOUR: when the owner moves the hour (e.g. 01:00 -> 19:00) the job runs again at the new hour even if it already ran today at the old one
+    // (owner, 2026-10-23: he moved it to 19:00 to get an update and nothing happened because today's run had been done). An old record without an hour counts as the same hour.
+    const doneToday = auto.last && auto.last.date === today && (auto.last.hour === undefined || auto.last.hour === auto.hour);
+    if ((!auto.on && !auto.updateToo) || now.getHours() !== auto.hour || doneToday) continue;
     const running = jobs.get(inst.id);
     if (running && running.state === 'running') continue;
-    const record = { date: today, at: new Date().toISOString() };
+    const record = { date: today, hour: auto.hour, at: new Date().toISOString() };
     const kind = auto.updateToo ? updateKindPinned(inst, installed(inst), await latestCached(inst).catch(() => null)) : null;
     if (kind) {
       // the update makes the backup (its first step): one backup, then the new version
@@ -1012,12 +1015,30 @@ function addHistory(inst, entry) {
   cur.history = h.slice(-200);
   settingsWrite(inst, cur);
 }
+// The release notes as a short text for a phone message: "Versioni X:" and its "- " lines as bullets, cut at 600 characters.
+const NOTE_NL = String.fromCharCode(10);
+function notesText(notes) {
+  const NL = NOTE_NL;
+  const out = [];
+  for (const n of notes || []) {
+    const lines = String(n.body || '').split(NL).map((l) => l.trim()).filter(Boolean)
+      .map((l) => l.replace(/^#+\s*/, '').replace(/^[-*]\s+/, '• ').replace(/[*`]/g, ''));
+    out.push((notes.length > 1 ? 'Versioni ' + n.version + ':' + NL : '') + lines.join(NL));
+  }
+  const text = out.join(NL).trim();
+  return text.length > 600 ? text.slice(0, 597).trimEnd() + '...' : text;
+}
 function jobDone(inst, job) {
   const last = job.lines[job.lines.length - 1] || '';
   const ok = job.state === 'ok';
   addHistory(inst, { title: job.title, ok, detail: last.slice(0, 160) });
   if (!ok) { notify(inst, 'Veprimi dështoi', job.title + (last ? ': ' + last.slice(0, 140) : ''), 'error'); logError('Veprimi: ' + job.title, new Error(last || 'dështoi')); }
-  else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') notify(inst, job.title === 'Perditesim' ? 'Përditësimi u krye' : 'Rikthimi i versionit u krye', 'Versioni aktual: ' + ((installed(inst) || {}).name || '?'), 'ok');
+  else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') {
+    // After an update the notes of that version are repeated (saved when the new version was announced).
+    const now = installed(inst) || {}, saved = (readSettings(inst).lastNotes || {});
+    const extra = job.title === 'Perditesim' && saved.version === now.version && saved.text ? NOTE_NL + NOTE_NL + 'Çfarë ka të re:' + NOTE_NL + saved.text : '';
+    notify(inst, job.title === 'Perditesim' ? 'Përditësimi u krye' : 'Rikthimi i versionit u krye', 'Versioni aktual: ' + (now.name || '?') + extra, 'ok');
+  }
 }
 
 // ---- notifications: ntfy.sh (a topic name the owner subscribes to in the free ntfy phone app) or any webhook URL; opt-in, off until set
@@ -1056,9 +1077,10 @@ async function updateAvailableCheck(inst) {
   if (!l || l.error || !updateKindPinned(inst, i, l)) return;
   const key = l.version + '|' + (l.build || ''), cur = readSettings(inst);
   if (cur.lastUpdateNotified === key) return;
-  cur.lastUpdateNotified = key; settingsWrite(inst, cur);
+  const text = notesText(l.notes);
+  cur.lastUpdateNotified = key; cur.lastNotes = { version: l.version, text }; settingsWrite(inst, cur);
   const a = autoBackupOf(inst);
-  notify(inst, 'Ka version të ri', 'Versioni ' + l.version + ' është gati (instaluar: ' + ((i && i.name) || '?') + ').' + (a.updateToo ? ' Do të instalohet vetë në orën ' + String(a.hour).padStart(2, '0') + ':00.' : ' Përditësoje nga dashboard-i.'), 'info');
+  notify(inst, 'Ka version të ri', 'Versioni ' + l.version + ' është gati (instaluar: ' + ((i && i.name) || '?') + ').' + (a.updateToo ? ' Do të instalohet vetë në orën ' + String(a.hour).padStart(2, '0') + ':00.' : ' Përditësoje nga dashboard-i.') + (text ? NOTE_NL + NOTE_NL + 'Çfarë ka të re:' + NOTE_NL + text : ''), 'info');
   addHistory(inst, { title: 'Ka version të ri', ok: true, detail: l.version });
 }
 const watch = new Map();

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HRSystem Dashboard</title>
 <meta name="theme-color" content="#0f172a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='1' stop-color='%234338ca'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Ctext x='16' y='21.5' text-anchor='middle' font-family='Arial,sans-serif' font-weight='800' font-size='15' fill='white'%3EHR%3C/text%3E%3C/svg%3E">
 <script>(function(){try{var t=localStorage.getItem('theme')||'system';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.setAttribute('data-theme',d?'dark':'light');var z=localStorage.getItem('textsize');if(z==='1')r.classList.add('a11y-t1');if(z==='2')r.classList.add('a11y-t2');if(z==='3')r.classList.add('a11y-t3');['spacing','targets','cb','focus'].forEach(function(k){if(localStorage.getItem(k)==='1')r.classList.add('a11y-'+k);});if(localStorage.getItem('contrast')==='1')r.classList.add('a11y-contrast');if(localStorage.getItem('motion')==='1')r.classList.add('a11y-motion');if(localStorage.getItem('font')==='1')r.classList.add('a11y-font');if(localStorage.getItem('links')==='1')r.classList.add('a11y-links');}catch(e){}})();</script>
 <style>
@@ -412,6 +415,79 @@
     .side .foot { order:4; margin:0; padding:0; border:0; display:flex; align-items:center; }
     .side .foot button { display:none; }
   }
+
+  /* --- v1.2 (2026-10-23): JetBrains Mono, one set of status colours, icon cards, the Ctrl+K search */
+  :root {
+    --font:"JetBrains Mono", ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Courier New", monospace;
+    --mono:"JetBrains Mono", ui-monospace, "Cascadia Mono", "SF Mono", Consolas, "Courier New", monospace;
+    /* status colours: always the same meaning */
+    --st-ok:#27D796; --st-bad:#F05252; --st-warn:#F5B942; --st-info:#3478F6; --st-off:#737B8C; --st-pend:#A78BFA; --st-maint:#FB923C;
+    /* the same colours as TEXT / ICON on a light tinted background: a little darker so they read well */
+    --t-ok:#0b7f58; --t-bad:#c42424; --t-warn:#8a5a00; --t-info:#1d5bd0; --t-off:#5b6475; --t-pend:#6a4bd6; --t-maint:#b34d09;
+  }
+  :root[data-theme='dark'] { --t-ok:#27D796; --t-bad:#F46B6B; --t-warn:#F5B942; --t-info:#6C9FFA; --t-off:#9AA3B5; --t-pend:#B7A2FB; --t-maint:#FB923C; }
+  :root:not(.a11y-cb):not(.a11y-contrast) {
+    --ok:var(--t-ok); --okbg:color-mix(in srgb, var(--st-ok) 14%, transparent);
+    --warn:var(--t-warn); --warnbg:color-mix(in srgb, var(--st-warn) 16%, transparent);
+    --bad:var(--t-bad); --badbg:color-mix(in srgb, var(--st-bad) 13%, transparent);
+  }
+  body { font-size:13px; font-feature-settings:normal; letter-spacing:0; }
+  button, input, select, textarea { font-family:var(--font); }
+  button.btn { font-size:12.5px; } .nav button { font-size:12.5px; } .pill { font-size:11px; }
+  .top h1 { font-size:20px !important; letter-spacing:-.02em; }
+  .kpi .v { font-size:19px !important; }
+  table.kv td, table.kv td.k { font-size:12.5px !important; }
+  .card h2 { font-size:10.5px; letter-spacing:.08em; }
+
+  /* status badges, dots, banners, bars */
+  .pill.ok { background:var(--okbg); color:var(--ok); } .pill.warn { background:var(--warnbg); color:var(--warn); } .pill.bad { background:var(--badbg); color:var(--bad); }
+  .pill.info { background:color-mix(in srgb, var(--st-info) 14%, transparent); color:var(--t-info); }
+  .pill.pend { background:color-mix(in srgb, var(--st-pend) 16%, transparent); color:var(--t-pend); }
+  .pill.maint { background:color-mix(in srgb, var(--st-maint) 15%, transparent); color:var(--t-maint); }
+  .pill.mute { background:color-mix(in srgb, var(--st-off) 15%, transparent); color:var(--t-off); }
+  .pill.ok::before, .pill.warn::before, .pill.bad::before, .pill.info::before, .pill.pend::before, .pill.maint::before, .pill.mute::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .dot { background:var(--st-off); } .dot.on { background:var(--st-ok); box-shadow:none; } .dot.off { background:var(--st-bad); }
+  .live i { background:var(--st-ok); box-shadow:none; animation:none; } .live.off i { background:var(--st-bad); } .live.off { color:var(--t-bad); }
+  .banner { border-color:color-mix(in srgb, var(--st-warn) 55%, transparent); background:color-mix(in srgb, var(--st-warn) 12%, transparent); }
+  .banner.ok { border-color:color-mix(in srgb, var(--st-ok) 55%, transparent); background:color-mix(in srgb, var(--st-ok) 11%, transparent); }
+  .banner.bad { border-color:color-mix(in srgb, var(--st-bad) 55%, transparent); background:color-mix(in srgb, var(--st-bad) 11%, transparent); }
+  .banner.run { border-color:color-mix(in srgb, var(--st-info) 55%, transparent); background:color-mix(in srgb, var(--st-info) 11%, transparent); }
+  .progress i { background:var(--st-info); }
+  .spark i { background:var(--st-info); } .spark i.down { background:var(--st-bad); }
+  .toast.err { background:#b42323; }
+  button.btn.danger { color:var(--bad); border-color:color-mix(in srgb, var(--st-bad) 60%, transparent); }
+  ul.list li.missing .p span, .errline { color:var(--bad); }
+
+  /* cards with an icon */
+  .kpis { grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); }
+  .kh { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .kh h2 { margin:0 !important; flex:1; min-width:0; }
+  .kic { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex:none; background:color-mix(in srgb, var(--c, var(--st-off)) 15%, transparent); color:var(--ct, var(--t-off)); }
+  .kic svg { width:16px; height:16px; }
+  .kic.ok { --c:var(--st-ok); --ct:var(--t-ok); } .kic.bad { --c:var(--st-bad); --ct:var(--t-bad); } .kic.warn { --c:var(--st-warn); --ct:var(--t-warn); }
+  .kic.info { --c:var(--st-info); --ct:var(--t-info); } .kic.pend { --c:var(--st-pend); --ct:var(--t-pend); } .kic.maint { --c:var(--st-maint); --ct:var(--t-maint); }
+  .kic.off { --c:var(--st-off); --ct:var(--t-off); }
+  .card.kpi { padding:16px 18px; } .card.kpi .v { margin-top:2px; }
+  .card { border-radius:14px; }
+
+  /* the search button in the side menu and the Ctrl+K window */
+  .kbtn { display:flex; align-items:center; gap:9px; width:calc(100% - 12px); margin:0 6px 10px; padding:8px 10px; border-radius:9px; border:1px solid var(--side-2); background:rgba(255,255,255,.04); color:var(--side-muted); font:inherit; font-size:12px; cursor:pointer; text-align:left; }
+  .kbtn:hover { background:rgba(255,255,255,.08); color:#fff; } .kbtn svg { flex:none; opacity:.85; } .kbtn span { flex:1; }
+  kbd { font:600 10.5px var(--mono); padding:2px 6px; border-radius:5px; border:1px solid color-mix(in srgb, currentColor 30%, transparent); background:color-mix(in srgb, currentColor 8%, transparent); }
+  .cmdk-overlay { position:fixed; inset:0; z-index:80; background:rgba(2,6,23,.55); display:grid; justify-items:center; align-items:start; padding:12vh 16px 16px; }
+  .cmdk { width:min(580px,100%); background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,.35); overflow:hidden; animation:cmdkin .16s cubic-bezier(.23,1,.32,1); }
+  @keyframes cmdkin { from { opacity:0; transform:translateY(-6px) scale(.985); } }
+  .cmdk .in { display:flex; align-items:center; gap:10px; padding:0 14px; border-bottom:1px solid var(--line); color:var(--muted); }
+  .cmdk .in input { flex:1; height:50px !important; border:0 !important; box-shadow:none !important; background:transparent !important; padding:0 !important; font-size:14px !important; color:var(--text); border-radius:0 !important; }
+  .cmdk ul { list-style:none; margin:0; padding:6px; max-height:min(52vh,420px); overflow:auto; }
+  .cmdk li.gh { padding:8px 10px 4px; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:600; cursor:default; }
+  .cmdk li.it { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; cursor:pointer; }
+  .cmdk li.it svg { flex:none; color:var(--muted); } .cmdk li.it .g { margin-left:auto; color:var(--muted); font-size:11px; }
+  .cmdk li.it[aria-selected="true"] { background:var(--accent-soft); } .cmdk li.it[aria-selected="true"] svg { color:var(--accent); }
+  .cmdk .none { padding:22px; text-align:center; color:var(--muted); }
+  .cmdk .ft { display:flex; gap:14px; flex-wrap:wrap; padding:9px 14px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
+  @media (max-width:980px) { .kbtn { width:auto; } .cmdk-overlay { padding-top:8vh; } }
+  @media (hover:none) { .kbtn kbd, .cmdk .ft { display:none; } }
 </style>
 </head>
 <body>
@@ -456,7 +532,7 @@ const TR_LIST = [
   ["Fjalëkalimi:", "Password:", "Lozinka:"], ["Dil nga dashboard-i", "Sign out of the dashboard", "Odjavi se sa dashboard-a"], ["Aktiv: kur dashboard-i mbyllet dhe hapet përsëri, kërkon fjalëkalimin. Për ta ndryshuar ose hequr shkruaj fjalëkalimin aktual.", "Active: when the dashboard is closed and opened again, it asks for the password. To change or remove it, type the current password.", "Aktivno: kada se dashboard zatvori i ponovo otvori, traži lozinku. Da je promeniš ili ukloniš, upiši trenutnu lozinku."], ["Fjalëkalimi aktual (i fshehur)", "Current password (hidden)", "Trenutna lozinka (skrivena)"], ["(nuk shfaqet)", "(not shown)", "(ne prikazuje se)"],
   ["Fjalëkalimi aktual", "Current password", "Trenutna lozinka"], ["Fjalëkalimi i ri", "New password", "Nova lozinka"], ["Përsërit fjalëkalimin e ri", "Repeat the new password", "Ponovi novu lozinku"], ["Ndrysho fjalëkalimin", "Change the password", "Promeni lozinku"], ["Vendos fjalëkalimin", "Set the password", "Postavi lozinku"], ["Fjalëkalimi u ndryshua.", "The password was changed.", "Lozinka je promenjena."], ["Aktiv: faqja kërkon fjalëkalim. Për ta ndryshuar ose hequr shkruaj fjalëkalimin aktual.", "Active: the page asks for a password. To change or remove it, type the current password.", "Aktivno: stranica traži lozinku. Da je promeniš ili ukloniš, upiši trenutnu lozinku."], ["Heq fjalëkalimin? Dashboard-i do të hapet pa fjalëkalim në këtë PC.", "Remove the password? The dashboard will open without a password on this PC.", "Ukloniti lozinku? Dashboard će se otvarati bez lozinke na ovom računaru."], ["shkruaj fjalëkalimin aktual.", "type the current password.", "upiši trenutnu lozinku."], ["shkruaj fjalëkalimin aktual për ta hequr.", "type the current password to remove it.", "upiši trenutnu lozinku da je ukloniš."], ["fjalëkalimi i ri duhet të ketë të paktën 6 shkronja.", "the new password must have at least 6 characters.", "nova lozinka mora imati najmanje 6 znakova."], ["dy fjalëkalimet e reja nuk përputhen.", "the two new passwords do not match.", "dve nove lozinke se ne poklapaju."], ["Fjalëkalimi aktual nuk është i saktë.", "The current password is not correct.", "Trenutna lozinka nije tačna."],
   [" Repo i ri i programit: ", " New program repo: ", " Novi repo programa: "], [" Ai sheh disa repo (", " It sees several repos (", " Vidi više repozitorijuma ("], ["): mbetet ", "): ", "): ostaje "],
-  ["Pasqyra", "Overview", "Pregled"], ["Të dhënat", "Data", "Podaci"], ["Veprime", "Actions", "Akcije"], ["Backup-et", "Backups", "Backup-i"],
+  ["Pasqyra", "Overview", "Pregled"], ["Kryesore", "Home", "Početna"], ["Lidhja", "Connection", "Veza"], ["Kërko...", "Search...", "Pretraga..."], ["Faqe", "Pages", "Stranice"], ["Instalime", "Installations", "Instalacije"], ["Asgjë nuk u gjet.", "Nothing found.", "Ništa nije pronađeno."], ["Ndrysho temën", "Change the theme", "Promeni temu"], ["për të lëvizur", "to move", "za kretanje"], ["për të hapur", "to open", "za otvaranje"], ["për të mbyllur", "to close", "za zatvaranje"], ["Të dhënat", "Data", "Podaci"], ["Veprime", "Actions", "Akcije"], ["Backup-et", "Backups", "Backup-i"],
   ["Vendndodhja", "Location", "Lokacija"], ["Log-u", "Log", "Log"], ["Rrugët e instalimit", "Installation paths", "Putanje instalacije"],
   ["Rifresko", "Refresh", "Osveži"], ["Çinstalo HRSystem...", "Uninstall HRSystem...", "Deinstaliraj HRSystem..."], ["Mbyll", "Close", "Zatvori"], ["Shiko log-un", "See the log", "Vidi log"],
   ["Hap aplikacionin", "Open the app", "Otvori aplikaciju"], ["Hap /developer", "Open /developer", "Otvori /developer"], ["Hap", "Open", "Otvori"],
@@ -599,6 +675,16 @@ const speedClass = (ms) => ms < 400 ? 'ok' : ms < 1200 ? 'warn' : 'bad';
 
 // Small line icons (24x24).
 const ICONS = {
+  cpu: 'M6 6h12v12H6zM9 9h6v6H9zM9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4',
+  db: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6',
+  plug: 'M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5',
+  disk: 'M4 15a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 15l2.5-8A2 2 0 0 1 8.4 5.6h7.2a2 2 0 0 1 1.9 1.4L20 15M7 17h.01M11 17h.01',
+  tag: 'M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7.5 7.5h.01',
+  activity: 'M3 12h4l3-8 4 16 3-8h4',
+  search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  refresh: 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
+  server: 'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',
   star: 'M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z',
   home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
@@ -713,7 +799,7 @@ const HELP = {
     name: 'Shqip', nav: 'Si ta përdorësh', title: 'Si ta përdorësh dashboard-in', sub: 'Udhëzuesi i plotë: çdo faqe dhe çdo veçori.',
     sections: [
       ['Çfarë është', ['Dashboard-i menaxhon instalimin e HRSystem në këtë kompjuter: ndjek gjendjen LIVE, bën backup, përditëson dhe rikthen programin, jep adresat dhe të dhënat, dhe të njofton në telefon.', 'Hapet me Dashboard.bat dhe punon vetëm në këtë PC (127.0.0.1). Nuk është i arritshëm nga interneti.', 'Ingranazhi lart djathtas hap Cilësimet. Pika LIVE në menu tregon që lidhja është e gjallë.']],
-      ['Pasqyra', ['Aplikacioni: Online ose Fikur, me shpejtësinë në milisekonda. Kur është i fikur nuk matet vazhdimisht.', 'Databaza, Versioni (kur ka version të ri del njoftimi me "Përditëso tani") dhe Adresa publike.', 'Hapësira që zë HR: sa disk zë programi, databaza dhe backup-et, plus sa disk i lirë ka mbetur.', 'Sistemi HR: CPU dhe RAM vetëm të aplikacionit dhe databazës (jo të gjithë kompjuterit), dhe sa kohë punon aplikacioni.', 'Download / Upload (HR): sa të dhëna lexon dhe shkruan sistemi HR, me shpejtësinë tani, totalin e sotëm dhe totalin që nga ndezja.', 'Backup i fundit, me versionin e programit dhe shenjën OK ose Dëmtuar.', 'Butonat lart: Hap aplikacionin, Hap /developer, Stop, Start, Restart. Stop është aktiv vetëm kur aplikacioni punon, Start vetëm kur është i fikur.']],
+      ['Kryesore', ['Aplikacioni: Online ose Fikur, me shpejtësinë në milisekonda. Kur është i fikur nuk matet vazhdimisht.', 'Databaza, Versioni (kur ka version të ri del njoftimi me "Përditëso tani") dhe Adresa publike.', 'Hapësira që zë HR: sa disk zë programi, databaza dhe backup-et, plus sa disk i lirë ka mbetur.', 'Sistemi HR: CPU dhe RAM vetëm të aplikacionit dhe databazës (jo të gjithë kompjuterit), dhe sa kohë punon aplikacioni.', 'Download / Upload (HR): sa të dhëna lexon dhe shkruan sistemi HR, me shpejtësinë tani, totalin e sotëm dhe totalin që nga ndezja.', 'Backup i fundit, me versionin e programit dhe shenjën OK ose Dëmtuar.', 'Butonat lart: Hap aplikacionin, Hap /developer, Stop, Start, Restart. Stop është aktiv vetëm kur aplikacioni punon, Start vetëm kur është i fikur.']],
       ['Të dhënat', ['Adresat, instalimi (versioni, repo, folderët, databaza, portat) dhe cilësimet me sekretet (.env, token-at). Sekretet janë të fshehura: shtyp Shfaq ose Kopjo.', 'Komanda për t\'u lidhur me databazën nga terminali.']],
       ['Adresat dhe tuneli', ['Adresat janë një listë e vetme: domenet që i mëson vetë aplikacioni dhe adresa e përkohshme janë njësoj adresa. Secila tregon nëse hapet.', 'Asnjë adresë nuk hiqet vetë, as kur nuk hapet. Heqet vetëm kur shtyp Hiq.', 'Ndrysho tani: zgjedh adresë të përkohshme (pa domen, krijohet menjëherë, por ndryshon sa herë krijohet përsëri) ose lidh domenin tënd me tunel Cloudflare (token). Mund ta heqësh edhe tunelin e domenit.', 'Adresa e përkohshme mbijeton rindezjes dhe përditësimit të dashboard-it.']],
       ['Veprime: përditësimi dhe rikthimi i versionit', ['Përditëso aplikacionin: aktiv vetëm kur ka version të ri. Bën backup, instalon, ekzekuton migrimet SQL të versionit dhe kalon; nëse dështon, kthehet vetë te versioni i vjetër. Ndiqe me shiritin e progresit.', 'Rikthe një version: kthen kodin (formularët, dizajnin) te një version më i vjetër, nga versionet që janë në këtë PC (pa shkarkim) ose nga GitHub. "Rikthe + databazën" kthen edhe databazën e backup-it të atij versioni.', 'Pas rikthimit versioni ngjitet: përditësimi automatik dhe njoftimi injorojnë versionet deri te ai që kishte GitHub. Përditësimi vazhdon kur del një version më i ri, ose kur shtyp "Hiq ngjitjen".', 'Rikthimi i kodit nuk e ndryshon databazën; nëse versioni i vjetër e kërkon, përdor "Rikthe + databazën".']],
@@ -868,7 +954,7 @@ function settingsBody() {
 }
 applyPrefs();
 
-const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['errors', 'Gabimet', 'alert'], ['history', 'Historiku', 'clock'], ['whatsnew', 'Çfarë ka të re', 'star'], ['help', 'Si ta përdorësh', 'help']];
+const SECTIONS = [['home', 'Kryesore', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['errors', 'Gabimet', 'alert'], ['history', 'Historiku', 'clock'], ['whatsnew', 'Çfarë ka të re', 'star'], ['help', 'Si ta përdorësh', 'help']];
 const state = { cur: store.get('cur', ''), section: store.get('section', 'home') === 'access' ? 'data' : store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
@@ -904,7 +990,7 @@ function view(s) {
   const verText = !inst ? '-' : inst.error ? inst.error : inst.name;
   const latText = !lat ? '-' : lat.error ? lat.error : lat.version + (lat.prerelease ? ' (pre-release)' : '');
   const newV = lat && !lat.error ? lat.version : '';
-  const updPill = s.update === 'version' ? pill('warn', 'Ka version të ri · ' + newV) : s.update === 'build' ? pill('warn', 'Ka build të ri · ' + newV) : inst && !inst.error && lat && !lat.error ? pill('ok', 'I përditësuar') : null;
+  const updPill = s.update === 'version' ? pill('pend', 'Ka version të ri · ' + newV) : s.update === 'build' ? pill('pend', 'Ka build të ri · ' + newV) : inst && !inst.error && lat && !lat.error ? pill('ok', 'I përditësuar') : null;
 
   const sysBtn = (label, action, ask, cls = 'btn ghost') => {
     const b = el('button', { type: 'button', class: cls }, label);
@@ -994,16 +1080,17 @@ function view(s) {
     el('tr', {}, el('td', { class: 'k' }, 'Tuneli Cloudflare'), el('td', {}, !a.tunnel ? 'nuk është lidhur' : a.tunnelOk ? 'lidhur' : 'procesi punon, asnjë adresë nuk hapet'), el('td', { class: 'a' }, a.tunnel ? (a.tunnelOk ? pill('ok', 'aktiv') : pill('bad', 'nuk hapet')) : pill('warn', 'jo aktiv'), ' ', (() => { const b = el('button', { type: 'button', class: 'btn sm', 'aria-haspopup': 'dialog' }, 'Ndrysho tani'); b.disabled = busy; b.onclick = changeAddress; return b; })())));
 
   const spark = () => { const max = Math.max(1, ...h.history); return el('div', { class: 'spark', title: 'Shpejtësia e fundit (ms)' }, ...h.history.map((v) => el('i', v ? { style: 'height:' + Math.max(8, Math.round((v / max) * 100)) + '%', title: v + ' ms' } : { class: 'down', title: 'pa përgjigje' }))); };
-  const appKpi = () => el('div', { class: 'card kpi', id: 'kpi-app' }, el('h2', {}, 'Aplikacioni'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Fikur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : ''), el('div', { class: 's' }, a.local), h.ok ? spark() : '');
+  const kh = (ic, title, tone) => el('div', { class: 'kh' }, el('span', { class: 'kic ' + (tone || 'off') }, icon(ic)), el('h2', {}, title));
+  const appKpi = () => el('div', { class: 'card kpi', id: 'kpi-app' }, kh('server', 'Aplikacioni', h.ok ? 'ok' : 'bad'), el('div', { class: 'v' }, h.ok ? 'Online' : 'Fikur', h.ok ? pill(speedClass(h.ms), h.ms + ' ms') : ''), el('div', { class: 's' }, a.local), h.ok ? spark() : '');
   const gbf = (n) => (n / 1073741824).toFixed(1) + ' GB';
   const agoText = (iso) => { if (!iso) return '-'; const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000)), d = Math.floor(m / 1440), hh = Math.floor((m % 1440) / 60); return d ? d + 'd ' + hh + 'h' : hh ? hh + 'h ' + (m % 60) + 'm' : m + 'm'; };
-  const sysKpi = (sys) => { sys = sys || {}; return el('div', { class: 'card kpi', id: 'kpi-sys' }, el('h2', {}, 'Sistemi HR (CPU dhe RAM)'), el('div', { class: 'v' }, 'CPU ' + (sys.cpu || 0) + '%', pill(sys.cpu > 60 ? 'bad' : sys.cpu > 30 ? 'warn' : 'ok', 'RAM ' + Math.round((sys.ram || 0) / 1048576) + ' MB')), el('div', { class: 's' }, 'aplikacioni ' + Math.round((sys.appRam || 0) / 1048576) + ' MB · databaza ' + Math.round((sys.dbRam || 0) / 1048576) + ' MB' + (sys.appSince ? ' · ndezur ' + agoText(sys.appSince) : ''))); };
-  const diskKpi = () => { const u = s.usage, d = s.system && s.system.disk && s.system.disk.data; const f = d && d.total ? d.free / d.total : null; return el('div', { class: 'card kpi' }, el('h2', {}, 'Hapësira që zë HR'), el('div', { class: 'v' }, u ? gbf(u.total) : 'po llogaritet...', d ? pill(f < 0.05 ? 'bad' : f < 0.15 ? 'warn' : 'ok', 'disku ' + Math.round(f * 100) + '% i lirë') : ''), el('div', { class: 's' }, u ? 'programi ' + gbf(u.program) + ' · databaza ' + gbf(u.db) + ' · backup-et ' + gbf(u.backups) : '-')); };
+  const sysKpi = (sys) => { sys = sys || {}; return el('div', { class: 'card kpi', id: 'kpi-sys' }, kh('cpu', 'Sistemi HR (CPU dhe RAM)', sys.cpu > 60 ? 'bad' : sys.cpu > 30 ? 'warn' : 'ok'), el('div', { class: 'v' }, 'CPU ' + (sys.cpu || 0) + '%', pill(sys.cpu > 60 ? 'bad' : sys.cpu > 30 ? 'warn' : 'ok', 'RAM ' + Math.round((sys.ram || 0) / 1048576) + ' MB')), el('div', { class: 's' }, 'aplikacioni ' + Math.round((sys.appRam || 0) / 1048576) + ' MB · databaza ' + Math.round((sys.dbRam || 0) / 1048576) + ' MB' + (sys.appSince ? ' · ndezur ' + agoText(sys.appSince) : ''))); };
+  const diskKpi = () => { const u = s.usage, d = s.system && s.system.disk && s.system.disk.data; const f = d && d.total ? d.free / d.total : null; return el('div', { class: 'card kpi' }, kh('disk', 'Hapësira që zë HR', d ? (f < 0.05 ? 'bad' : f < 0.15 ? 'warn' : 'ok') : 'off'), el('div', { class: 'v' }, u ? gbf(u.total) : 'po llogaritet...', d ? pill(f < 0.05 ? 'bad' : f < 0.15 ? 'warn' : 'ok', 'disku ' + Math.round(f * 100) + '% i lirë') : ''), el('div', { class: 's' }, u ? 'programi ' + gbf(u.program) + ' · databaza ' + gbf(u.db) + ' · backup-et ' + gbf(u.backups) : '-')); };
   const rate = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB/s' : Math.round(b / 1024) + ' KB/s';
-  const ioKpi = (sys) => { sys = sys || {}; return el('div', { class: 'card kpi', id: 'kpi-io' }, el('h2', {}, 'Download / Upload (HR)'),
+  const ioKpi = (sys) => { sys = sys || {}; return el('div', { class: 'card kpi', id: 'kpi-io' }, kh('activity', 'Download / Upload (HR)', 'info'),
     el('div', { class: 'v' }, '↓ ' + rate(sys.readBps || 0), pill('mute', '↑ ' + rate(sys.writeBps || 0))),
     el('div', { class: 's' }, 'Download ' + fmtSize(sys.todayR || 0) + ' · Upload ' + fmtSize(sys.todayW || 0) + ' sot'), el('div', { class: 's' }, 'që nga ndezja: ↓ ' + fmtSize(sys.totalR || 0) + ' · ↑ ' + fmtSize(sys.totalW || 0))); };
-  const lastBkKpi = () => { const b = s.backups[0]; return el('div', { class: 'card kpi' }, el('h2', {}, 'Backup i fundit'), el('div', { class: 'v' }, b ? fmtTime(b.time) : 'asnjë', b ? pill(b.check ? 'ok' : 'bad', b.check ? 'OK' : 'Dëmtuar') : pill('warn', 'mungon')), el('div', { class: 's' }, b ? (b.version ? 'versioni ' + b.version + ' · ' : '') + fmtSize(b.size) : '-')); };
+  const lastBkKpi = () => { const b = s.backups[0]; return el('div', { class: 'card kpi' }, kh('box', 'Backup i fundit', b ? (b.check ? 'ok' : 'bad') : 'warn'), el('div', { class: 'v' }, b ? fmtTime(b.time) : 'asnjë', b ? pill(b.check ? 'ok' : 'bad', b.check ? 'OK' : 'Dëmtuar') : pill('warn', 'mungon')), el('div', { class: 's' }, b ? (b.version ? 'versioni ' + b.version + ' · ' : '') + fmtSize(b.size) : '-')); };
   state.repaint = () => { const old = document.getElementById('kpi-app'); if (old) old.replaceWith(appKpi()); const sysOld = document.getElementById('kpi-sys'); const cur = state.data && state.data.instances.find((i) => i.id === s.id); if (sysOld && cur) sysOld.replaceWith(sysKpi(cur.system)); const ioOld = document.getElementById('kpi-io'); if (ioOld && cur) ioOld.replaceWith(ioKpi(cur.system)); const dot = document.querySelector('.inst .dot'); if (dot) dot.className = 'dot ' + (h.ok ? 'on' : 'off'); };
 
   // ================= pages
@@ -1092,16 +1179,16 @@ function view(s) {
     return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, s.update === 'build' ? 'Ka build të ri të versionit ' + newV : 'Ka version të ri të programit: ' + newV), ' · instaluar: ' + verText), releaseNotes(), el('div', { class: 'row' }, go2));
   };
   pages.home = () => el('div', {},
-    header(s.name, 'Pasqyra', controls),
+    header(s.name, 'Kryesore', controls),
     dashJustUpdated(),
     updateNotice(),
     pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
     el('div', { class: 'kpis' },
       appKpi(),
-      el('div', { class: 'card kpi' }, el('h2', {}, 'Databaza'), el('div', { class: 'v' }, h.database === 'connected' ? 'Lidhur' : (h.database || '-')), el('div', { class: 's' }, s.database && s.database.name ? s.database.name + ' · porta ' + s.database.port : '-')),
-      el('div', { class: 'card kpi' }, el('h2', {}, 'Versioni'), el('div', { class: 'v' }, verText, updPill || ''), el('div', { class: 's' }, 'I fundit (' + (s.channel || 'stable') + '): ' + latText + (s.repo ? ' · ' + s.repo : ''))),
-      el('div', { class: 'card kpi' }, el('h2', {}, 'Adresa'), el('div', { class: 'v' }, publicUrl ? (a.domainOk ? 'Hapet' : 'Nuk hapet') : 'Pa domen', publicUrl ? pill(a.domainOk ? 'ok' : 'bad', a.domainOk ? 'online' : 'offline') : ''), el('div', { class: 's' }, publicUrl ? publicUrl.replace(/^https?:[/][/]/, '') : 'zbulohet vetë'))),
+      el('div', { class: 'card kpi' }, kh('db', 'Databaza', h.database === 'connected' ? 'ok' : 'bad'), el('div', { class: 'v' }, h.database === 'connected' ? 'Lidhur' : (h.database || '-'), pill(h.database === 'connected' ? 'ok' : 'bad', h.database === 'connected' ? 'online' : 'offline')), el('div', { class: 's' }, s.database && s.database.name ? s.database.name + ' · porta ' + s.database.port : '-')),
+      el('div', { class: 'card kpi' }, kh('tag', 'Versioni', s.update ? 'pend' : (inst && !inst.error ? 'ok' : 'off')), el('div', { class: 'v' }, verText, updPill || ''), el('div', { class: 's' }, 'I fundit (' + (s.channel || 'stable') + '): ' + latText + (s.repo ? ' · ' + s.repo : ''))),
+      el('div', { class: 'card kpi' }, kh('plug', 'Lidhja', publicUrl ? (a.domainOk ? 'ok' : 'bad') : 'off'), el('div', { class: 'v' }, publicUrl ? (a.domainOk ? 'Hapet' : 'Nuk hapet') : 'Pa domen', publicUrl ? pill(a.domainOk ? 'ok' : 'bad', a.domainOk ? 'online' : 'offline') : ''), el('div', { class: 's' }, publicUrl ? publicUrl.replace(/^https?:[/][/]/, '') : 'zbulohet vetë'))),
     el('div', { class: 'kpis' }, diskKpi(), sysKpi(s.system), ioKpi(s.system), lastBkKpi()),
     el('div', { class: 'grid2 wide' },
       el('div', { class: 'card' }, el('h2', {}, 'Adresat'), addressTable()),
@@ -1416,13 +1503,81 @@ function view(s) {
       el('div', { class: 'card' }, j ? el('pre', { class: 'log', 'data-id': s.id }, j.lines.join(NL) || '...') : el('div', { class: 'empty' }, 'Asnjë veprim ende (përditësim, SQL, import, tunel).')));
   };
 
-  return { html: (pages[state.section] || pages.home)(), uninstall: s.canUninstall ? async () => {
+  const paletteActions = [
+    { label: 'Hap aplikacionin', icon: 'globe', run: () => openBtn.click() },
+    { label: 'Hap /developer', icon: 'key', run: () => devBtn.click() },
+    { label: 'Backup tani', icon: 'box', run: () => backupBtn.click() },
+    ...(s.update ? [{ label: 'Përditëso në ' + newV, icon: 'refresh', run: () => updBtn.click() }] : []),
+    { label: 'Rifresko', icon: 'refresh', run: () => load() },
+    { label: 'Ndrysho temën', icon: 'moon', run: () => { store.set('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); applyPrefs(); } },
+  ];
+  return { actions: paletteActions, html: (pages[state.section] || pages.home)(), uninstall: s.canUninstall ? async () => {
     if (!await confirmAsync('Hap çinstalimin e HRSystem?' + NL + NL + 'Hapet dritarja e çinstalimit: aty zgjedh a ruhet databaza (një eksport në Desktop). Pastaj fshihet gjithçka tjetër; aplikacioni dhe dashboard-i ndalen vetë.')) return;
     await call('uninstall', '', 'Dritarja e çinstalimit u hap. Vazhdo atje.');
   } : null };
 }
 
 // ---------------------------------------------------------------- shell: side navbar + page
+// ---- Ctrl+K: one search over the pages, the installations and the quick actions
+const normText = (x) => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function paletteItems() {
+  const items = [];
+  const j = state.data;
+  for (const [key, label, ic] of SECTIONS) items.push({ group: 'Faqe', label: key === 'help' ? HELP[helpLang()].nav : label, icon: ic, run: () => go(key) });
+  items.push({ group: 'Faqe', label: 'Cilësimet', icon: 'gear', run: () => go('settings') });
+  for (const i of (j && j.instances) || []) if ((j.instances || []).length > 1) items.push({ group: 'Instalime', label: i.name, icon: 'server', run: () => { state.cur = i.id; store.set('cur', i.id); render(); } });
+  for (const a of state.palette || []) items.push({ group: 'Veprime', label: a.label, icon: a.icon, hint: a.hint, run: a.run });
+  return items;
+}
+function openPalette() {
+  if (document.getElementById('cmdk')) { document.getElementById('cmdk').remove(); return; }
+  if (!state.data || !state.data.instances.length) return;
+  const prev = document.activeElement;
+  const all = paletteItems().map((it) => ({ ...it, text: normText(t(it.label) + ' ' + it.label + ' ' + t(it.group) + ' ' + (it.hint || '')) }));
+  let shown = [], sel = 0;
+  const input = el('input', { type: 'text', placeholder: t('Kërko...'), 'aria-label': t('Kërko...'), autocomplete: 'off', spellcheck: 'false', role: 'combobox', 'aria-expanded': 'true', 'aria-controls': 'cmdk-list' });
+  const list = el('ul', { id: 'cmdk-list', role: 'listbox' });
+  const panel = el('div', { class: 'cmdk', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Kërko...') },
+    el('div', { class: 'in' }, icon('search'), input, el('kbd', {}, 'Esc')),
+    list,
+    el('div', { class: 'ft' }, el('span', {}, el('kbd', {}, '↑ ↓'), ' ', 'për të lëvizur'), el('span', {}, el('kbd', {}, 'Enter'), ' ', 'për të hapur'), el('span', {}, el('kbd', {}, 'Esc'), ' ', 'për të mbyllur')));
+  const overlay = el('div', { class: 'cmdk-overlay', id: 'cmdk' }, panel);
+  const close = () => { overlay.remove(); if (prev && prev.focus) { try { prev.focus(); } catch { /* gone */ } } };
+  const run = (it) => { close(); setTimeout(() => it.run(), 0); };
+  const paint = () => {
+    list.replaceChildren();
+    if (!shown.length) { list.append(el('li', { class: 'none' }, 'Asgjë nuk u gjet.')); return; }
+    let last = '';
+    shown.forEach((it, idx) => {
+      if (it.group !== last) { last = it.group; list.append(el('li', { class: 'gh', role: 'presentation' }, it.group)); }
+      const li = el('li', { class: 'it', role: 'option', id: 'cmdk-' + idx, 'aria-selected': String(idx === sel) }, icon(it.icon || 'bolt'), el('span', {}, it.label), it.hint ? el('span', { class: 'g' }, it.hint) : '');
+      li.onmousemove = () => { if (sel !== idx) { sel = idx; paint(); } };
+      li.onclick = () => run(it);
+      list.append(li);
+    });
+    input.setAttribute('aria-activedescendant', 'cmdk-' + sel);
+    const on = list.querySelector('[aria-selected="true"]'); if (on) on.scrollIntoView({ block: 'nearest' });
+  };
+  const filter = () => {
+    const words = normText(input.value).split(/\s+/).filter(Boolean);
+    shown = all.filter((it) => words.every((w) => it.text.includes(w))).slice(0, 40);
+    sel = 0; paint();
+  };
+  input.oninput = filter;
+  overlay.onkeydown = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); if (shown.length) { sel = (sel + 1) % shown.length; paint(); } }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (shown.length) { sel = (sel - 1 + shown.length) % shown.length; paint(); } }
+    else if (e.key === 'Enter') { e.preventDefault(); if (shown[sel]) run(shown[sel]); }
+    else if (e.key === 'Tab') { e.preventDefault(); }
+  };
+  overlay.onmousedown = (e) => { if (e.target === overlay) close(); };
+  document.body.append(overlay);
+  filter(); input.focus();
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && String(e.key).toLowerCase() === 'k') { e.preventDefault(); openPalette(); }
+});
 function go(section) { const changed = state.section !== section; state.section = section; store.set('section', section); render(); if (changed && state.booted) pageIn('enter'); }
 function render() {
   const j = state.data;
@@ -1437,6 +1592,7 @@ function render() {
   if (!j.instances.some((i) => i.id === state.cur)) state.cur = j.instances[0].id;
   const s = j.instances.find((i) => i.id === state.cur);
   const v = view(s);
+  state.palette = v.actions || [];
   const select = el('select', { 'aria-label': 'Instalimi' }, ...j.instances.map((i) => { const o = el('option', { value: i.id }, i.name); if (i.id === s.id) o.selected = true; return o; }));
   select.onchange = () => { state.cur = select.value; store.set('cur', state.cur); render(); };
   const nav = el('nav', { class: 'nav' }, ...SECTIONS.map(([key, label, ic]) => {
@@ -1450,6 +1606,7 @@ function render() {
   side.replaceChildren(
     el('div', { class: 'brand' }, el('div', { class: 'logo' }, 'HR'), el('div', {}, el('b', {}, s.name), el('span', {}, 'Dashboard'))),
     el('div', { class: 'inst' }, el('span', { class: 'dot ' + (s.health.ok ? 'on' : 'off'), role: 'img', 'aria-label': s.health.ok ? 'Online' : 'Offline' }), j.instances.length > 1 ? select : el('span', { class: 'instname' }, s.name)), // the list is only for several installations on one PC
+    (() => { const b = el('button', { type: 'button', class: 'kbtn', 'aria-label': t('Kërko...') + ' (Ctrl K)' }, icon('search'), el('span', {}, 'Kërko...'), el('kbd', {}, 'Ctrl K')); b.onclick = openPalette; return b; })(),
     nav,
     (() => { const lab = A11Y[helpLang()].open; const gear = el('button', { type: 'button', class: 'gearbtn' + (state.section === 'settings' ? ' on' : ''), id: 'gear', 'aria-label': lab, title: lab }, icon('gear')); gear.onclick = () => go('settings'); return el('div', { class: 'tools' }, gear); })(),
     el('div', { class: 'credit-side' }, el('span', {}, 'Krijuar nga'), ' ', el('b', {}, 'Rogest Network')),

@@ -56,3 +56,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **Release notes:** when a new version exists the overview shows what it contains ("Çfarë ka të re", from the text of the GitHub Release).
 
 - **Dashboard version:** v1.1.0; Veprime shows it with "Çfarë ka të re", and after each self-update the phone gets what is new.
+
+- **v1.2.0:** JetBrains Mono, icon cards, one set of status colours, "Kryesore" and a Ctrl+K search.

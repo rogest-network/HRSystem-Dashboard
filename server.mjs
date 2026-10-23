@@ -870,7 +870,7 @@ async function updateDashboard() {
     if (server) fs.writeFileSync(path.join(HERE, '.updating'), String(Date.now())); // read by the restart: starts the guard
     for (const f of files) fs.writeFileSync(localPathOf(f.rel), f.buf);
     dashCache = null;
-    return { ok: true, files: files.length };
+    return { ok: true, files: files.length, server: !!server };
   } finally { dashUpdating = false; }
 }
 // After a self-update the old process starts this guard before it ends: if the new dashboard does not answer within 25 s, the old files are
@@ -902,12 +902,33 @@ async function autoUpdateDashboard() {
     const s = await dashboardState(true);
     if (s && s.files > 0) {
       const r = await updateDashboard();
-      if (r && r.files) for (const inst of instances()) if (inst.local) { notify(inst, 'Dashboard-i u përditësua', 'U instaluan ' + r.files + ' skedarë të rinj të dashboard-it.', 'ok'); addHistory(inst, { title: 'Dashboard-i u përditësua', ok: true, detail: r.files + ' skedarë' }); }
+      if (r && r.files) for (const inst of instances()) if (inst.local) {
+        // A new server.mjs restarts the dashboard, and the new process announces its version with the notes (announceDashboardVersion): no second message here.
+        if (!r.server) { notify(inst, 'Dashboard-i u përditësua', 'U instaluan ' + r.files + ' skedarë të rinj të dashboard-it.', 'ok'); addHistory(inst, { title: 'Dashboard-i u përditësua', ok: true, detail: r.files + ' skedarë' }); }
+      }
     }
   } catch { /* next round */ }
 }
 function INSTALLED_EARLY() { return fs.existsSync(path.join(path.dirname(HERE), 'current.txt')); }
 if (INSTALLED_EARLY()) { setTimeout(autoUpdateDashboard, 120000).unref(); setInterval(autoUpdateDashboard, 600000).unref(); }
+// After a self-update the NEW process tells (once per installation) which version of the dashboard it is and what is new since the one this PC had before.
+// An installation that never recorded a version counts as 1.0.0 (a brand-new one with no history stays silent).
+function announceDashboardVersion() {
+  for (const inst of instances()) {
+    if (!inst.local) continue;
+    const cur = readSettings(inst);
+    if (cur.dashSeen === DASH_VERSION) continue;
+    const fresh = cur.dashSeen === undefined && !(cur.history && cur.history.length);
+    const from = cur.dashSeen || '1.0.0';
+    if (!fresh) {
+      const news = DASH_NOTES.filter((n) => cmp(n.version, from) > 0).slice(0, 5);
+      notify(inst, 'Dashboard-i u përditësua në v' + DASH_VERSION, (news.length ? 'Çfarë ka të re:' + NOTE_NL + notesText(dashNotesAsReleaseNotes(news)) : 'Versioni ' + DASH_VERSION), 'ok');
+      addHistory(inst, { title: 'Dashboard-i u përditësua', ok: true, detail: 'v' + from + ' → v' + DASH_VERSION });
+    }
+    const latestSettings = readSettings(inst); latestSettings.dashSeen = DASH_VERSION; settingsWrite(inst, latestSettings);
+  }
+}
+if (INSTALLED_EARLY()) setTimeout(() => { try { announceDashboardVersion(); } catch { /* next start */ } }, 20000).unref();
 
 function access_domain_or_local(access, inst) { return access.domain || inst.url || access.local; }
 
@@ -1023,6 +1044,19 @@ function addHistory(inst, entry) {
 }
 // The release notes as a short text for a phone message: "Versioni X:" and its "- " lines as bullets, cut at 600 characters.
 const NOTE_NL = String.fromCharCode(10);
+// The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
+// the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
+const DASH_VERSION = '1.1.0';
+const DASH_NOTES = [
+  { version: '1.1.0', date: '2026-10-23', notes: [
+    'Dashboard-i ka numër versioni dhe pas çdo përditësimi të vetes tregon çfarë ka të re, në faqe dhe në njoftimin në telefon.',
+    'Shënimet e versionit të programit (çfarë ka të re) shfaqen te Pasqyra para përditësimit dhe në njoftimin "Ka version të ri".',
+    'Njoftimi "Përditësimi u krye" i përsërit çfarë ka të re.',
+    'Puna automatike e natës rinis kur ndërron orën (p.sh. nga 01:00 në 19:00), edhe nëse sot ka punuar tashmë; historiku tregon pse nuk u nis.',
+  ] },
+  { version: '1.0.0', date: '2026-10-21', notes: ['Versioni i parë me numër: pasqyra, backup-et, përditësimet, njoftimet.'] },
+];
+const dashNotesAsReleaseNotes = (list) => list.map((n) => ({ version: n.version, body: n.notes.map((l) => '- ' + l).join(NOTE_NL) }));
 function notesText(notes) {
   const NL = NOTE_NL;
   const out = [];
@@ -1690,7 +1724,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/status') {
       if (!statusShared.promise || Date.now() - statusShared.at > 3000) {
         statusShared.at = Date.now();
-        statusShared.promise = (async () => ({ instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, errors: { day: errorsLastDay() }, location: serverLocation(), security: { password: SIGN_IN, env: !!process.env.DASHBOARD_KEY }, at: new Date().toISOString() }))();
+        statusShared.promise = (async () => ({ instances: await Promise.all(instances().map(status)), dashboard: await dashboardState().catch(() => null), dashboardRepo: DASH_REPO, dashboardVersion: DASH_VERSION, dashboardNotes: DASH_NOTES, errors: { day: errorsLastDay() }, location: serverLocation(), security: { password: SIGN_IN, env: !!process.env.DASHBOARD_KEY }, at: new Date().toISOString() }))();
         statusShared.promise.catch(() => { statusShared.promise = null; });
       }
       return send(res, 200, await statusShared.promise);

@@ -54,3 +54,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 > Për Claude/zhvillues: shih `ARCHITECTURE.md` (si është ndërtuar, rregullat e ndryshimit, testimi).
 
 - **Release notes:** when a new version exists the overview shows what it contains ("Çfarë ka të re", from the text of the GitHub Release).
+
+- **Dashboard version:** v1.1.0; Veprime shows it with "Çfarë ka të re", and after each self-update the phone gets what is new.

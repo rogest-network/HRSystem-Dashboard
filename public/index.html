@@ -508,7 +508,7 @@ const TR_LIST = [
   ["Përditësimi i aplikacionit", "Application update", "Ažuriranje aplikacije"], ["Lidhja e tunelit", "Tunnel connection", "Povezivanje tunela"], ["Heqja e tunelit", "Removing the tunnel", "Uklanjanje tunela"],
   ["Po nis", "Starting", "Pokretanje"], ["Kontroll", "Check", "Provera"], ["Kontroll në GitHub", "Checking GitHub", "Provera GitHub-a"], ["Shkarkim", "Download", "Preuzimanje"], ["Skedarët e versionit", "Version files", "Datoteke verzije"],
   ["Migrimet", "Migrations", "Migracije"], ["Ndërrimi i versionit", "Switching the version", "Zamena verzije"], ["Build u krye", "Build done", "Build završen"], ["U krye", "Done", "Završeno"], ["Dështoi", "Failed", "Neuspešno"], ["Po vazhdon", "In progress", "U toku"],
-  ["Çfarë ka të re", "What's new", "Šta je novo"], ["Ka version të ri", "New version available", "Postoji nova verzija"], ["Ka build të ri", "New build available", "Postoji novi build"], ["I përditësuar", "Up to date", "Ažurirano"],
+  ["Çfarë ka të re", "What's new", "Šta je novo"], ["Përditëso dashboard-in", "Update the dashboard", "Ažuriraj dashboard"], ["Në rregull", "OK", "U redu"], ["Dashboard-i u përditësua në v", "The dashboard was updated to v", "Dashboard je ažuriran na v"], ["Dashboard-i · v", "Dashboard · v", "Dashboard · v"], ["Ka version të ri", "New version available", "Postoji nova verzija"], ["Ka build të ri", "New build available", "Postoji novi build"], ["I përditësuar", "Up to date", "Ažurirano"],
   ["Progres", "Progress", "Napredak"], ["Ora e backup-it", "Backup hour", "Sat backup-a"], ["Sa backup të mbahen", "How many backups to keep", "Koliko backup-a se čuva"],
   ["Shpejtësia e fundit (ms)", "Latest speed (ms)", "Poslednja brzina (ms)"], ["Nuk ka version të ri.", "There is no new version.", "Nema nove verzije."],
   ["Punon nga folderi i zhvillimit.", "Runs from the development folder.", "Radi iz razvojne fascikle."],
@@ -1092,6 +1092,7 @@ function view(s) {
   };
   pages.home = () => el('div', {},
     header(s.name, 'Pasqyra', controls),
+    dashJustUpdated(),
     updateNotice(),
     pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
@@ -1285,9 +1286,30 @@ function view(s) {
     el('div', { class: 'item' }, el('div', { class: 'sched' }, el('div', { class: 'line' }, nfSw, nfDaily, nfHour), el('div', { class: 'hint' }, 'Njoftim kur aplikacioni bie (1 minutë), kur backup-i i fundit është më i vjetër se 2 ditë, kur një adresë nuk hapet 5 minuta, kur backup-i ose përditësimi dështon, kur mbaron hapësira, kur përditësimi kryhet, dhe një raport çdo ditë në orën që zgjedh ti. Mesazhet nuk kanë të dhëna personale.'))),
     item('Dërgo provë', 'Dërgon një mesazh provë tani.', nfTest),
     item('Raporti i ditës', 'Dërgon tani raportin: aplikacioni, backup-i, disku, adresat dhe versioni.', nfReport)));
+  // The dashboard's own version and what each version brought (from the server: DASH_VERSION / DASH_NOTES).
+  const dashVer = state.data && state.data.dashboardVersion, dashNotes = (state.data && state.data.dashboardNotes) || [];
+  const dashNotesBox = (list) => el('div', { class: 'notes' }, ...list.map((n) => el('div', {}, el('h3', {}, 'Versioni ' + n.version + (n.date ? ' · ' + n.date : '')), renderNotes(n.notes.map((l) => '- ' + l).join(String.fromCharCode(10))))));
+  const dashCard = () => !dashVer ? '' : el('div', { class: 'card' }, el('h2', {}, 'Dashboard-i · v' + dashVer),
+    el('div', { class: 'act' }, item('Përditëso dashboard-in', dashText, dashBtn)),
+    el('details', { class: 'notes' }, el('summary', {}, 'Çfarë ka të re'), dashNotesBox(dashNotes.slice(0, 3))));
+  // Once after the dashboard has been updated (its version differs from the one this browser saw): what is new.
+  const dashJustUpdated = () => {
+    if (!dashVer) return '';
+    let seen = null;
+    try { seen = localStorage.getItem('dashSeenVersion'); } catch { /* no storage */ }
+    if (seen === dashVer) return '';
+    const mark = () => { try { localStorage.setItem('dashSeenVersion', dashVer); } catch { /* no storage */ } };
+    if (!seen) { mark(); return ''; }
+    const news = dashNotes.filter((n) => n.version !== seen && n.version.split('.').map(Number).reduce((a, v, i) => a || (v - (seen.split('.').map(Number)[i] || 0)), 0) > 0).slice(0, 5);
+    const close = el('button', { type: 'button', class: 'btn ghost' }, 'Në rregull');
+    const box = el('div', { class: 'banner run' }, el('p', {}, el('b', {}, 'Dashboard-i u përditësua në v' + dashVer)), news.length ? el('div', { class: 'notes' }, el('b', {}, 'Çfarë ka të re'), dashNotesBox(news)) : '', el('div', { class: 'row' }, close));
+    close.onclick = () => { mark(); box.remove(); };
+    return box;
+  };
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë, lidhje', ''),
     pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
+    dashCard(),
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
         item('Përditëso aplikacionin', s.update ? 'Ka version të ri: ' + latText + ' (instaluar: ' + verText + ').' : 'Versioni ' + verText + ' · i përditësuar.', updBtn),

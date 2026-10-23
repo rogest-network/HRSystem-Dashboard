@@ -1046,8 +1046,9 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.1.0';
+const DASH_VERSION = '1.1.1';
 const DASH_NOTES = [
+  { version: '1.1.1', date: '2026-10-23', notes: ['Faqe e re në menu: "Çfarë ka të re" (dashboard-i dhe programi).'] },
   { version: '1.1.0', date: '2026-10-23', notes: [
     'Dashboard-i ka numër versioni dhe pas çdo përditësimi të vetes tregon çfarë ka të re, në faqe dhe në njoftimin në telefon.',
     'Shënimet e versionit të programit (çfarë ka të re) shfaqen te Pasqyra para përditësimit dhe në njoftimin "Ka version të ri".',

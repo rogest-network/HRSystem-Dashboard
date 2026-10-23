@@ -508,7 +508,7 @@ const TR_LIST = [
   ["Përditësimi i aplikacionit", "Application update", "Ažuriranje aplikacije"], ["Lidhja e tunelit", "Tunnel connection", "Povezivanje tunela"], ["Heqja e tunelit", "Removing the tunnel", "Uklanjanje tunela"],
   ["Po nis", "Starting", "Pokretanje"], ["Kontroll", "Check", "Provera"], ["Kontroll në GitHub", "Checking GitHub", "Provera GitHub-a"], ["Shkarkim", "Download", "Preuzimanje"], ["Skedarët e versionit", "Version files", "Datoteke verzije"],
   ["Migrimet", "Migrations", "Migracije"], ["Ndërrimi i versionit", "Switching the version", "Zamena verzije"], ["Build u krye", "Build done", "Build završen"], ["U krye", "Done", "Završeno"], ["Dështoi", "Failed", "Neuspešno"], ["Po vazhdon", "In progress", "U toku"],
-  ["Çfarë ka të re", "What's new", "Šta je novo"], ["Përditëso dashboard-in", "Update the dashboard", "Ažuriraj dashboard"], ["Në rregull", "OK", "U redu"], ["Dashboard-i u përditësua në v", "The dashboard was updated to v", "Dashboard je ažuriran na v"], ["Dashboard-i · v", "Dashboard · v", "Dashboard · v"], ["Ka version të ri", "New version available", "Postoji nova verzija"], ["Ka build të ri", "New build available", "Postoji novi build"], ["I përditësuar", "Up to date", "Ažurirano"],
+  ["Çfarë ka të re", "What's new", "Šta je novo"], ["Dashboard-i dhe programi", "The dashboard and the program", "Dashboard i program"], ["Programi · ", "The program · ", "Program · "], ["Nuk ka version të ri të programit.", "There is no new version of the program.", "Nema nove verzije programa."], ["Dashboard-i përditësohet vetë (çdo 10 minuta); këtu shihet çfarë solli çdo version.", "The dashboard updates itself (every 10 minutes); here you see what each version brought.", "Dashboard se ažurira sam (na 10 minuta); ovde se vidi šta je doneo svaki izdanje."],["Në rregull", "OK", "U redu"], ["Dashboard-i u përditësua në v", "The dashboard was updated to v", "Dashboard je ažuriran na v"], ["Dashboard-i · v", "Dashboard · v", "Dashboard · v"], ["Ka version të ri", "New version available", "Postoji nova verzija"], ["Ka build të ri", "New build available", "Postoji novi build"], ["I përditësuar", "Up to date", "Ažurirano"],
   ["Progres", "Progress", "Napredak"], ["Ora e backup-it", "Backup hour", "Sat backup-a"], ["Sa backup të mbahen", "How many backups to keep", "Koliko backup-a se čuva"],
   ["Shpejtësia e fundit (ms)", "Latest speed (ms)", "Poslednja brzina (ms)"], ["Nuk ka version të ri.", "There is no new version.", "Nema nove verzije."],
   ["Punon nga folderi i zhvillimit.", "Runs from the development folder.", "Radi iz razvojne fascikle."],
@@ -599,6 +599,7 @@ const speedClass = (ms) => ms < 400 ? 'ok' : ms < 1200 ? 'warn' : 'bad';
 
 // Small line icons (24x24).
 const ICONS = {
+  star: 'M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z',
   home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
   key: 'M14 10a4 4 0 1 1-3.5 6L4 22v-3H2v-2h3l5.5-5.5A4 4 0 0 1 14 10zM15.5 8.5h.01',
@@ -867,7 +868,7 @@ function settingsBody() {
 }
 applyPrefs();
 
-const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['errors', 'Gabimet', 'alert'], ['history', 'Historiku', 'clock'], ['help', 'Si ta përdorësh', 'help']];
+const SECTIONS = [['home', 'Pasqyra', 'home'], ['data', 'Të dhënat', 'key'], ['actions', 'Veprime', 'bolt'], ['backup', 'Backup-et', 'box'], ['files', 'Vendndodhja', 'folder'], ['log', 'Log-u', 'term'], ['errors', 'Gabimet', 'alert'], ['history', 'Historiku', 'clock'], ['whatsnew', 'Çfarë ka të re', 'star'], ['help', 'Si ta përdorësh', 'help']];
 const state = { cur: store.get('cur', ''), section: store.get('section', 'home') === 'access' ? 'data' : store.get('section', 'home'), data: null, secrets: {}, shown: {}, jobStates: {}, dismissed: 0 };
 const running = () => (state.data ? state.data.instances.filter((i) => i.job && i.job.state === 'running').map((i) => i.id) : []);
 
@@ -1289,9 +1290,6 @@ function view(s) {
   // The dashboard's own version and what each version brought (from the server: DASH_VERSION / DASH_NOTES).
   const dashVer = state.data && state.data.dashboardVersion, dashNotes = (state.data && state.data.dashboardNotes) || [];
   const dashNotesBox = (list) => el('div', { class: 'notes' }, ...list.map((n) => el('div', {}, el('h3', {}, 'Versioni ' + n.version + (n.date ? ' · ' + n.date : '')), renderNotes(n.notes.map((l) => '- ' + l).join(String.fromCharCode(10))))));
-  const dashCard = () => !dashVer ? '' : el('div', { class: 'card' }, el('h2', {}, 'Dashboard-i · v' + dashVer),
-    el('div', { class: 'act' }, item('Përditëso dashboard-in', dashText, dashBtn)),
-    el('details', { class: 'notes' }, el('summary', {}, 'Çfarë ka të re'), dashNotesBox(dashNotes.slice(0, 3))));
   // Once after the dashboard has been updated (its version differs from the one this browser saw): what is new.
   const dashJustUpdated = () => {
     if (!dashVer) return '';
@@ -1306,10 +1304,13 @@ function view(s) {
     close.onclick = () => { mark(); box.remove(); };
     return box;
   };
+  // The page "Çfarë ka të re": what each version of the dashboard brought, and the program's new version when there is one.
+  pages.whatsnew = () => el('div', {}, header('Çfarë ka të re', 'Dashboard-i dhe programi', ''),
+    el('div', { class: 'card' }, el('h2', {}, 'Dashboard-i' + (dashVer ? ' · v' + dashVer : '')), el('p', { class: 'hint' }, 'Dashboard-i përditësohet vetë (çdo 10 minuta); këtu shihet çfarë solli çdo version.'), dashNotes.length ? dashNotesBox(dashNotes) : el('p', {}, 'Punon nga folderi i zhvillimit.')),
+    el('div', { class: 'card' }, el('h2', {}, 'Programi · ' + verText), (lat && !lat.error && s.update && lat.notes && lat.notes.length) ? el('div', { class: 'notes' }, el('p', { class: 'nh' }, 'Ka version të ri: ' + newV), ...lat.notes.map((n) => el('div', {}, el('h3', {}, 'Versioni ' + n.version), renderNotes(n.body)))) : el('p', {}, 'Nuk ka version të ri të programit.')));
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë, lidhje', ''),
     pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
-    dashCard(),
     el('div', { class: 'grid2' },
       el('div', { class: 'card' }, el('h2', {}, 'Përditësimi'), el('div', { class: 'act' },
         item('Përditëso aplikacionin', s.update ? 'Ka version të ri: ' + latText + ' (instaluar: ' + verText + ').' : 'Versioni ' + verText + ' · i përditësuar.', updBtn),

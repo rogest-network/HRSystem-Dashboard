@@ -1046,8 +1046,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.3.2';
+const DASH_VERSION = '1.3.3';
 const DASH_NOTES = [
+  { version: '1.3.3', date: '2026-10-23', notes: [
+    'Kryesore: tekstet "e fundit", "në 24 orë" dhe "dashboard-i dhe programi" tani përkthehen edhe në anglisht e serbisht.',
+  ] },
   { version: '1.3.2', date: '2026-10-23', notes: [
     'Kryesore: "Veprime të shpejta" janë tani më lart, para kartave.',
   ] },

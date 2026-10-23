@@ -1046,8 +1046,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.3.0';
+const DASH_VERSION = '1.3.1';
 const DASH_NOTES = [
+  { version: '1.3.1', date: '2026-10-23', notes: [
+    'Kryesore: adresat nuk dyfishohen më. Karta "Lidhja" ka adresat dhe veprimet (hiq domenin, ndrysho adresën ose tunelin), ndërsa poshtë shfaqen "Veprimet e fundit".',
+  ] },
   { version: '1.3.0', date: '2026-10-23', notes: [
     'Logoja e re e HRSystem në vend të katrorit "HR": te menuja, ekrani i ngarkimit, faqja e hyrjes dhe ikona e faqes.',
     'Kryesore ka opsione të reja: veprime të shpejta (backup, përditëso, log-u, historiku, gabimet, kopjo adresën, çfarë ka të re).',

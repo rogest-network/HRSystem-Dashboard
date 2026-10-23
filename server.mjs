@@ -962,6 +962,7 @@ function rememberAndPrune(inst, names, keep) {
   const madeHere = new Set(mine.autoBackupFiles);
   for (const old of listBackups(inst).filter((x) => madeHere.has(x.name)).slice(keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
 }
+const skipNoted = new Map();
 async function autoBackupTick() {
   const now = new Date();
   const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
@@ -972,6 +973,11 @@ async function autoBackupTick() {
     // Once a day PER HOUR: when the owner moves the hour (e.g. 01:00 -> 19:00) the job runs again at the new hour even if it already ran today at the old one
     // (owner, 2026-10-23: he moved it to 19:00 to get an update and nothing happened because today's run had been done). An old record without an hour counts as the same hour.
     const doneToday = auto.last && auto.last.date === today && (auto.last.hour === undefined || auto.last.hour === auto.hour);
+    if (auto.on || auto.updateToo) {
+      // The reason is written to the history once, so "why did it not run at this hour?" can be answered from the dashboard.
+      const noted = today + '|' + auto.hour;
+      if (now.getHours() === auto.hour && doneToday && skipNoted.get(inst.id) !== noted) { skipNoted.set(inst.id, noted); addHistory(inst, { title: 'Puna automatike nuk u nis', ok: false, detail: 'sot u krye tashmë në orën e njëjtë (' + auto.last.date + ')' }); }
+    }
     if ((!auto.on && !auto.updateToo) || now.getHours() !== auto.hour || doneToday) continue;
     const running = jobs.get(inst.id);
     if (running && running.state === 'running') continue;

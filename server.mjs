@@ -210,11 +210,22 @@ async function latest(inst) {
   const pick = inst.channel === 'test' ? releases[0] : releases.find((r) => !r.prerelease);
   if (!pick) return { error: 'Nuk ka Release' };
   const asset = pick.assets.find(isAppAsset);
+  // The notes of the new version, and of every version between the installed one and it (newest first, at most 5, each cut at 4000 characters).
+  // A local copy of a Release page's text only: the dashboard never writes to GitHub.
+  const cur = installed(inst);
+  const have = cur && !cur.error ? cur.version : null;
+  const newest = pick.tag_name.slice(1);
+  const notes = releases
+    .filter((r) => (inst.channel === 'test' || !r.prerelease) && cmp(r.tag_name.slice(1), newest) <= 0 && (!have || cmp(r.tag_name.slice(1), have) > 0))
+    .slice(0, 5)
+    .map((r) => ({ version: r.tag_name.slice(1), title: String(r.name || '').slice(0, 120), body: String(r.body || '').replace(/\r/g, '').trim().slice(0, 4000) }))
+    .filter((n) => n.body);
   return {
-    version: pick.tag_name.slice(1),
+    version: newest,
     prerelease: pick.prerelease,
     published: pick.published_at,
     build: asset ? `${asset.id}:${asset.updated_at}` : null,
+    notes,
   };
 }
 

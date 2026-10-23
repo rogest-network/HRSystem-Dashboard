@@ -195,6 +195,12 @@
   .progress.indet i { width:35%; animation:slide 1.3s infinite ease-in-out; }
   @keyframes slide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
   .banner.run { border-color:var(--accent); background:var(--accent-soft); }
+  .notes { border-top:1px solid var(--line); padding-top:10px; }
+  .notes summary { cursor:pointer; font-weight:600; font-size:14px; }
+  .notes h3 { font-size:14px; margin:14px 0 6px; }
+  .notes p, .notes li { font-size:13.5px; line-height:1.5; margin:4px 0; color:var(--text); overflow-wrap:anywhere; }
+  .notes ul { margin:4px 0 4px 18px; padding:0; }
+  .notes .nh { font-weight:600; margin-top:10px; }
   .live { display:inline-flex; align-items:center; gap:7px; font-size:11px; letter-spacing:.6px; color:var(--side-text); }
   .live i { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 0 0 rgba(52,211,153,.6); animation:livepulse 1.8s infinite; }
   .live.off i { background:#f87171; animation:none; } .live.off { color:#fca5a5; }
@@ -502,7 +508,7 @@ const TR_LIST = [
   ["Përditësimi i aplikacionit", "Application update", "Ažuriranje aplikacije"], ["Lidhja e tunelit", "Tunnel connection", "Povezivanje tunela"], ["Heqja e tunelit", "Removing the tunnel", "Uklanjanje tunela"],
   ["Po nis", "Starting", "Pokretanje"], ["Kontroll", "Check", "Provera"], ["Kontroll në GitHub", "Checking GitHub", "Provera GitHub-a"], ["Shkarkim", "Download", "Preuzimanje"], ["Skedarët e versionit", "Version files", "Datoteke verzije"],
   ["Migrimet", "Migrations", "Migracije"], ["Ndërrimi i versionit", "Switching the version", "Zamena verzije"], ["Build u krye", "Build done", "Build završen"], ["U krye", "Done", "Završeno"], ["Dështoi", "Failed", "Neuspešno"], ["Po vazhdon", "In progress", "U toku"],
-  ["Ka version të ri", "New version available", "Postoji nova verzija"], ["Ka build të ri", "New build available", "Postoji novi build"], ["I përditësuar", "Up to date", "Ažurirano"],
+  ["Çfarë ka të re", "What's new", "Šta je novo"], ["Ka version të ri", "New version available", "Postoji nova verzija"], ["Ka build të ri", "New build available", "Postoji novi build"], ["I përditësuar", "Up to date", "Ažurirano"],
   ["Progres", "Progress", "Napredak"], ["Ora e backup-it", "Backup hour", "Sat backup-a"], ["Sa backup të mbahen", "How many backups to keep", "Koliko backup-a se čuva"],
   ["Shpejtësia e fundit (ms)", "Latest speed (ms)", "Poslednja brzina (ms)"], ["Nuk ka version të ri.", "There is no new version.", "Nema nove verzije."],
   ["Punon nga folderi i zhvillimit.", "Runs from the development folder.", "Radi iz razvojne fascikle."],
@@ -1060,10 +1066,29 @@ function view(s) {
     versionsBtn.disabled = busy;
   };
 
+  // The text of a Release page (what the new version contains): "- " lines become a list, "#" lines a bold line, everything else a paragraph.
+  const renderNotes = (body) => {
+    const out = []; let list = null;
+    for (const raw of String(body || '').split('\n')) {
+      const line = raw.trim();
+      if (!line) { list = null; continue; }
+      const bullet = /^[-*]\s+(.*)$/.exec(line);
+      if (bullet) { if (!list) { list = el('ul'); out.push(list); } list.append(el('li', {}, bullet[1].replace(/[*`]/g, ''))); continue; }
+      list = null;
+      out.push(/^#+\s/.test(line) ? el('p', { class: 'nh' }, line.replace(/^#+\s*/, '').replace(/[*`]/g, '')) : el('p', {}, line.replace(/[*`]/g, '')));
+    }
+    return el('div', {}, out);
+  };
+  const releaseNotes = () => {
+    const notes = (lat && !lat.error && lat.notes) || [];
+    if (!s.update || !notes.length) return '';
+    return el('details', { class: 'notes', open: '' }, el('summary', {}, 'Çfarë ka të re'),
+      ...notes.map((n) => el('div', {}, el('h3', {}, 'Versioni ' + n.version + (n.title && n.title.replace(/^v/i, '') !== n.version ? ' · ' + n.title : '')), renderNotes(n.body))));
+  };
   const updateNotice = () => {
     if (!s.update) return '';
     const go2 = el('button', { type: 'button', class: 'btn' }, 'Përditëso në ' + newV); go2.disabled = busy; go2.onclick = () => updBtn.onclick();
-    return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, s.update === 'build' ? 'Ka build të ri të versionit ' + newV : 'Ka version të ri të programit: ' + newV), ' · instaluar: ' + verText), el('div', { class: 'row' }, go2));
+    return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, s.update === 'build' ? 'Ka build të ri të versionit ' + newV : 'Ka version të ri të programit: ' + newV), ' · instaluar: ' + verText), releaseNotes(), el('div', { class: 'row' }, go2));
   };
   pages.home = () => el('div', {},
     header(s.name, 'Pasqyra', controls),

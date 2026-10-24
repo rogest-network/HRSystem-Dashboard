@@ -60,7 +60,9 @@
   .nav .grow { flex:1; }
   .side .instname { font-weight:600; font-size:13px; color:var(--side-text); padding:2px 4px; }
   .side .tools { margin-top:auto; padding:0 10px 10px; display:flex; } .side .gearbtn { width:36px; height:36px; display:grid; place-items:center; border-radius:9px; border:1px solid var(--side-2); background:transparent; color:var(--side-text); cursor:pointer; padding:0; } .side .gearbtn:hover { background:var(--side-2); color:#fff; } .side .gearbtn.on { background:rgba(129,140,248,.16); color:#fff; border-color:transparent; }
-  .side .credit-side { margin-top:0; padding:0 10px 10px; font-size:11.5px; letter-spacing:.4px; color:var(--side-muted); } .side .credit-side b { color:var(--side-text); font-weight:600; }
+  .side .head { margin-bottom:8px; padding-bottom:14px; border-bottom:1px solid var(--side-2); } .side .head .brand { padding:2px 8px 12px; margin:0; border:0; }
+  .side .gearbtn.wide { width:100%; height:auto; display:flex; align-items:center; justify-content:flex-start; gap:9px; padding:9px 12px; font:inherit; font-size:13px; font-weight:500; }
+  .side .credit-side { margin-top:auto; padding:0 10px 10px; font-size:11.5px; letter-spacing:.4px; color:var(--side-muted); } .side .credit-side b { color:var(--side-text); font-weight:600; }
   .side .foot { margin-top:0; padding:10px 10px 0; border-top:1px solid var(--side-2); font-size:12px; color:var(--side-muted); display:grid; gap:8px; }
   .side .foot button { background:transparent; border:1px solid var(--side-2); color:var(--side-text); border-radius:8px; padding:6px 10px; font:inherit; cursor:pointer; }
   .side .foot button:hover { background:var(--side-2); }
@@ -405,6 +407,8 @@
     .app { grid-template-columns:minmax(0,1fr); } .side { min-width:0; }
     .side { flex-direction:row; flex-wrap:wrap; align-items:center; padding:12px 14px 6px; gap:8px 10px; border-right:0; border-bottom:1px solid var(--side-2); }
     .brand { padding:0; margin:0; border:0; flex:none; } .brand span { display:none; }
+    .side .head { display:flex; align-items:center; gap:10px; margin:0; padding:0; border:0; flex:none; } .side .head .brand { padding:0; }
+    .side .gearbtn.wide { width:38px; height:38px; padding:0; justify-content:center; } .side .gearbtn.wide span { display:none; }
     .inst { margin:0; flex:1 1 130px; min-width:0; padding:7px 10px; }
     .nav { order:5; flex-basis:100%; flex-direction:row; flex-wrap:nowrap; overflow-x:auto; gap:4px; margin:0 -14px; padding:2px 14px 8px; scrollbar-width:none; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; scroll-padding-inline:14px; }
     .nav::-webkit-scrollbar { display:none; }
@@ -677,6 +681,7 @@ const TR_LIST = [
   ["Ndaloj nisjen automatike të të gjitha? Pas rinisjes asgjë nuk niset vetë.", "Stop automatic start of everything? After a restart nothing starts by itself.", "Zaustavi automatsko pokretanje svega? Posle restarta se ništa ne pokreće samo."],
   ["Backup, build dhe migrime; nëse dështon, kthehet vetë.", "Backup, build and migrations; if it fails, it rolls back by itself.", "Backup, build i migracije; ako ne uspe, vraća se samo."],
   ["Kontakto Administratorin", "Contact the Administrator", "Kontaktiraj administratora"], ["Për ndihmë ose probleme.", "For help or problems.", "Za pomoć ili probleme."],
+  ["Zona e rrezikut", "Danger zone", "Opasna zona"], ["Çinstalo HRSystem", "Uninstall HRSystem", "Deinstaliraj HRSystem"], ["Heq HRSystem nga ky kompjuter. Pyet dy herë; aty zgjedh a ruhet databaza.", "Removes HRSystem from this computer. It asks twice; there you choose whether the database is kept.", "Uklanja HRSystem sa ovog računara. Pita dvaput; tamo biraš da li se baza čuva."], ["A je i sigurt? Çinstalimi heq HRSystem nga ky kompjuter dhe nuk kthehet.", "Are you sure? Uninstalling removes HRSystem from this computer and cannot be undone.", "Da li si siguran? Deinstalacija uklanja HRSystem sa ovog računara i ne može da se poništi."],
   ["automatikisht", "automatically", "automatski"], ["manualisht", "manually", "ručno"],
   ["e fundit", "last", "poslednji"], ["në 24 orë", "in 24 hours", "u 24 sata"], ["dashboard-i dhe programi", "the dashboard and the program", "dashboard i program"],
 ];
@@ -1495,6 +1500,13 @@ function view(s) {
   pages.whatsnew = () => el('div', {}, header('Çfarë ka të re', 'Dashboard-i dhe programi', ''),
     el('div', { class: 'card' }, el('h2', {}, 'Dashboard-i' + (dashVer ? ' · v' + dashVer : '')), el('p', { class: 'hint' }, 'Dashboard-i përditësohet vetë (çdo 10 minuta); këtu shihet çfarë solli çdo version.'), dashNotes.length ? dashNotesBox(dashNotes) : el('p', {}, 'Punon nga folderi i zhvillimit.')),
     el('div', { class: 'card' }, el('h2', {}, 'Programi · ' + verText), (lat && !lat.error && s.update && lat.notes && lat.notes.length) ? el('div', { class: 'notes' }, el('p', { class: 'nh' }, 'Ka version të ri: ' + newV), ...lat.notes.map((n) => el('div', {}, el('h3', {}, 'Versioni ' + n.version), renderNotes(n.body)))) : el('p', {}, 'Nuk ka version të ri të programit.')));
+  // Uninstall: at the bottom of Veprime, far from the menu so it cannot be hit by mistake; it asks twice.
+  const uninstallBtn = s.canUninstall ? el('button', { type: 'button', class: 'btn danger' }, 'Çinstalo HRSystem...') : null;
+  if (uninstallBtn) uninstallBtn.onclick = async () => {
+    if (!await confirmAsync('Hap çinstalimin e HRSystem?' + NL + NL + 'Hapet dritarja e çinstalimit: aty zgjedh a ruhet databaza (një eksport në Desktop). Pastaj fshihet gjithçka tjetër; aplikacioni dhe dashboard-i ndalen vetë.')) return;
+    if (!await confirmAsync('A je i sigurt? Çinstalimi heq HRSystem nga ky kompjuter dhe nuk kthehet.')) return;
+    await call('uninstall', '', 'Dritarja e çinstalimit u hap. Vazhdo atje.');
+  };
   pages.actions = () => el('div', {}, header('Veprime', 'Përditësim, databazë, lidhje', ''),
     pinBanner(),
     s.ownerMissing ? ownerBanner() : '',
@@ -1524,7 +1536,8 @@ function view(s) {
       el('div', { class: 'card' }, el('h2', {}, 'Lidhjet'), el('div', { class: 'act' },
         item('Token GitHub', s.tokenSet ? 'I vendosur.' : 'Mungon: pa të nuk merren përditësime.', tokBtn),
         item('Cloudflare Tunnel', !a.tunnel ? 'Nuk është i lidhur.' : a.tunnelOk ? 'I lidhur dhe punon.' : 'Procesi punon por asnjë adresë nuk hapet.', tunBtn, a.tunnel ? rmTunBtn : ''))),
-      offsiteCard(), notifyCard())));
+      offsiteCard(), notifyCard())),
+    uninstallBtn ? el('div', { class: 'card' }, el('h2', {}, 'Zona e rrezikut'), el('div', { class: 'act' }, item('Çinstalo HRSystem', 'Heq HRSystem nga ky kompjuter. Pyet dy herë; aty zgjedh a ruhet databaza.', uninstallBtn))) : '');
 
   // ---- backups
   pages.backup = () => el('div', {}, header('Backup-et', s.backups.length + ' kopje' + (s.backups.length ? ' · gjithsej ' + fmtSize(s.backups.reduce((n, b) => n + b.size, 0)) : ''), el('div', { class: 'row' }, backupBtn)),
@@ -1612,10 +1625,7 @@ function view(s) {
     { label: 'Rifresko', icon: 'refresh', run: () => load() },
     { label: 'Ndrysho temën', icon: 'moon', run: () => { store.set('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); applyPrefs(); } },
   ];
-  return { actions: paletteActions, html: (pages[state.section] || pages.home)(), uninstall: s.canUninstall ? async () => {
-    if (!await confirmAsync('Hap çinstalimin e HRSystem?' + NL + NL + 'Hapet dritarja e çinstalimit: aty zgjedh a ruhet databaza (një eksport në Desktop). Pastaj fshihet gjithçka tjetër; aplikacioni dhe dashboard-i ndalen vetë.')) return;
-    await call('uninstall', '', 'Dritarja e çinstalimit u hap. Vazhdo atje.');
-  } : null };
+  return { actions: paletteActions, html: (pages[state.section] || pages.home)() };
 }
 
 // ---------------------------------------------------------------- shell: side navbar + page
@@ -1702,15 +1712,13 @@ function render() {
     return b;
   }));
   const refresh = el('button', { type: 'button' }, 'Rifresko'); refresh.onclick = load;
-  const un = v.uninstall ? el('button', { type: 'button', class: 'danger' }, 'Çinstalo HRSystem...') : '';
-  if (un) un.onclick = v.uninstall;
   side.replaceChildren(
-    el('div', { class: 'brand' }, brandMark(), el('div', {}, el('b', {}, s.name), el('span', {}, 'Dashboard'))),
+    (() => { const lab = A11Y[helpLang()].open; const gear = el('button', { type: 'button', class: 'gearbtn wide' + (state.section === 'settings' ? ' on' : ''), id: 'gear', 'aria-label': lab, title: lab }, icon('gear'), el('span', {}, lab)); gear.onclick = () => go('settings');
+      return el('div', { class: 'head' }, el('div', { class: 'brand' }, brandMark(), el('div', {}, el('b', {}, s.name), el('span', {}, 'Dashboard'))), gear); })(),
     j.instances.length > 1 ? el('div', { class: 'inst' }, select) : '', // the list is only for several installations on one PC
     nav,
-    (() => { const lab = A11Y[helpLang()].open; const gear = el('button', { type: 'button', class: 'gearbtn' + (state.section === 'settings' ? ' on' : ''), id: 'gear', 'aria-label': lab, title: lab }, icon('gear')); gear.onclick = () => go('settings'); return el('div', { class: 'tools' }, gear); })(),
     el('div', { class: 'credit-side' }, el('span', {}, 'Krijuar nga'), ' ', el('b', {}, 'Rogest Network')),
-    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, paused() ? 'NË PAUZË' : liveOn ? 'LIVE' : 'OFFLINE')), refresh, un));
+    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, paused() ? 'NË PAUZË' : liveOn ? 'LIVE' : 'OFFLINE')), refresh));
   // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.
   const job = s.job;
   let done = '';

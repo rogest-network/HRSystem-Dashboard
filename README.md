@@ -64,3 +64,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **v1.4.0:** choose which kinds of phone notifications arrive (app, addresses, backups, disk, updates, daily report; `notify.events`), Export SQL, a "Kontakto Administratorin" card in Settings, and shorter texts (no "tani" on buttons).
 
 - **v1.4.1:** an update shows how it was done: automatically (the night job) or manually (a button), in Historiku, Veprimet e fundit, Log and the phone message.
+
+- **v1.4.2:** Settings is a wide button under the logo; Uninstall is at the bottom of Veprime and asks twice.

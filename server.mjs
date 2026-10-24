@@ -1046,8 +1046,12 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.4.1';
+const DASH_VERSION = '1.4.2';
 const DASH_NOTES = [
+  { version: '1.4.2', date: '2026-10-24', notes: [
+    'Cilësimet janë tani një buton i gjerë lart, poshtë logos.',
+    'Çinstalo HRSystem u zhvendos te fundi i faqes Veprime (Zona e rrezikut) dhe pyet dy herë.',
+  ] },
   { version: '1.4.1', date: '2026-10-24', notes: [
     'Përditësimi tregon tani si u krye: automatikisht (nata) ose manualisht (me buton), te Historiku, Veprimet e fundit, Log-u dhe njoftimi në telefon.',
   ] },

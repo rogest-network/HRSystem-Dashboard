@@ -351,7 +351,8 @@ function spawnUpdater(inst, add, zip) {
   const script = path.join(inst.root, 'updater.ps1');
   if (!fs.existsSync(script)) throw new Error('updater.ps1 nuk u gjet te ' + inst.root);
   return new Promise((resolve) => {
-    const env = { ...process.env, HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data };
+    // npm_config_loglevel: a new npm prints "npm warn ..." on stderr and the installed (older) updater.ps1 treats any such text as an error; only real errors are printed.
+    const env = { ...process.env, HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data, npm_config_loglevel: 'error' };
     if (inst.task) env.HRSYSTEM_TASK = inst.task;
     const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...(zip ? ['-Zip', zip] : [])], { env, windowsHide: true });
     p.stdout.on('data', add);
@@ -1357,8 +1358,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.7.2';
+const DASH_VERSION = '1.7.3';
 const DASH_NOTES = [
+  { version: '1.7.3', date: '2026-10-24', notes: [
+    'Përditësimi i programit nuk dështon më për shkak të paralajmërimeve të npm-it të ri (pas përditësimit të Node.js).',
+  ] },
   { version: '1.7.2', date: '2026-10-24', notes: [
     'Menuja tregon poshtë LIVE versionin e dashboard-it.',
   ] },

@@ -677,6 +677,7 @@ const TR_LIST = [
   ["Ndaloj nisjen automatike të të gjitha? Pas rinisjes asgjë nuk niset vetë.", "Stop automatic start of everything? After a restart nothing starts by itself.", "Zaustavi automatsko pokretanje svega? Posle restarta se ništa ne pokreće samo."],
   ["Backup, build dhe migrime; nëse dështon, kthehet vetë.", "Backup, build and migrations; if it fails, it rolls back by itself.", "Backup, build i migracije; ako ne uspe, vraća se samo."],
   ["Kontakto Administratorin", "Contact the Administrator", "Kontaktiraj administratora"], ["Për ndihmë ose probleme.", "For help or problems.", "Za pomoć ili probleme."],
+  ["automatikisht", "automatically", "automatski"], ["manualisht", "manually", "ručno"],
   ["e fundit", "last", "poslednji"], ["në 24 orë", "in 24 hours", "u 24 sata"], ["dashboard-i dhe programi", "the dashboard and the program", "dashboard i program"],
 ];
 const TR_EXACT = {}, TR_FRAG = { en: [], sr: [] };
@@ -1242,7 +1243,7 @@ function view(s) {
     const items = (s.history || []).slice(0, 8);
     const all = el('button', { type: 'button', class: 'btn ghost sm' }, 'Shiko historikun'); all.onclick = () => go('history');
     return el('div', { class: 'card' }, el('div', { class: 'kh' }, el('span', { class: 'kic off' }, icon('clock')), el('h2', {}, 'Veprimet e fundit')),
-      items.length ? el('div', { class: 'mini recent' }, ...items.map((x) => el('div', {}, el('span', {}, fmtTime(x.at, true)), el('b', {}, el('i', { class: 'sd ' + (x.ok ? 'on' : 'off') }), jobName(x.title) + (x.detail ? ' · ' + String(x.detail).slice(0, 70) : ''))))) : el('div', { class: 'empty' }, 'Ende pa veprime.'),
+      items.length ? el('div', { class: 'mini recent' }, ...items.map((x) => el('div', {}, el('span', {}, fmtTime(x.at, true)), el('b', {}, el('i', { class: 'sd ' + (x.ok ? 'on' : 'off') }), jobName(x.title) + (byOf(x) ? ' · ' + byOf(x) : '') + (x.detail ? ' · ' + String(x.detail).slice(0, 70) : ''))))) : el('div', { class: 'empty' }, 'Ende pa veprime.'),
       el('div', { class: 'row', style: 'margin-top:12px' }, all));
   };
   const tile = (ic, tone, title, sub, fn, dis) => { const b = el('button', { type: 'button', class: 'tile' }, el('span', { class: 'kic ' + tone }, icon(ic)), el('span', { class: 'tt' }, el('b', {}, title), el('span', {}, sub))); b.disabled = !!dis; b.onclick = fn; return b; };
@@ -1278,7 +1279,7 @@ function view(s) {
         el('tr', {}, el('td', { class: 'k' }, 'Repo i programit'), el('td', { colspan: '2' }, s.repo ? [repoLink(s.repo), el('div', { class: 'sub' }, 'kanali: ' + (s.channel || 'stable'))] : el('span', { style: 'color:var(--muted)' }, 'nuk është lidhur me asnjë repo (update.json mungon)'))),
         el('tr', {}, el('td', { class: 'k' }, 'Token GitHub'), el('td', {}, s.tokenSet ? pill('ok', 'vendosur') : pill('warn', 'mungon'))),
         el('tr', {}, el('td', { class: 'k' }, 'Backup-e'), el('td', {}, s.backups.length + (s.backups.length ? ' · e fundit ' + fmtTime(s.backups[0].time) : ''))),
-        el('tr', {}, el('td', { class: 'k' }, 'Veprimi i fundit'), el('td', {}, s.job ? s.job.title + ' · ' + (s.job.state === 'running' ? 'po vazhdon...' : s.job.state === 'ok' ? 'SUKSES' : 'GABIM') : '-'))))));
+        el('tr', {}, el('td', { class: 'k' }, 'Veprimi i fundit'), el('td', {}, s.job ? s.job.title + (byOf(s.job) ? ' · ' + byOf(s.job) : '') + ' · ' + (s.job.state === 'running' ? 'po vazhdon...' : s.job.state === 'ok' ? 'SUKSES' : 'GABIM') : '-'))))));
 
   // ---- the settings and secrets page
   const SECRET = /PASS|SECRET|TOKEN|KEY/i;
@@ -1595,11 +1596,11 @@ function view(s) {
     return el('div', {}, header('Gabimet', 'Gabimet gjatë punës së dashboard-it, aplikacionit dhe përditësimit.', el('div', { class: 'row' }, refresh, dl, clear)), tabs, el('div', { class: 'row', style: 'margin:12px 0' }, filter), body);
   };
   pages.history = () => el('div', {}, header('Historiku', 'Veprimet e fundit: backup-e, përditësime, rikthime dhe probleme.', ''),
-    el('div', { class: 'card' }, (s.history && s.history.length) ? el('table', { class: 'kv' }, ...s.history.map((x) => el('tr', {}, el('td', { class: 'k' }, fmtTime(x.at, true)), el('td', {}, el('b', {}, jobName(x.title)), x.detail ? el('div', { class: 'sub' }, x.detail) : ''), el('td', { class: 'a' }, x.ok ? pill('ok', 'OK') : pill('bad', 'Gabim'))))) : el('div', { class: 'empty' }, 'Ende pa veprime.')));
+    el('div', { class: 'card' }, (s.history && s.history.length) ? el('table', { class: 'kv' }, ...s.history.map((x) => el('tr', {}, el('td', { class: 'k' }, fmtTime(x.at, true)), el('td', {}, el('b', {}, jobName(x.title) + (byOf(x) ? ' · ' + byOf(x) : '')), x.detail ? el('div', { class: 'sub' }, x.detail) : ''), el('td', { class: 'a' }, x.ok ? pill('ok', 'OK') : pill('bad', 'Gabim'))))) : el('div', { class: 'empty' }, 'Ende pa veprime.')));
   pages.log = () => {
     const j = s.job;
     const diag = el('a', { class: 'btn ghost sm', href: '/api/diagnostics?id=' + encodeURIComponent(s.id), download: '', style: 'text-decoration:none;display:inline-block;border:1px solid var(--line);padding:5px 12px;border-radius:8px;color:var(--text)' }, 'Shkarko diagnostikën');
-    return el('div', {}, header('Log-u', j ? j.title + ' · ' + (j.state === 'running' ? 'po vazhdon...' : j.state === 'ok' ? 'SUKSES' : 'GABIM') : 'Veprimi i fundit', diag),
+    return el('div', {}, header('Log-u', j ? j.title + (byOf(j) ? ' · ' + byOf(j) : '') + ' · ' + (j.state === 'running' ? 'po vazhdon...' : j.state === 'ok' ? 'SUKSES' : 'GABIM') : 'Veprimi i fundit', diag),
       el('div', { class: 'card' }, j ? el('pre', { class: 'log', 'data-id': s.id }, j.lines.join(NL) || '...') : el('div', { class: 'empty' }, 'Asnjë veprim ende (përditësim, SQL, import, tunel).')));
   };
 
@@ -1718,7 +1719,7 @@ function render() {
     const close = el('button', { type: 'button', class: 'iconbtn' }, 'Mbyll'); close.onclick = () => { state.dismissed = job.ended; render(); };
     const see = el('button', { type: 'button', class: 'iconbtn' }, 'Shiko log-un'); see.onclick = () => go('log');
     done = el('div', { class: 'banner ' + (ok ? 'ok' : 'bad') },
-      el('p', {}, el('b', {}, jobName(job.title) + (ok ? ' u krye' : ' dështoi')), ' · ' + fmtTime(job.ended, true) + (ok && s.installed && s.installed.name ? ' · versioni ' + s.installed.name : '')),
+      el('p', {}, el('b', {}, jobName(job.title) + (ok ? ' u krye' : ' dështoi') + (byOf(job) ? ' ' + byOf(job) : '')), ' · ' + fmtTime(job.ended, true) + (ok && s.installed && s.installed.name ? ' · versioni ' + s.installed.name : '')),
       el('div', { class: 'row' }, see, close));
   }
   if (job && job.state === 'running') {
@@ -1731,6 +1732,8 @@ function render() {
 }
 
 // One status request at a time (a slow measurement must not pile up), and background refreshes stay silent when the dashboard is briefly unreachable (e.g. while it restarts itself).
+// How an update was started: "automatikisht" (the night job) or "manualisht" (a button); nothing for older records and other jobs.
+const byOf = (x) => (x && x.title === 'Perditesim' && x.by) ? (x.by === 'auto' ? 'automatikisht' : 'manualisht') : '';
 const jobName = (t) => ({ Perditesim: 'Përditësimi i aplikacionit', 'Rikthim i versionit': 'Rikthimi i versionit', 'Cloudflare Tunnel': 'Lidhja e tunelit', 'Heqja e tunelit': 'Heqja e tunelit' }[t] || t);
 // Progress of a running job. The updater prints a header "=== step ===" for each stage; each stage has a share of the bar. The build is the long one
 // (a few minutes), so inside it the bar creeps forward with the elapsed time until the next header arrives.

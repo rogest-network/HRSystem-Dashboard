@@ -329,10 +329,10 @@ setInterval(() => { for (const inst of instances()) if (inst.root) procStats(ins
 const jobs = new Map(); // instance id -> { title, state: 'running' | 'ok' | 'error', lines, started }
 const clean = (t) => t.replace(/\x1b\[[0-9;]*m/g, '').replace(/\r/g, '');
 
-function startJob(inst, title, launch) {
+function startJob(inst, title, launch, by = 'manual') {
   const old = jobs.get(inst.id);
   if (old && old.state === 'running') throw new Error('Nje veprim po ekzekutohet: "' + old.title + '". Prit te mbaroje.');
-  const job = { title, state: 'running', lines: [], started: Date.now() };
+  const job = { title, state: 'running', lines: [], started: Date.now(), by };   // by: 'manual' (a button) or 'auto' (the night job)
   jobs.set(inst.id, job);
   const add = (t) => { for (const l of clean(String(t)).split('\n')) if (l.trim()) job.lines.push(l); job.lines = job.lines.slice(-200); };
   Promise.resolve()
@@ -360,10 +360,10 @@ function spawnUpdater(inst, add, zip) {
     p.on('close', (code) => resolve(code === 0));
   });
 }
-function runUpdate(inst) {
+function runUpdate(inst, by = 'manual') {
   needLocal(inst);
   if (!fs.existsSync(path.join(inst.root, 'updater.ps1'))) throw new Error('updater.ps1 nuk u gjet te ' + inst.root);
-  return startJob(inst, 'Perditesim', (add) => spawnUpdater(inst, add));
+  return startJob(inst, 'Perditesim', (add) => spawnUpdater(inst, add), by);
 }
 
 // ---- Go back to an older version of the program (owner, 2026-10-22) ----
@@ -1008,7 +1008,7 @@ async function autoBackupTick() {
       // the update makes the backup (its first step): one backup, then the new version
       saveAutoResult(inst, record, 'update_started');
       try {
-        const job = runUpdate(inst);
+        const job = runUpdate(inst, 'auto');
         job.lines.push('Perditesim automatik (nata): backup i databazes (nje here), pastaj versioni i ri.');
         const started = job.started;
         const done = setInterval(() => {
@@ -1046,8 +1046,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.4.0';
+const DASH_VERSION = '1.4.1';
 const DASH_NOTES = [
+  { version: '1.4.1', date: '2026-10-24', notes: [
+    'Përditësimi tregon tani si u krye: automatikisht (nata) ose manualisht (me buton), te Historiku, Veprimet e fundit, Log-u dhe njoftimi në telefon.',
+  ] },
   { version: '1.4.0', date: '2026-10-24', notes: [
     'Njoftimet: zgjedh çfarë të vijë në telefon (aplikacioni, adresat, backup-et, disku, përditësimet, raporti i ditës); teksti u shkurtua.',
     'Eksporto SQL: shkarkon një dump të databazës me një klikim (te Veprime › Databaza).',
@@ -1097,13 +1100,14 @@ function notesText(notes) {
 function jobDone(inst, job) {
   const last = job.lines[job.lines.length - 1] || '';
   const ok = job.state === 'ok';
-  addHistory(inst, { title: job.title, ok, detail: last.slice(0, 160) });
+  addHistory(inst, { title: job.title, ok, detail: last.slice(0, 160), by: job.by });
   if (!ok) { notify(inst, 'Veprimi dështoi', job.title + (last ? ': ' + last.slice(0, 140) : ''), 'error'); logError('Veprimi: ' + job.title, new Error(last || 'dështoi')); }
   else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') {
     // After an update the notes of that version are repeated (saved when the new version was announced).
     const now = installed(inst) || {}, saved = (readSettings(inst).lastNotes || {});
     const extra = job.title === 'Perditesim' && saved.version === now.version && saved.text ? NOTE_NL + NOTE_NL + 'Çfarë ka të re:' + NOTE_NL + saved.text : '';
-    notify(inst, job.title === 'Perditesim' ? 'Përditësimi u krye' : 'Rikthimi i versionit u krye', 'Versioni aktual: ' + (now.name || '?') + extra, 'ok');
+    const how = job.title === 'Perditesim' ? (job.by === 'auto' ? 'U krye automatikisht (nata).' : 'U krye manualisht (nga dashboard-i).') + NOTE_NL : '';
+    notify(inst, job.title === 'Perditesim' ? 'Përditësimi u krye' : 'Rikthimi i versionit u krye', how + 'Versioni aktual: ' + (now.name || '?') + extra, 'ok');
   }
 }
 
@@ -1691,7 +1695,7 @@ async function pulseOnce() {
     try { backups = inst.data ? listBackups(inst) : []; } catch { backups = []; }
     const inst2 = inst.root ? installed(inst) : null;
     const sig = [job && job.state, job && job.ended, backups.length, backups[0] && backups[0].name, inst2 && inst2.name, quickUrlOf(inst)].join('|');
-    return { id: inst.id, ok, ms: ok ? ms : 0, database, sig, job: job ? { title: job.title, state: job.state, started: job.started, ended: job.ended || null, lines: job.lines.slice(-80) } : null };
+    return { id: inst.id, ok, ms: ok ? ms : 0, database, sig, job: job ? { title: job.title, by: job.by, state: job.state, started: job.started, ended: job.ended || null, lines: job.lines.slice(-80) } : null };
   }));
 }
 function liveStart() {

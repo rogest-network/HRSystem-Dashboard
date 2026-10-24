@@ -933,6 +933,51 @@ const TR_LIST = [
   ["Njoftimi \"Përditësimi u krye\" i përsërit çfarë ka të re.","The \"Update finished\" message repeats what is new.","Poruka \"Ažuriranje je završeno\" ponavlja šta je novo."],
   ["Puna automatike e natës rinis kur ndërron orën (p.sh. nga 01:00 në 19:00), edhe nëse sot ka punuar tashmë; historiku tregon pse nuk u nis.","The automatic night job restarts when the hour is changed (e.g. from 01:00 to 19:00), even if it already ran today; the history says why it did not start.","Automatski noćni posao se ponovo pokreće kad se promeni sat (npr. sa 01:00 na 19:00), čak i ako je danas već radio; istorija kaže zašto nije pokrenut."],
   /* v1.6: the programs of the system (Node.js, cloudflared) */
+  ["Instalimi dështoi","The installation failed","Instalacija nije uspela"],
+  ["(kodi","(code","(kod"],
+  ["Duhen leje administratori: dashboard-i duhet të punojë si administrator.","Administrator rights are needed: the dashboard must run as administrator.","Potrebna su administratorska prava: dashboard mora raditi kao administrator."],
+  ["Versioni i instaluar:","Installed version:","Instalirana verzija:"],
+  ["Programet e sistemit: shkarkimi dhe instalimi janë dy hapa; shkarkon tani dhe e instalon kur të duash.","Programs of the system: downloading and installing are two steps; download now and install when you want.","Programi sistema: preuzimanje i instalacija su dva koraka; preuzmi sada i instaliraj kada želiš."],
+  ["Mund ta caktosh kohën e instalimit (nga 02:00 si parazgjedhje, por e zgjedh ti), ose të instalosh menjëherë.","You can set the time of the installation (02:00 by default, but you choose), or install at once.","Možeš zakazati vreme instalacije (podrazumevano 02:00, ali ti biraš) ili instalirati odmah."],
+  ["Automatik: shkarkim i vetvetishëm i versioneve të reja (i ndezur) dhe instalim i vetvetishëm në orën që zgjedh ti (i fikur).","Automatic: self-downloading of new versions (on) and self-installing at the hour you choose (off).","Automatski: samostalno preuzimanje novih verzija (uključeno) i samostalna instalacija u sat koji ti izabereš (isključeno)."],
+  ["Skedarët kontrollohen me SHA-256 para instalimit; Setup-i instalon Node.js të fundit të provuar me sistemin.","The files are checked with SHA-256 before installing; Setup installs the newest Node.js tested with the system.","Fajlovi se proveravaju SHA-256 pre instalacije; Setup instalira najnoviji Node.js testiran sa sistemom."],
+  ["Instalo vetë pas shkarkimit, në orën","Install by itself after the download, at","Samostalno instaliraj posle preuzimanja, u"],
+  ["Ora e instalimit automatik","Hour of the automatic installation","Sat automatske instalacije"],
+  ["Shkarkimi vetë nuk ndryshon asgjë në kompjuter. Instalimi vetë bëhet vetëm kur e ndez këtu; ora është ajo që zgjedh ti (02:00 si parazgjedhje).","Downloading by itself changes nothing on the computer. Installing by itself happens only when you switch it on here; the hour is the one you choose (02:00 by default).","Samostalno preuzimanje ne menja ništa na računaru. Samostalna instalacija se dešava samo kada je ovde uključiš; sat je onaj koji ti izabereš (podrazumevano 02:00)."],
+  ["Node.js ndez aplikacionin; cloudflared ndez tunelin. Shkarkimi dhe instalimi janë dy hapa: shkarkon tani dhe e instalon kur të duash (një kohë që e cakton ti, p.sh. natën).","Node.js runs the application; cloudflared runs the tunnel. Downloading and installing are two steps: download now and install when you want (a time you set, e.g. at night).","Node.js pokreće aplikaciju; cloudflared pokreće tunel. Preuzimanje i instalacija su dva koraka: preuzmi sada i instaliraj kada želiš (vreme koje ti odrediš, npr. noću)."],
+  ["Shkarko","Download","Preuzmi"],
+  ["Përditëso tani","Update now","Ažuriraj sada"],
+  ["Instalo tani","Install now","Instaliraj sada"],
+  ["Cakto kohën","Set the time","Odredi vreme"],
+  ["Ndrysho kohën","Change the time","Promeni vreme"],
+  ["Anulo caktimin","Cancel the schedule","Otkaži zakazivanje"],
+  ["Koha e instalimit","Time of the installation","Vreme instalacije"],
+  ["U shkarkua","Downloaded","Preuzeto"],
+  ["pa kohë të caktuar","no time set","bez određenog vremena"],
+  ["Instalimi:","Installation:","Instalacija:"],
+  ["Përditësoj këtë program?","Update this program?","Ažurirati ovaj program?"],
+  ["A je i sigurt? Instalimi niset menjëherë; hapat shihen te Log-u.","Are you sure? The installation starts at once; its steps are in Log.","Da li si siguran? Instalacija počinje odmah; koraci su u Logu."],
+  ["Shkarkimi filloi...","The download started...","Preuzimanje je počelo..."],
+  ["Instalimi u caktua.","The installation was scheduled.","Instalacija je zakazana."],
+  ["Caktimi u anulua.","The schedule was cancelled.","Zakazivanje je otkazano."],
+  ["Zgjidh një datë dhe orë.","Choose a date and time.","Izaberi datum i vreme."],
+  ["Automatik","Automatic","Automatski"],
+  ["Shkarko vetë versionet e reja","Download new versions by itself","Samostalno preuzmi nove verzije"],
+  ["Instalo vetë natën në 02:00 (pas shkarkimit)","Install by itself at night at 02:00 (after the download)","Samostalno instaliraj noću u 02:00 (posle preuzimanja)"],
+  ["Shkarkimi vetë nuk ndryshon asgjë në kompjuter. Instalimi vetë bëhet vetëm kur e ndez këtu; ora është ajo që zgjedh ti (02:00 si parazgjedhje).","Downloading by itself changes nothing on the computer. Installing by itself happens only when you switch it on here.","Samostalno preuzimanje ne menja ništa na računaru. Samostalna instalacija se dešava samo kada je ovde uključiš."],
+  ["Shkarkimi i Node.js","Node.js download","Preuzimanje Node.js"],
+  ["Shkarkimi i Cloudflare Tunnel","Cloudflare Tunnel download","Preuzimanje Cloudflare Tunnel"],
+  ["Po shkarkohet","Downloading","Preuzimanje"],
+  ["Skedari u shkarkua","The file was downloaded","Fajl je preuzet"],
+  ["dhe u verifikua (SHA-256).","and verified (SHA-256).","i proveren (SHA-256)."],
+  ["Versioni","Version","Verzija"],
+  ["është shkarkuar tashmë.","was already downloaded.","je već preuzeta."],
+  ["Instalimi u caktua automatikisht për","The installation was scheduled automatically for","Instalacija je automatski zakazana za"],
+  ["Po instalohet ...","Installing ...","Instalacija ..."],
+  ["skedari i shkarkuar është ndryshuar ose dëmtuar; shkarkoje përsëri.","the downloaded file was changed or damaged; download it again.","preuzeti fajl je izmenjen ili oštećen; preuzmi ga ponovo."],
+  ["Shkarko fillimisht versionin e ri.","Download the new version first.","Prvo preuzmi novu verziju."],
+  ["Koha duhet të jetë nga 1 minutë deri në 14 ditë përpara.","The time must be from 1 minute to 14 days ahead.","Vreme mora biti od 1 minuta do 14 dana unapred."],
+  ["U krye automatikisht në kohën e caktuar.","Done automatically at the set time.","Izvršeno automatski u zakazano vreme."],
   ["Veprime: karta e re \"Programet e sistemit\" tregon versionin e Node.js dhe të cloudflared (tunelit) dhe të rejat nga interneti.","Actions: the new card \"Programs of the system\" shows the version of Node.js and of cloudflared (the tunnel) and the newest ones from the internet.","Akcije: nova kartica \"Programi sistema\" prikazuje verziju Node.js i cloudflared (tunela) i najnovije sa interneta."],
   ["Mund t'i përditësosh me një buton (pyet dy herë; hapat shihen te Log-u). Node.js ndryshon vetëm brenda të njëjtit version të madh dhe kontrollohet me SHA-256; cloudflared përditësohet me winget.","You can update them with a button (it asks twice; the steps are in Log). Node.js changes only inside the same major version and is checked with SHA-256; cloudflared is updated with winget.","Možeš ih ažurirati dugmetom (pita dvaput; koraci su u Logu). Node.js se menja samo unutar iste glavne verzije i proverava se SHA-256; cloudflared se ažurira pomoću winget."],
   ["Rreshtat e Log-ut përkthehen sipas gjuhës së zgjedhur.","The lines of Log are translated into the chosen language.","Redovi Loga se prevode na izabrani jezik."],
@@ -1782,25 +1827,53 @@ function view(s) {
   // an update asks twice and runs as a job (its steps are in Log-u).
   const toolsCard = () => {
     const box = el('div', { class: 'act' }, el('div', { class: 'skel', role: 'status', 'aria-label': 'Po lexohet...' }, el('i'), el('i'), el('i')));
-    fetch('/api/tools?id=' + encodeURIComponent(s.id)).then((r) => r.json()).then((j) => {
+    // The coming 02:00 as the default time of an installation (a local time for <input type="datetime-local">).
+    const localValue = (ms) => { const d = new Date(ms), p = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+    let autoHour = 2; // the owner's hour for the automatic installation (02:00 until he changes it)
+    const nextNight = () => { const d = new Date(); d.setHours(autoHour, 0, 0, 0); if (d.getTime() < Date.now() + 600000) d.setDate(d.getDate() + 1); return d.getTime(); };
+    const fill = () => fetch('/api/tools?id=' + encodeURIComponent(s.id)).then((r) => r.json()).then((j) => {
       const row = (label, what, t, warn, note) => {
-        const btn = el('button', { type: 'button', class: t.update ? 'btn' : 'btn ghost' }, t.update ? 'Përditëso në ' + t.latest : t.installed ? 'I përditësuar' : 'Mungon');
-        btn.disabled = !t.update || busy || (what === 'cloudflared' && !j.winget);
-        btn.onclick = async () => {
-          if (!await confirmAsync('Përditësoj ' + label + ' nga ' + t.installed + ' në ' + t.latest + '?' + NL + warn)) return;
-          if (!await confirmAsync('A je i sigurt? Përditësimi niset menjëherë; hapat shihen te Log-u.')) return;
-          if (await call('tool-update', '&what=' + what, 'Përditësimi filloi...')) { go('log'); load(); }
-        };
-        const hint = !t.installed ? 'Nuk u gjet në këtë kompjuter.' : 'Instaluar: ' + t.installed + (t.latest ? ' · e fundit: ' + t.latest : '') + (t.error ? ' · ' + t.error : '') + (note ? ' · ' + note : '');
-        return item(label, hint, btn);
+        const plan = t.plan;
+        const sure = async (what2) => (await confirmAsync('Përditësoj këtë program?' + NL + label + ': ' + t.installed + ' → ' + (plan ? plan.version : t.latest) + NL + warn)) && (await confirmAsync('A je i sigurt? Instalimi niset menjëherë; hapat shihen te Log-u.'));
+        const buttons = [];
+        if (!t.update && !plan) {
+          const b = el('button', { type: 'button', class: 'btn ghost' }, t.installed ? 'I përditësuar' : 'Mungon'); b.disabled = true; buttons.push(b);
+        } else if (!plan) {
+          const dl = el('button', { type: 'button', class: 'btn' }, 'Shkarko'); dl.disabled = busy;
+          dl.onclick = async () => { if (await call('tool-download', '&what=' + what, 'Shkarkimi filloi...')) { go('log'); load(); } };
+          const now = el('button', { type: 'button', class: 'btn ghost' }, 'Përditëso tani'); now.disabled = busy;
+          now.onclick = async () => { if (!await sure()) return; if (await call('tool-install', '&what=' + what, 'Përditësimi filloi...')) { go('log'); load(); } };
+          buttons.push(dl, now);
+        } else {
+          const when = el('input', { type: 'datetime-local', value: localValue(plan.at || nextNight()), 'aria-label': 'Koha e instalimit' });
+          const set = el('button', { type: 'button', class: 'btn' }, plan.at ? 'Ndrysho kohën' : 'Cakto kohën');
+          set.onclick = async () => { const ms = new Date(when.value).getTime(); if (!Number.isFinite(ms)) { toast('Zgjidh një datë dhe orë.', true); return; } if (await call('tool-schedule', '&what=' + what + '&at=' + ms, 'Instalimi u caktua.')) load(); };
+          const now = el('button', { type: 'button', class: 'btn ghost' }, 'Instalo tani'); now.disabled = busy;
+          now.onclick = async () => { if (!await sure()) return; if (await call('tool-install', '&what=' + what, 'Përditësimi filloi...')) { go('log'); load(); } };
+          buttons.push(when, set, now);
+          if (plan.at) { const off = el('button', { type: 'button', class: 'btn ghost' }, 'Anulo caktimin'); off.onclick = async () => { if (await call('tool-schedule', '&what=' + what + '&at=none', 'Caktimi u anulua.')) load(); }; buttons.push(off); }
+        }
+        const hint = !t.installed ? 'Nuk u gjet në këtë kompjuter.'
+          : plan ? 'Instaluar: ' + t.installed + ' · U shkarkua ' + plan.version + ' · ' + (plan.at ? 'Instalimi: ' + fmtTime(plan.at, true) : 'pa kohë të caktuar')
+          : 'Instaluar: ' + t.installed + (t.latest ? ' · e fundit: ' + t.latest : '') + (t.error ? ' · ' + t.error : '') + (note ? ' · ' + note : '');
+        return item(label, hint, ...buttons);
       };
+      autoHour = j.auto.hour;
       const nodeMajor = (v) => String(v || '').split('.')[0];
       const nodeNote = j.node.ltsLatest && j.node.installed && nodeMajor(j.node.ltsLatest) !== nodeMajor(j.node.installed) ? 'Ka një LTS më të ri (' + j.node.ltsLatest + '): nuk ndryshohet vetë.' : '';
+      const hourStr = String(j.auto.hour).padStart(2, '0') + ':00';
+      const post = async (body) => { try { const r = await fetch('/api/tool-auto?id=' + encodeURIComponent(s.id) + body, { method: 'POST', headers: { 'X-Manager-Key': KEY } }); if (!r.ok) throw new Error('Gabim'); toast('U ruajt.'); fill(); } catch (e) { toast('GABIM: ' + e.message, true); } };
+      const swDl = sw('Shkarko vetë versionet e reja', j.auto.download, (v) => post('&download=' + (v ? 1 : 0) + '&install=' + (j.auto.install ? 1 : 0) + '&hour=' + j.auto.hour));
+      const swIn = sw('Instalo vetë pas shkarkimit, në orën', j.auto.install, (v) => post('&download=' + (j.auto.download ? 1 : 0) + '&install=' + (v ? 1 : 0) + '&hour=' + j.auto.hour));
+      const hourIn = el('input', { type: 'time', value: hourStr, step: '3600', 'aria-label': 'Ora e instalimit automatik' });
+      hourIn.onchange = () => { const hh = parseInt((hourIn.value || '').split(':')[0], 10); if (Number.isInteger(hh)) post('&download=' + (j.auto.download ? 1 : 0) + '&install=' + (j.auto.install ? 1 : 0) + '&hour=' + hh); };
       box.replaceChildren(
         row('Node.js', 'node', j.node, 'Aplikacioni ndalet për pak çaste dhe ndizet përsëri. Node.js i ri hyn plotësisht në fuqi pas rinisjes së kompjuterit.', nodeNote),
-        row('Cloudflare Tunnel (cloudflared)', 'cloudflared', j.cloudflared, 'Tuneli ndalet për pak çaste: aplikacioni nuk hapet nga interneti derisa të ndizet përsëri.', j.winget ? '' : 'winget mungon.'));
+        row('Cloudflare Tunnel (cloudflared)', 'cloudflared', j.cloudflared, 'Tuneli ndalet për pak çaste: aplikacioni nuk hapet nga interneti derisa të ndizet përsëri.', ''),
+        el('div', { class: 'item' }, el('div', { class: 'sched' }, el('div', {}, el('b', {}, 'Automatik'), el('span', {}, 'Shkarkimi vetë nuk ndryshon asgjë në kompjuter. Instalimi vetë bëhet vetëm kur e ndez këtu.')), el('div', { class: 'line' }, swDl), el('div', { class: 'line' }, swIn, hourIn))));
     }).catch(() => box.replaceChildren(el('div', { class: 'empty' }, 'Nuk u lexuan versionet.')));
-    return el('div', { class: 'card' }, el('h2', {}, 'Programet e sistemit'), el('p', { class: 'desc' }, 'Node.js ndez aplikacionin; cloudflared ndez tunelin. Versionet e reja shfaqen këtu; përditësimi bëhet vetëm kur e shtyp.'), box);
+    fill();
+    return el('div', { class: 'card' }, el('h2', {}, 'Programet e sistemit'), el('p', { class: 'desc' }, 'Node.js ndez aplikacionin; cloudflared ndez tunelin. Shkarkimi dhe instalimi janë dy hapa: shkarkon tani dhe e instalon kur të duash (një kohë që e cakton ti, p.sh. natën).'), box);
   };
   const nf = s.notify || { on: false, target: '' };
   const nfPost = async (body, okMsg) => { try { const r = await postJson('notify', body); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim'); toast(okMsg || 'U ruajt.'); load(); } catch (e) { toast('GABIM: ' + e.message, true); } };

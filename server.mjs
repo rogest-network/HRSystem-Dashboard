@@ -769,58 +769,137 @@ async function toolsInfo() {
   return out;
 }
 
-function toolUpdate(inst, what) {
-  needLocal(inst);
-  if (what !== 'node' && what !== 'cloudflared') throw new Error('Mjet i panjohur.');
-  const dry = process.env.HR_TOOLS_DRY === '1';
-  const title = what === 'node' ? 'Përditësimi i Node.js' : 'Përditësimi i Cloudflare Tunnel';
-  return startJob(inst, title, async (add) => {
+// Two steps, so the owner chooses WHEN the system is touched: (1) "Shkarko": the installer is downloaded now into <install folder>\tools-staging and checked
+// (SHA-256: nodejs.org's SHASUMS256.txt for Node.js, the digest GitHub publishes for cloudflared); nothing on the PC changes. (2) The installation, now or at a
+// time the owner sets (`toolPlans` in dashboard-settings.json, checked every minute): Node.js = stop the application, msiexec /qn, start it again;
+// cloudflared = stop its Windows service and the permanent tunnel process (never the quick tunnel), msiexec /qn, start the service.
+// A plan older than 6 hours (the dashboard was off at that time) is cancelled instead of running at a random hour.
+const TOOL_NAMES = { node: 'Node.js', cloudflared: 'Cloudflare Tunnel' };
+const stagingDir = (inst) => path.join(inst.root, 'tools-staging');
+const toolPlans = (inst) => readSettings(inst).toolPlans || {};
+function saveToolPlan(inst, what, plan) {
+  const cur = readSettings(inst);
+  cur.toolPlans = cur.toolPlans || {};
+  if (plan) cur.toolPlans[what] = plan; else delete cur.toolPlans[what];
+  if (!Object.keys(cur.toolPlans).length) delete cur.toolPlans;
+  settingsWrite(inst, cur);
+}
+const plannedOf = (inst, what) => { const p = toolPlans(inst)[what]; return p && p.file && fs.existsSync(p.file) ? p : null; };
+const planView = (p) => (p ? { version: p.version, at: p.at || 0, downloadedAt: p.downloadedAt || 0 } : null);
+function checkTool(what) { if (what !== 'node' && what !== 'cloudflared') throw new Error('Mjet i panjohur.'); }
+const toolsDry = () => process.env.HR_TOOLS_DRY === '1';
+function nextNight(hour) { const d = new Date(); d.setHours(hour, 0, 0, 0); if (d.getTime() < Date.now() + 10 * 60000) d.setDate(d.getDate() + 1); return d.getTime(); }
+const toolAutoLast = new Map(); // inst:what -> when a download was last started on its own (a failed one is not repeated before 6 hours)
+
+// Where a version is downloaded from and the SHA-256 it must have.
+async function toolRelease(what, version) {
+  if (what === 'node') {
+    const name = `node-v${version}-x64.msi`, base = `https://nodejs.org/dist/v${version}`;
+    const txt = await (await fetch(base + '/SHASUMS256.txt', { headers: { 'User-Agent': 'HRSystem-Dashboard' }, signal: AbortSignal.timeout(20000) })).text();
+    const line = txt.split(/\r?\n/).find((l) => l.trim().endsWith(' ' + name));
+    const sha = line ? line.trim().split(/\s+/)[0].toLowerCase() : '';
+    if (!/^[0-9a-f]{64}$/.test(sha)) throw new Error('Nuk u gjet shuma e kontrollit (SHA-256) e skedarit: nuk shkarkohet pa kontroll.');
+    return { url: `${base}/${name}`, name, sha };
+  }
+  const j = await fetchJson('https://api.github.com/repos/cloudflare/cloudflared/releases/latest', 20000);
+  const a = (j.assets || []).find((x) => x.name === 'cloudflared-windows-amd64.msi');
+  const sha = a ? String(a.digest || '').replace(/^sha256:/i, '').toLowerCase() : '';
+  if (!a || !/^[0-9a-f]{64}$/.test(sha)) throw new Error('Nuk u gjet skedari ose shuma e tij e kontrollit (SHA-256): nuk shkarkohet pa kontroll.');
+  return { url: a.browser_download_url, name: `cloudflared-${version}-windows-amd64.msi`, sha };
+}
+
+// Download to a .part file, check the SHA-256, then rename: a half or a wrong file never carries the final name.
+async function downloadVerified(url, file, sha) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const part = file + '.part';
+  const r = await fetch(url, { headers: { 'User-Agent': 'HRSystem-Dashboard' }, redirect: 'follow', signal: AbortSignal.timeout(20 * 60 * 1000) });
+  if (!r.ok || !r.body) throw new Error('Shkarkimi dështoi (HTTP ' + r.status + ').');
+  const hash = crypto.createHash('sha256');
+  const out = fs.createWriteStream(part);
+  let size = 0;
+  try {
+    for await (const chunk of r.body) { hash.update(chunk); size += chunk.length; if (!out.write(chunk)) await new Promise((res) => out.once('drain', res)); }
+    await new Promise((res, rej) => out.end((e) => (e ? rej(e) : res())));
+  } catch (e) { out.destroy(); fs.rmSync(part, { force: true }); throw e; }
+  const got = hash.digest('hex');
+  if (got !== sha) { fs.rmSync(part, { force: true }); throw new Error('Kontrolli SHA-256 i skedarit dështoi: asgjë nuk u instalua.'); }
+  fs.renameSync(part, file);
+  return { size, sha: got };
+}
+
+// Step 1. Returns true when the new version is ready in the staging folder (or there is nothing newer).
+async function stageTool(inst, what, add) {
+  toolsCache.at = 0;
+  const info = await toolsInfo();
+  const t = info[what];
+  if (!t.installed) { add('GABIM: ' + TOOL_NAMES[what] + ' nuk u gjet në këtë kompjuter.'); return false; }
+  if (!t.latest) { add('GABIM: nuk u gjet versioni më i ri (interneti ose faqja e burimit nuk përgjigjet).'); return false; }
+  if (!t.update) { add('Është i përditësuar (' + t.installed + ').'); return true; }
+  const have = plannedOf(inst, what);
+  if (have && have.version === t.latest) { add('Versioni ' + t.latest + ' është shkarkuar tashmë.'); return true; }
+  add('Versioni i instaluar: ' + t.installed + ' · versioni i ri: ' + t.latest);
+  if (toolsDry()) { add('[provë] Do të shkarkohej ' + TOOL_NAMES[what] + ' ' + t.latest + '. Asgjë nuk u ndryshua.'); return true; }
+  const rel = await toolRelease(what, t.latest);
+  const file = path.join(stagingDir(inst), rel.name);
+  add('Po shkarkohet ' + TOOL_NAMES[what] + ' ' + t.latest + ' ...');
+  const r = await downloadVerified(rel.url, file, rel.sha);
+  add('Skedari u shkarkua (' + Math.max(1, Math.round(r.size / 1048576)) + ' MB) dhe u verifikua (SHA-256).');
+  try { for (const f of fs.readdirSync(stagingDir(inst))) if (f !== rel.name && f.startsWith(what === 'node' ? 'node-v' : 'cloudflared-')) fs.rmSync(path.join(stagingDir(inst), f), { force: true }); } catch { /* old files stay */ }
+  const plan = { version: t.latest, from: t.installed, file, sha: r.sha, downloadedAt: Date.now() };
+  // "Instalo vetë" is on: the installation is set for the next time the owner's hour comes (02:00 unless he chose another).
+  const ta = readSettings(inst).toolAuto || {};
+  if (ta.install) { plan.at = nextNight(Number.isInteger(ta.hour) && ta.hour >= 0 && ta.hour <= 23 ? ta.hour : 2); add('Instalimi u caktua automatikisht për ' + new Date(plan.at).toLocaleString('sq-AL') + '.'); }
+  saveToolPlan(inst, what, plan);
+  return true;
+}
+function toolDownload(inst, what, by = 'manual') {
+  needLocal(inst); checkTool(what);
+  return startJob(inst, 'Shkarkimi i ' + TOOL_NAMES[what], (add) => stageTool(inst, what, add), by);
+}
+
+// Step 2: install now (it downloads first when nothing was downloaded yet), or at the time in the plan (by = 'auto').
+function toolInstall(inst, what, by = 'manual') {
+  needLocal(inst); checkTool(what);
+  return startJob(inst, 'Përditësimi i ' + TOOL_NAMES[what], async (add) => {
+    let plan = plannedOf(inst, what);
+    if (!plan) { if (!await stageTool(inst, what, add)) return false; plan = plannedOf(inst, what); if (!plan) return true; }
     toolsCache.at = 0;
     const info = await toolsInfo();
     const t = info[what];
-    if (!t.installed) { add('GABIM: ' + (what === 'node' ? 'Node.js' : 'cloudflared') + ' nuk u gjet në këtë kompjuter.'); return false; }
-    if (!t.latest) { add('GABIM: nuk u gjet versioni më i ri (interneti ose faqja e burimit nuk përgjigjet).'); return false; }
-    if (!t.update) { add('Është i përditësuar (' + t.installed + ').'); return true; }
-    add('Versioni i instaluar: ' + t.installed + ' · versioni i ri: ' + t.latest);
-    if (what === 'cloudflared' && !info.winget) { add('GABIM: winget nuk është i instaluar në këtë kompjuter; cloudflared nuk mund të përditësohet nga dashboard-i.'); return false; }
-    if (dry) { add('[provë] Do të përditësohej ' + what + ' nga ' + t.installed + ' në ' + t.latest + '. Asgjë nuk u ndryshua.'); return true; }
-    const script = what === 'node' ? [
+    if (t.installed && verCmp(t.installed, plan.version) >= 0) { add('Është i përditësuar (' + t.installed + ').'); saveToolPlan(inst, what, null); fs.rmSync(plan.file, { force: true }); return true; }
+    const sha = crypto.createHash('sha256').update(fs.readFileSync(plan.file)).digest('hex');
+    if (sha !== plan.sha) { add('GABIM: skedari i shkarkuar është ndryshuar ose dëmtuar; shkarkoje përsëri.'); saveToolPlan(inst, what, null); fs.rmSync(plan.file, { force: true }); return false; }
+    add('Versioni i instaluar: ' + t.installed + ' · versioni i ri: ' + plan.version);
+    if (toolsDry()) { add('[provë] Do të instalohej ' + TOOL_NAMES[what] + ' ' + plan.version + ' nga ' + plan.file + '. Asgjë nuk u ndryshua.'); return true; }
+    const script = [
       "$ErrorActionPreference = 'Stop'",
-      "$v = $env:HR_NODE_VER; $file = \"node-v$v-x64.msi\"; $base = \"https://nodejs.org/dist/v$v\"; $tmp = Join-Path $env:TEMP $file",
-      "Write-Host \"Po shkarkohet Node.js $v ...\"",
-      "Invoke-WebRequest -UseBasicParsing -Uri \"$base/$file\" -OutFile $tmp",
-      "$sums = (Invoke-WebRequest -UseBasicParsing -Uri \"$base/SHASUMS256.txt\").Content",
-      "$line = ($sums -split '\\r?\\n') | Where-Object { $_ -match ([regex]::Escape($file) + '\\s*$') } | Select-Object -First 1",
-      "$want = if ($line) { ($line -split '\\s+')[0].ToLower() } else { '' }",
-      "$got = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()",
-      "if (-not $want -or $want -ne $got) { Remove-Item $tmp -Force -ErrorAction SilentlyContinue; throw 'Kontrolli SHA-256 i skedarit dështoi: asgjë nuk u instalua.' }",
-      "Write-Host 'Skedari u verifikua (SHA-256). Po instalohet ...'",
-      "$p = Start-Process msiexec.exe -ArgumentList '/i', ('\"' + $tmp + '\"'), '/qn', '/norestart' -Wait -PassThru",
-      "Remove-Item $tmp -Force -ErrorAction SilentlyContinue",
-      "if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw \"Instalimi dështoi (kodi $($p.ExitCode)).\" }",
-      "if ($p.ExitCode -eq 3010) { Write-Host 'SUKSES: Node.js u instalua; hyn plotësisht në fuqi pas rinisjes së kompjuterit.' } else { Write-Host 'SUKSES: Node.js u instalua.' }",
-    ] : [
-      "$ErrorActionPreference = 'Stop'",
-      "$svc = Get-Service cloudflared -ErrorAction SilentlyContinue",
-      "if ($svc) { Write-Host 'Po ndalet shërbimi i tunelit ...'; Stop-Service cloudflared -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 }",
-      "Get-Process cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne [int]$env:HR_QUICK_PID } | Stop-Process -Force -ErrorAction SilentlyContinue",
-      "Write-Host 'Po përditësohet cloudflared me winget ...'",
-      "winget upgrade --id Cloudflare.cloudflared -e --source winget --silent --accept-package-agreements --accept-source-agreements",
-      "$code = $LASTEXITCODE",
-      "if ($svc) { Start-Service cloudflared -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3; if ((Get-Service cloudflared).Status -ne 'Running') { Write-Host 'KUJDES: shërbimi i tunelit nuk u ndez; ndize te Veprime > Lidhjet.' } else { Write-Host 'Shërbimi i tunelit u ndez përsëri.' } }",
-      "if ($code -eq -1978335189) { Write-Host 'winget nuk ka ende version më të ri për cloudflared; provoje më vonë.'; exit 0 }",
-      "if ($code -ne 0) { throw \"winget dështoi (kodi $code).\" }",
-      "Write-Host 'SUKSES: cloudflared u përditësua.'",
+      ...(what === 'cloudflared' ? [
+        "$svc = Get-Service cloudflared -ErrorAction SilentlyContinue",
+        "if ($svc) { Write-Host 'Po ndalet shërbimi i tunelit ...'; Stop-Service cloudflared -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 }",
+        "Get-Process cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne [int]$env:HR_QUICK_PID } | Stop-Process -Force -ErrorAction SilentlyContinue",
+      ] : []),
+      "Write-Host 'Po instalohet ...'",
+      "$p = Start-Process msiexec.exe -ArgumentList '/i', ('\"' + $env:HR_MSI + '\"'), '/qn', '/norestart' -Wait -PassThru",
+      "$code = $p.ExitCode",
+      ...(what === 'cloudflared' ? [
+        "if ($svc) { Start-Service cloudflared -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3; if ((Get-Service cloudflared).Status -ne 'Running') { Write-Host 'KUJDES: shërbimi i tunelit nuk u ndez; ndize te Veprime > Lidhjet.' } else { Write-Host 'Shërbimi i tunelit u ndez përsëri.' } }",
+      ] : []),
+      "if ($code -ne 0 -and $code -ne 3010) { $hint = if (@(5, 1603, 1625, 1730, 1925) -contains $code) { ' Duhen leje administratori: dashboard-i duhet të punojë si administrator.' } else { '' }; throw \"Instalimi dështoi (kodi $code).$hint\" }",
+      what === 'node'
+        ? "if ($code -eq 3010) { Write-Host 'SUKSES: Node.js u instalua; hyn plotësisht në fuqi pas rinisjes së kompjuterit.' } else { Write-Host 'SUKSES: Node.js u instalua.' }"
+        : "Write-Host 'SUKSES: cloudflared u përditësua.'",
     ];
-    const env = { ...process.env, HR_NODE_VER: t.latest, HR_QUICK_PID: String((quickState(inst) || {}).pid || 0) };
+    const env = { ...process.env, HR_MSI: plan.file, HR_QUICK_PID: String((quickState(inst) || {}).pid || 0) };
     let stopped = false;
     if (what === 'node') { add('Aplikacioni ndalet për pak çaste ...'); systemAction.quiet = true; try { await systemAction(inst, 'stop'); stopped = true; } finally { systemAction.quiet = false; } }
     let ok = false;
     try {
       ok = await new Promise((resolve) => {
-        const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script.join('; ')], { env, windowsHide: true });
-        p.stdout.on('data', add);
-        p.stderr.on('data', add);
+        // -EncodedCommand (UTF-16 base64) keeps the Albanian letters of the messages; the output is read as UTF-8; one clean error line instead of PowerShell's stack.
+        const body = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; try { " + script.join('; ') + " } catch { Write-Host ('GABIM: ' + $_.Exception.Message); exit 1 }";
+        const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-OutputFormat', 'Text', '-EncodedCommand', Buffer.from(body, 'utf16le').toString('base64')], { env, windowsHide: true });
+        p.stdout.on('data', (d) => add(d.toString('utf8')));
+        p.stderr.on('data', () => { /* -EncodedCommand writes progress as CLIXML here; the errors come through the try/catch above, on stdout */ });
         p.on('error', (e) => { add('GABIM: ' + e.message); resolve(false); });
         p.on('close', (code) => resolve(code === 0));
       });
@@ -828,9 +907,60 @@ function toolUpdate(inst, what) {
       if (stopped) { add('Aplikacioni ndizet përsëri ...'); systemAction.quiet = true; try { await systemAction(inst, 'start'); } catch (e) { add('GABIM: aplikacioni nuk u ndez: ' + e.message); ok = false; } finally { systemAction.quiet = false; } }
       toolsCache.at = 0;
     }
+    if (ok) { saveToolPlan(inst, what, null); fs.rmSync(plan.file, { force: true }); }
     return ok;
-  });
+  }, by);
 }
+
+// The time of the installation (milliseconds), or null to cancel it. Only for a version that is downloaded already.
+function toolSchedule(inst, what, at) {
+  needLocal(inst); checkTool(what);
+  const plan = plannedOf(inst, what);
+  if (!plan) throw new Error('Shkarko fillimisht versionin e ri.');
+  if (at === null) { delete plan.at; saveToolPlan(inst, what, plan); return { ok: true, at: 0 }; }
+  const ms = Number(at);
+  if (!Number.isFinite(ms) || ms < Date.now() + 60000 || ms > Date.now() + 14 * 86400000) throw new Error('Koha duhet të jetë nga 1 minutë deri në 14 ditë përpara.');
+  plan.at = ms; saveToolPlan(inst, what, plan);
+  addHistory(inst, { title: 'Instalimi i ' + TOOL_NAMES[what] + ' u caktua', ok: true, detail: new Date(ms).toLocaleString('sq-AL') });
+  return { ok: true, at: ms };
+}
+async function toolScheduleTick() {
+  for (const inst of instances()) {
+    if (!inst.root || !inst.data) continue;
+    // Automatic download (on unless the owner switched it off): a new version is fetched into the staging folder, once per 6 hours per program.
+    if ((readSettings(inst).toolAuto || {}).download !== false) {
+      const busy = jobs.get(inst.id);
+      if (!busy || busy.state !== 'running') {
+        try {
+          const info = await toolsInfo();
+          for (const what of ['node', 'cloudflared']) {
+            const key = inst.id + ':' + what;
+            if (!info[what].update || plannedOf(inst, what) || Date.now() - (toolAutoLast.get(key) || 0) < 6 * 3600000) continue;
+            toolAutoLast.set(key, Date.now());
+            toolDownload(inst, what, 'auto');
+            break;
+          }
+        } catch { /* the next minute */ }
+      }
+    }
+    const plans = toolPlans(inst);
+    for (const what of Object.keys(plans)) {
+      const p = plans[what];
+      if (!p || !p.at || p.at > Date.now()) continue;
+      if (Date.now() - p.at > 6 * 3600000) {
+        delete p.at; saveToolPlan(inst, what, p);
+        addHistory(inst, { title: 'Instalimi i ' + TOOL_NAMES[what] + ' u anulua', ok: false, detail: 'Dashboard-i nuk punonte në kohën e caktuar.' });
+        notify(inst, 'Përditësimi i ' + TOOL_NAMES[what] + ' u anulua', 'Dashboard-i nuk punonte në kohën e caktuar; cakto një kohë të re.', 'warn');
+        continue;
+      }
+      const job = jobs.get(inst.id);
+      if (job && job.state === 'running') continue; // another action is running: tried again in a minute
+      try { toolInstall(inst, what, 'auto'); const cur = toolPlans(inst)[what]; if (cur) { delete cur.at; saveToolPlan(inst, what, cur); } } catch { /* busy: next minute */ }
+      break;
+    }
+  }
+}
+setInterval(() => { toolScheduleTick().catch(() => {}); }, 60000).unref();
 
 // A temporary public address (a Cloudflare "quick tunnel": https://<words>.trycloudflare.com): no account and no domain of the owner's
 // needed, it works while the process runs and is a new address every time. For trying the application from a phone (some operators
@@ -1150,8 +1280,14 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.6.0';
+const DASH_VERSION = '1.7.0';
 const DASH_NOTES = [
+  { version: '1.7.0', date: '2026-10-24', notes: [
+    'Programet e sistemit: shkarkimi dhe instalimi janë dy hapa; shkarkon tani dhe e instalon kur të duash.',
+    'Mund ta caktosh kohën e instalimit (nga 02:00 si parazgjedhje, por e zgjedh ti), ose të instalosh menjëherë.',
+    'Automatik: shkarkim i vetvetishëm i versioneve të reja (i ndezur) dhe instalim i vetvetishëm në orën që zgjedh ti (i fikur).',
+    'Skedarët kontrollohen me SHA-256 para instalimit; Setup-i instalon Node.js të fundit të provuar me sistemin.',
+  ] },
   { version: '1.6.0', date: '2026-10-24', notes: [
     'Veprime: karta e re "Programet e sistemit" tregon versionin e Node.js dhe të cloudflared (tunelit) dhe të rejat nga interneti.',
     'Mund t\'i përditësosh me një buton (pyet dy herë; hapat shihen te Log-u). Node.js ndryshon vetëm brenda të njëjtit version të madh dhe kontrollohet me SHA-256; cloudflared përditësohet me winget.',
@@ -1226,7 +1362,9 @@ function jobDone(inst, job) {
   const ok = job.state === 'ok';
   addHistory(inst, { title: job.title, ok, detail: last.slice(0, 160), by: job.by });
   if (!ok) { notify(inst, 'Veprimi dështoi', job.title + (last ? ': ' + last.slice(0, 140) : ''), 'error'); logError('Veprimi: ' + job.title, new Error(last || 'dështoi')); }
-  else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') {
+  else if (/^Përditësimi i (Node\.js|Cloudflare Tunnel)$/.test(job.title)) {
+    notify(inst, job.title + ' u krye', (job.by === 'auto' ? 'U krye automatikisht në kohën e caktuar.' : 'U krye manualisht (nga dashboard-i).') + NOTE_NL + last, 'ok');
+  } else if (job.title === 'Perditesim' || job.title === 'Rikthim i versionit') {
     // After an update the notes of that version are repeated (saved when the new version was announced).
     const now = installed(inst) || {}, saved = (readSettings(inst).lastNotes || {});
     const extra = job.title === 'Perditesim' && saved.version === now.version && saved.text ? NOTE_NL + NOTE_NL + 'Çfarë ka të re:' + NOTE_NL + saved.text : '';
@@ -1932,7 +2070,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/tools') {
       if (!find(url.searchParams.get('id'))) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
-      return send(res, 200, await toolsInfo());
+      const inst = find(url.searchParams.get('id'));
+      const info = await toolsInfo();
+      const ta = inst ? (readSettings(inst).toolAuto || {}) : {};
+      return send(res, 200, { ...info, node: { ...info.node, plan: inst ? planView(plannedOf(inst, 'node')) : null }, cloudflared: { ...info.cloudflared, plan: inst ? planView(plannedOf(inst, 'cloudflared')) : null }, auto: { download: ta.download !== false, install: !!ta.install, hour: Number.isInteger(ta.hour) && ta.hour >= 0 && ta.hour <= 23 ? ta.hour : 2 } });
     }
     if (req.method === 'GET' && url.pathname === '/api/diagnostics') {
       const inst = find(url.searchParams.get('id'));
@@ -2071,7 +2212,15 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, repo: followed && followed.repo, changed: !!(followed && followed.changed), choices: (followed && followed.choices) || [] });
       }
       if (url.pathname === '/api/tunnel-remove') return send(res, 200, removeTunnel(inst));
-      if (url.pathname === '/api/tool-update') return send(res, 200, toolUpdate(inst, String(url.searchParams.get('what') || '')));
+      if (url.pathname === '/api/tool-download') return send(res, 200, toolDownload(inst, String(url.searchParams.get('what') || '')));
+      if (url.pathname === '/api/tool-install' || url.pathname === '/api/tool-update') return send(res, 200, toolInstall(inst, String(url.searchParams.get('what') || '')));
+      if (url.pathname === '/api/tool-schedule') { const at = url.searchParams.get('at'); return send(res, 200, toolSchedule(inst, String(url.searchParams.get('what') || ''), at === 'none' ? null : at)); }
+      if (url.pathname === '/api/tool-auto') {
+        needLocal(inst);
+        const cur = readSettings(inst); const hh = parseInt(url.searchParams.get('hour'), 10); cur.toolAuto = { download: url.searchParams.get('download') !== '0', install: url.searchParams.get('install') === '1', hour: Number.isInteger(hh) && hh >= 0 && hh <= 23 ? hh : 2 };
+        settingsWrite(inst, cur);
+        return send(res, 200, cur.toolAuto);
+      }
       if (url.pathname === '/api/tunnel-token') {
         let body = '';
         for await (const c of req) { body += c; if (body.length > 4000) break; }

@@ -72,3 +72,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **v1.5.1:** the dashboard reads its updates from the new GitHub name `rogest-network` (the old name still redirects).
 
 - **v1.6.0:** Veprime has a card "Programet e sistemit": the versions of Node.js and cloudflared (from this PC) against the newest (nodejs.org, GitHub), and an update button for each (asks twice, runs as an action, steps in Log-u). Node.js moves only inside the same major version, its installer is checked with SHA-256; cloudflared is updated with winget (its Windows service is stopped and started around it). Log lines are translated to the chosen language.
+
+- **v1.7.0:** "Programet e sistemit" in two steps: Shkarko (the installer is downloaded into tools-staging and checked with SHA-256) and the installation, now or at a time the owner sets (default shown: the next 02:00). Automatic: download of new versions by itself (on by default) and installation by itself at the hour the owner chooses (off by default). Setup now installs the newest Node.js of the major the system is tested with (24.x, SHA-256 checked).

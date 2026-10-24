@@ -619,6 +619,18 @@ setInterval(() => { try { for (const inst of instances()) if (inst.local && inst
 
 const domainHealth = new Map(); // url -> { at, ok }
 const tunnelSeen = { at: 0, list: '' }; // the list of cloudflared processes, 10 s
+// One slow or lost answer is not "down" (the lamp turned red for 15-45 s after a single timeout): a timeout, or a 5xx from the tunnel, is asked
+// once more with a longer wait; a refused connection or a 4xx answer is final at once.
+async function healthOk(url, first = 5000, second = 10000) {
+  for (const wait of [first, second]) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(wait), cache: 'no-store' });
+      if (r.ok) return true;
+      if (r.status < 500) return false;
+    } catch (e) { if (!(e && (e.name === 'TimeoutError' || e.name === 'AbortError'))) return false; }
+  }
+  return false;
+}
 async function accessOf(inst, env) {
   const settings = readSettings(inst);
   const isPublic = (o) => o && !o.includes('localhost') && !o.includes('127.0.0.1');
@@ -628,8 +640,8 @@ async function accessOf(inst, env) {
   const domains = await Promise.all(names.map(async (u) => {
     let ok = false;
     const seen = domainHealth.get(u);
-    if (seen && Date.now() - seen.at < 45000) return { url: u, ok: seen.ok };
-    try { ok = (await fetch(u.replace(/[/]$/, '') + '/api/health', { signal: AbortSignal.timeout(5000), cache: 'no-store' })).ok; } catch { ok = false; }
+    if (seen && Date.now() - seen.at < (seen.ok ? 45000 : 15000)) return { url: u, ok: seen.ok }; // a red answer is asked again sooner than a green one
+    ok = await healthOk(u.replace(/[/]$/, '') + '/api/health');
     domainHealth.set(u, { at: Date.now(), ok });
     return { url: u, ok };
   }));
@@ -638,8 +650,8 @@ async function accessOf(inst, env) {
   if (quickNow && !hidden.has(quickNow) && !domains.some((d) => d.url === quickNow)) {
     let ok = false;
     const seenQ = domainHealth.get(quickNow);
-    if (seenQ && Date.now() - seenQ.at < 45000) ok = seenQ.ok;
-    else { try { ok = (await fetch(quickNow + '/api/health', { signal: AbortSignal.timeout(5000), cache: 'no-store' })).ok; } catch { ok = false; } domainHealth.set(quickNow, { at: Date.now(), ok }); }
+    if (seenQ && Date.now() - seenQ.at < (seenQ.ok ? 45000 : 15000)) ok = seenQ.ok;
+    else { ok = await healthOk(quickNow + '/api/health'); domainHealth.set(quickNow, { at: Date.now(), ok }); }
     domains.push({ url: quickNow, ok, temporary: true });
   }
   const publicDomain = domains.length ? domains[0].url : '';
@@ -1358,8 +1370,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.7.3';
+const DASH_VERSION = '1.7.4';
 const DASH_NOTES = [
+  { version: '1.7.4', date: '2026-10-24', notes: [
+    'Llamba e kuqe nuk ndizet më për një përgjigje të vetme të ngadaltë: aplikacioni dhe adresat pyeten edhe një herë para se të shfaqen si të rënë.',
+  ] },
   { version: '1.7.3', date: '2026-10-24', notes: [
     'Përditësimi i programit nuk dështon më për shkak të paralajmërimeve të npm-it të ri (pas përditësimit të Node.js).',
   ] },
@@ -2032,11 +2047,15 @@ async function pulseOnce() {
     const was = downSeen.get(inst.id);
     if (was && Date.now() - was < 15000) { /* off: not asked again for 15 s */ }
     else {
-      try {
-        const r = await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(2500), cache: 'no-store' });
-        const j = await r.json().catch(() => null);
-        ok = r.status === 200 && !!j && j.ok === true; ms = Math.max(1, Math.round(performance.now() - t0)); database = (j && j.database) || null;
-      } catch { ok = false; }
+      // One slow answer (a busy moment of the application or of the PC) is asked once more with a longer wait before the lamp turns red; a refused connection is down at once.
+      for (const wait of [2500, 8000]) {
+        try {
+          const r = await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(wait), cache: 'no-store' });
+          const j = await r.json().catch(() => null);
+          ok = r.status === 200 && !!j && j.ok === true; ms = Math.max(1, Math.round(performance.now() - t0)); database = (j && j.database) || null;
+          break;
+        } catch (e) { ok = false; if (!(e && (e.name === 'TimeoutError' || e.name === 'AbortError'))) break; }
+      }
       if (ok) downSeen.delete(inst.id); else downSeen.set(inst.id, Date.now());
     }
     const job = jobs.get(inst.id) || null;

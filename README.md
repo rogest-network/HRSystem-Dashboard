@@ -73,6 +73,7 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 
 - **v1.6.0:** Veprime has a card "Programet e sistemit": the versions of Node.js and cloudflared (from this PC) against the newest (nodejs.org, GitHub), and an update button for each (asks twice, runs as an action, steps in Log-u). Node.js moves only inside the same major version, its installer is checked with SHA-256; cloudflared is updated with winget (its Windows service is stopped and started around it). Log lines are translated to the chosen language.
 
+- **v1.7.4:** the red lamp (Aplikacioni "Fikur", Lidhja "Nuk hapet") no longer turns on for one slow answer: the live pulse asks the application again with a longer wait (2.5 s then 8 s) and the addresses are asked again (5 s then 10 s); a red address is checked again after 15 s instead of 45 s. A refused connection is still down at once.
 - **v1.7.3:** program update no longer fails on npm warnings (the dashboard sets npm_config_loglevel=error for the updater; updater.ps1 itself now ignores stderr text and checks exit codes).
 - **v1.7.2:** the menu shows the dashboard version below LIVE.
 - **v1.7.1:** Node.js install fix. The installer closes every node.exe, so the dashboard (a Node program) became unreachable and the application was not started again. Now a separate script (started through `cmd /c start`) installs, starts the application and starts the dashboard again if it is gone; the dashboard reports the result when it is back. Cloudflared was fine (tested by the owner: it worked).

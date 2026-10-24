@@ -621,6 +621,7 @@
   .nav button.on::before { content:""; position:absolute; left:-12px; top:9px; bottom:9px; width:3px; border-radius:0 3px 3px 0; background:#8F86FF; }
   .nav .count { font-size:11px; font-weight:600; min-width:20px; text-align:center; padding:1px 7px; }
   .side .credit-side { margin-top:auto; padding:8px 10px 10px; font-size:11.5px; letter-spacing:0; }
+  .side .ver-side { padding:0 10px 10px; font-size:11.5px; color:var(--side-muted); text-align:center; font-variant-numeric:tabular-nums; }
   .side .foot { border-top:1px solid var(--side-2); padding:12px 4px 0; display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:0; }
   .side .foot button { display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 10px; border-radius:var(--r-sm); font-size:12.5px; color:var(--side-text); border:1px solid var(--side-2); background:transparent; }
   .side .foot button:hover { background:var(--side-2); color:#fff; }
@@ -875,6 +876,7 @@ const TR_LIST = [
   ["automatikisht", "automatically", "automatski"], ["manualisht", "manually", "ručno"],
   ["e fundit", "last", "poslednji"], ["në 24 orë", "in 24 hours", "u 24 sata"], ["dashboard-i dhe programi", "the dashboard and the program", "dashboard i program"],
   /* v1.5: design system, collapsible menu, version accordion, folder management, log levels */
+  ["Versioni i dashboard-it", "Dashboard version", "Verzija dashboarda"], ["Menuja tregon poshtë LIVE versionin e dashboard-it.", "The menu shows the dashboard version below LIVE.", "Meni prikazuje verziju dashboarda ispod LIVE."],
   ["Zgjero menunë", "Expand the menu", "Proširi meni"], ["Mbyll menunë", "Collapse the menu", "Skupi meni"], ["E fundit", "Latest", "Najnovija"],
   ["Pa folder", "No folder", "Bez fascikle"], ["I shkëputur", "Disconnected", "Isključeno"], ["Në pritje", "Waiting", "Na čekanju"], ["I lidhur", "Connected", "Povezano"], ["Nuk arrihet", "Not reachable", "Nedostupno"],
   ["Aksesohet", "Accessible", "Dostupno"], ["Nuk ekziston", "Does not exist", "Ne postoji"], ["Menaxho", "Manage", "Upravljaj"],
@@ -2171,7 +2173,8 @@ function render() {
     j.instances.length > 1 ? el('div', { class: 'inst' }, select) : '', // the list is only for several installations on one PC
     nav,
     el('div', { class: 'credit-side' }, el('span', {}, 'Krijuar nga'), ' ', el('b', {}, 'Rogest Network')),
-    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, paused() ? 'NË PAUZË' : liveOn ? 'LIVE' : 'OFFLINE')), refresh));
+    el('div', { class: 'foot' }, el('span', { class: 'live' + (liveOn ? '' : ' off'), id: 'livebadge' }, el('i'), el('b', { id: 'livetext', style: 'font-weight:600' }, paused() ? 'NË PAUZË' : liveOn ? 'LIVE' : 'OFFLINE')), refresh),
+    j.dashboardVersion ? el('div', { class: 'ver-side', title: 'Versioni i dashboard-it' }, 'v' + j.dashboardVersion) : '');
   // The result of the last job stays on top for 15 minutes (until it is closed), so a finished update is never missed.
   const job = s.job;
   let done = '';

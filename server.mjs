@@ -728,6 +728,110 @@ function removeTunnel(inst) {
   }));
 }
 
+// ---- The programs the system runs on: Node.js (runs the application) and cloudflared (the Cloudflare Tunnel program).
+// Versions are read from the PC; the newest ones from nodejs.org and GitHub (cached 10 min). Node.js is only moved to the newest release of the
+// SAME major (a new major could break the application: that stays a decision of the owner); its installer is checked against the SHA-256 list of
+// nodejs.org before it runs. cloudflared is updated with winget (the way it was installed), its Windows service is stopped and started around it.
+// HR_TOOLS_DRY=1 prints the steps without doing anything (tests).
+const toolsCache = { at: 0, data: null };
+const verCmp = (a, b) => {
+  const x = String(a || '').replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0), y = String(b || '').replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0) ? 1 : -1;
+  return 0;
+};
+async function fetchJson(url, ms = 8000) {
+  const r = await fetch(url, { headers: { 'User-Agent': 'HRSystem-Dashboard', Accept: 'application/json' }, signal: AbortSignal.timeout(ms) });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function toolsInfo() {
+  if (toolsCache.data && Date.now() - toolsCache.at < 600000) return toolsCache.data;
+  const out = { node: { installed: '', latest: '', ltsLatest: '', update: false, error: '' }, cloudflared: { installed: '', latest: '', update: false, error: '' }, winget: false };
+  out.node.installed = await run('node', ['--version']).then((s) => s.replace(/^v/, '')).catch(() => '');
+  try {
+    const list = await fetchJson('https://nodejs.org/dist/index.json', 10000);
+    const major = out.node.installed.split('.')[0];
+    const same = list.find((x) => major && String(x.version).startsWith('v' + major + '.'));
+    out.node.latest = same ? String(same.version).replace(/^v/, '') : '';
+    const lts = list.find((x) => x.lts);
+    out.node.ltsLatest = lts ? String(lts.version).replace(/^v/, '') : '';
+  } catch (e) { out.node.error = 'Nuk u kontrollua në internet.'; }
+  out.node.update = !!(out.node.installed && out.node.latest && verCmp(out.node.latest, out.node.installed) > 0);
+  const cf = cloudflaredPath();
+  if (cf) out.cloudflared.installed = await run(cf, ['--version']).then((s) => (/(\d{4}\.\d+\.\d+)/.exec(s) || [])[1] || '').catch(() => '');
+  try {
+    const j = await fetchJson('https://api.github.com/repos/cloudflare/cloudflared/releases/latest', 10000);
+    out.cloudflared.latest = String(j.tag_name || '').replace(/^v/, '');
+  } catch (e) { out.cloudflared.error = 'Nuk u kontrollua në internet.'; }
+  out.cloudflared.update = !!(out.cloudflared.installed && out.cloudflared.latest && verCmp(out.cloudflared.latest, out.cloudflared.installed) > 0);
+  out.winget = await run('where.exe', ['winget']).then(() => true).catch(() => false);
+  toolsCache.data = out; toolsCache.at = Date.now();
+  return out;
+}
+
+function toolUpdate(inst, what) {
+  needLocal(inst);
+  if (what !== 'node' && what !== 'cloudflared') throw new Error('Mjet i panjohur.');
+  const dry = process.env.HR_TOOLS_DRY === '1';
+  const title = what === 'node' ? 'Përditësimi i Node.js' : 'Përditësimi i Cloudflare Tunnel';
+  return startJob(inst, title, async (add) => {
+    toolsCache.at = 0;
+    const info = await toolsInfo();
+    const t = info[what];
+    if (!t.installed) { add('GABIM: ' + (what === 'node' ? 'Node.js' : 'cloudflared') + ' nuk u gjet në këtë kompjuter.'); return false; }
+    if (!t.latest) { add('GABIM: nuk u gjet versioni më i ri (interneti ose faqja e burimit nuk përgjigjet).'); return false; }
+    if (!t.update) { add('Është i përditësuar (' + t.installed + ').'); return true; }
+    add('Versioni i instaluar: ' + t.installed + ' · versioni i ri: ' + t.latest);
+    if (what === 'cloudflared' && !info.winget) { add('GABIM: winget nuk është i instaluar në këtë kompjuter; cloudflared nuk mund të përditësohet nga dashboard-i.'); return false; }
+    if (dry) { add('[provë] Do të përditësohej ' + what + ' nga ' + t.installed + ' në ' + t.latest + '. Asgjë nuk u ndryshua.'); return true; }
+    const script = what === 'node' ? [
+      "$ErrorActionPreference = 'Stop'",
+      "$v = $env:HR_NODE_VER; $file = \"node-v$v-x64.msi\"; $base = \"https://nodejs.org/dist/v$v\"; $tmp = Join-Path $env:TEMP $file",
+      "Write-Host \"Po shkarkohet Node.js $v ...\"",
+      "Invoke-WebRequest -UseBasicParsing -Uri \"$base/$file\" -OutFile $tmp",
+      "$sums = (Invoke-WebRequest -UseBasicParsing -Uri \"$base/SHASUMS256.txt\").Content",
+      "$line = ($sums -split '\\r?\\n') | Where-Object { $_ -match ([regex]::Escape($file) + '\\s*$') } | Select-Object -First 1",
+      "$want = if ($line) { ($line -split '\\s+')[0].ToLower() } else { '' }",
+      "$got = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()",
+      "if (-not $want -or $want -ne $got) { Remove-Item $tmp -Force -ErrorAction SilentlyContinue; throw 'Kontrolli SHA-256 i skedarit dështoi: asgjë nuk u instalua.' }",
+      "Write-Host 'Skedari u verifikua (SHA-256). Po instalohet ...'",
+      "$p = Start-Process msiexec.exe -ArgumentList '/i', ('\"' + $tmp + '\"'), '/qn', '/norestart' -Wait -PassThru",
+      "Remove-Item $tmp -Force -ErrorAction SilentlyContinue",
+      "if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw \"Instalimi dështoi (kodi $($p.ExitCode)).\" }",
+      "if ($p.ExitCode -eq 3010) { Write-Host 'SUKSES: Node.js u instalua; hyn plotësisht në fuqi pas rinisjes së kompjuterit.' } else { Write-Host 'SUKSES: Node.js u instalua.' }",
+    ] : [
+      "$ErrorActionPreference = 'Stop'",
+      "$svc = Get-Service cloudflared -ErrorAction SilentlyContinue",
+      "if ($svc) { Write-Host 'Po ndalet shërbimi i tunelit ...'; Stop-Service cloudflared -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 }",
+      "Get-Process cloudflared -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne [int]$env:HR_QUICK_PID } | Stop-Process -Force -ErrorAction SilentlyContinue",
+      "Write-Host 'Po përditësohet cloudflared me winget ...'",
+      "winget upgrade --id Cloudflare.cloudflared -e --source winget --silent --accept-package-agreements --accept-source-agreements",
+      "$code = $LASTEXITCODE",
+      "if ($svc) { Start-Service cloudflared -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3; if ((Get-Service cloudflared).Status -ne 'Running') { Write-Host 'KUJDES: shërbimi i tunelit nuk u ndez; ndize te Veprime > Lidhjet.' } else { Write-Host 'Shërbimi i tunelit u ndez përsëri.' } }",
+      "if ($code -eq -1978335189) { Write-Host 'winget nuk ka ende version më të ri për cloudflared; provoje më vonë.'; exit 0 }",
+      "if ($code -ne 0) { throw \"winget dështoi (kodi $code).\" }",
+      "Write-Host 'SUKSES: cloudflared u përditësua.'",
+    ];
+    const env = { ...process.env, HR_NODE_VER: t.latest, HR_QUICK_PID: String((quickState(inst) || {}).pid || 0) };
+    let stopped = false;
+    if (what === 'node') { add('Aplikacioni ndalet për pak çaste ...'); systemAction.quiet = true; try { await systemAction(inst, 'stop'); stopped = true; } finally { systemAction.quiet = false; } }
+    let ok = false;
+    try {
+      ok = await new Promise((resolve) => {
+        const p = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script.join('; ')], { env, windowsHide: true });
+        p.stdout.on('data', add);
+        p.stderr.on('data', add);
+        p.on('error', (e) => { add('GABIM: ' + e.message); resolve(false); });
+        p.on('close', (code) => resolve(code === 0));
+      });
+    } finally {
+      if (stopped) { add('Aplikacioni ndizet përsëri ...'); systemAction.quiet = true; try { await systemAction(inst, 'start'); } catch (e) { add('GABIM: aplikacioni nuk u ndez: ' + e.message); ok = false; } finally { systemAction.quiet = false; } }
+      toolsCache.at = 0;
+    }
+    return ok;
+  });
+}
+
 // A temporary public address (a Cloudflare "quick tunnel": https://<words>.trycloudflare.com): no account and no domain of the owner's
 // needed, it works while the process runs and is a new address every time. For trying the application from a phone (some operators
 // do not let a new domain through; this one opened on mobile data, owner 2026-10-22).
@@ -1046,8 +1150,13 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.5.1';
+const DASH_VERSION = '1.6.0';
 const DASH_NOTES = [
+  { version: '1.6.0', date: '2026-10-24', notes: [
+    'Veprime: karta e re "Programet e sistemit" tregon versionin e Node.js dhe të cloudflared (tunelit) dhe të rejat nga interneti.',
+    'Mund t\'i përditësosh me një buton (pyet dy herë; hapat shihen te Log-u). Node.js ndryshon vetëm brenda të njëjtit version të madh dhe kontrollohet me SHA-256; cloudflared përditësohet me winget.',
+    'Rreshtat e Log-ut përkthehen sipas gjuhës së zgjedhur.',
+  ] },
   { version: '1.5.1', date: '2026-10-24', notes: [
     'Dashboard-i lexon përditësimet nga emri i ri i GitHub (rogest-network); emri i vjetër vazhdon të punojë.',
   ] },
@@ -1821,6 +1930,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="gabime-${source}.log"`, 'Cache-Control': 'no-store' });
       return res.end(text);
     }
+    if (req.method === 'GET' && url.pathname === '/api/tools') {
+      if (!find(url.searchParams.get('id'))) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
+      return send(res, 200, await toolsInfo());
+    }
     if (req.method === 'GET' && url.pathname === '/api/diagnostics') {
       const inst = find(url.searchParams.get('id'));
       if (!inst || !inst.root) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
@@ -1958,6 +2071,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: true, repo: followed && followed.repo, changed: !!(followed && followed.changed), choices: (followed && followed.choices) || [] });
       }
       if (url.pathname === '/api/tunnel-remove') return send(res, 200, removeTunnel(inst));
+      if (url.pathname === '/api/tool-update') return send(res, 200, toolUpdate(inst, String(url.searchParams.get('what') || '')));
       if (url.pathname === '/api/tunnel-token') {
         let body = '';
         for await (const c of req) { body += c; if (body.length > 4000) break; }

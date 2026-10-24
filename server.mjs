@@ -653,8 +653,7 @@ async function accessOf(inst, env) {
 
 const q = (t) => "'" + String(t).replace(/'/g, "''") + "'";
 // Stop / start / restart the application of an installation (its Task Scheduler task; the node process is ended by its folder).
-async function systemAction(inst, action) {
-  needLocal(inst);
+function appScripts(inst) {
   const task = inst.task || 'HRSystem';
   const root = path.resolve(inst.root); // backslashes, as in the command lines of the processes
   // The application is kept alive by a launcher (start-hrsystem.ps1) that starts node again 3 s after it ends, so stopping only node (or only the task)
@@ -668,6 +667,11 @@ async function systemAction(inst, action) {
   const start = `$t = Get-ScheduledTask -TaskName ${q(task)} -ErrorAction SilentlyContinue; if ($t -and $t.Settings.Enabled) { Start-ScheduledTask -TaskName ${q(task)} } else { ` + // a task switched off in "Nisja me Windows" must not stop a manual Start
     `$running = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*start-hrsystem.ps1*' -and $_.CommandLine -like ${q('*' + root + '*')} }; ` +
     `if (-not $running) { $s = New-CimInstance -ClassName Win32_ProcessStartup -Namespace root/cimv2 -ClientOnly -Property @{ ShowWindow = [uint16]0 }; Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = ${q('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + launcher + '"')}; CurrentDirectory = ${q(root)}; ProcessStartupInformation = [CimInstance]$s } | Out-Null } }`;
+  return { stop, start };
+}
+async function systemAction(inst, action) {
+  needLocal(inst);
+  const { stop, start } = appScripts(inst);
   const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;
   if (!command) throw new Error('Veprim i panjohur.');
   await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);
@@ -857,6 +861,76 @@ function toolDownload(inst, what, by = 'manual') {
   return startJob(inst, 'Shkarkimi i ' + TOOL_NAMES[what], (add) => stageTool(inst, what, add), by);
 }
 
+const nodeResultFile = (inst) => path.join(stagingDir(inst), 'node-result.json');
+const nodePendingFile = (inst) => path.join(stagingDir(inst), 'node-pending.json');
+const nodeScriptFile = (inst) => path.join(stagingDir(inst), 'node-install.ps1');
+const readJsonFile = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^﻿/, '')); } catch { return null; } };
+function nodeCleanup(inst) { for (const f of [nodeResultFile(inst), nodePendingFile(inst), nodeScriptFile(inst)]) fs.rmSync(f, { force: true }); }
+// Installing Node.js closes every node.exe, this dashboard included, so the installation runs in a detached script: it installs, starts the
+// application, starts the dashboard again when it is gone, and writes node-result.json. The dashboard reads it while it is alive (the loop below)
+// or after it came back (nodeResultTick).
+async function nodeInstallDetached(inst, plan, add, by) {
+  add('Aplikacioni ndalet për pak çaste ...');
+  systemAction.quiet = true; try { await systemAction(inst, 'stop'); } finally { systemAction.quiet = false; }
+  nodeCleanup(inst);
+  fs.writeFileSync(nodePendingFile(inst), JSON.stringify({ by, version: plan.version, file: plan.file }));
+  const port = (server.address() || {}).port || 0;
+  const { start } = appScripts(inst);
+  const script = [
+    "$ErrorActionPreference = 'Continue'",
+    "$lines = New-Object System.Collections.Generic.List[string]; $ok = $false; $code = -1",
+    "try {",
+    "  Start-Sleep -Seconds 2",
+    "  $p = Start-Process msiexec.exe -ArgumentList '/i', ('\"' + " + q(plan.file) + " + '\"'), '/qn', '/norestart' -Wait -PassThru",
+    "  $code = $p.ExitCode",
+    "  if ($code -eq 0) { $ok = $true; $lines.Add('SUKSES: Node.js u instalua.') }",
+    "  elseif ($code -eq 3010) { $ok = $true; $lines.Add('SUKSES: Node.js u instalua; hyn plotësisht në fuqi pas rinisjes së kompjuterit.') }",
+    "  else { $hint = if (@(5, 1603, 1625, 1730, 1925) -contains $code) { ' Duhen leje administratori: dashboard-i duhet të punojë si administrator.' } else { '' }; $lines.Add('GABIM: Instalimi dështoi (kodi ' + $code + ').' + $hint) }",
+    "} catch { $lines.Add('GABIM: ' + $_.Exception.Message) }",
+    "try { " + start + "; $lines.Add('Aplikacioni u ndez përsëri.') } catch { $lines.Add('GABIM: aplikacioni nuk u ndez: ' + $_.Exception.Message); $ok = $false }",
+    "Start-Sleep -Seconds 6",
+    "$up = $false; try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', " + port + "); $c.Close(); $up = $true } catch { }",
+    "if (-not $up) { try { $env:MANAGER_PORT = '" + port + "'; Start-Process -FilePath " + q(process.execPath) + " -ArgumentList ('\"' + " + q(SELF) + " + '\"') -WorkingDirectory " + q(HERE) + " -WindowStyle Hidden; $lines.Add('Dashboard-i u ndez përsëri.') } catch { $lines.Add('KUJDES: dashboard-i nuk u ndez vetë: ' + $_.Exception.Message) } }",
+    "$json = ConvertTo-Json -InputObject @{ ok = $ok; code = $code; lines = @($lines) } -Compress",
+    "[IO.File]::WriteAllText(" + q(nodeResultFile(inst)) + ", $json, (New-Object Text.UTF8Encoding $false))",
+  ].join('\r\n');
+  fs.writeFileSync(nodeScriptFile(inst), '﻿' + script);
+  add('Po instalohet ... (dashboard-i mund të mbyllet e të rindizet vetë për pak çaste)');
+  // `start` through cmd: a detached powershell.exe without a console ends at once (tested), and a plain child dies with its parent's job.
+  spawn('cmd.exe', ['/c', 'start', '""', '/min', 'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '"' + nodeScriptFile(inst) + '"'], { stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true }).unref();
+  const deadline = Date.now() + 15 * 60000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const r = readJsonFile(nodeResultFile(inst));
+    if (!r) continue;
+    for (const l of r.lines || []) add(l);
+    nodeCleanup(inst);
+    toolsCache.at = 0;
+    if (r.ok) { saveToolPlan(inst, 'node', null); fs.rmSync(plan.file, { force: true }); }
+    return !!r.ok;
+  }
+  add('GABIM: instalimi nuk dha rezultat brenda 15 minutave.');
+  return false;
+}
+// The dashboard came back after the installation closed it: it reports what the detached script did.
+function nodeResultTick() {
+  for (const inst of instances()) {
+    if (!inst.root || !inst.data) continue;
+    const busy = jobs.get(inst.id);
+    if (busy && busy.state === 'running') continue;
+    const r = readJsonFile(nodeResultFile(inst));
+    if (!r) continue;
+    const pend = readJsonFile(nodePendingFile(inst)) || {};
+    nodeCleanup(inst);
+    toolsCache.at = 0;
+    if (r.ok) { saveToolPlan(inst, 'node', null); if (pend.file) fs.rmSync(pend.file, { force: true }); }
+    const job = { title: 'Përditësimi i Node.js', state: r.ok ? 'ok' : 'error', lines: (r.lines || []).slice(-200), started: Date.now(), ended: Date.now(), by: pend.by || 'manual' };
+    jobs.set(inst.id, job);
+    try { jobDone(inst, job); } catch { /* history only */ }
+  }
+}
+setInterval(nodeResultTick, 5000).unref();
+
 // Step 2: install now (it downloads first when nothing was downloaded yet), or at the time in the plan (by = 'auto').
 function toolInstall(inst, what, by = 'manual') {
   needLocal(inst); checkTool(what);
@@ -890,8 +964,11 @@ function toolInstall(inst, what, by = 'manual') {
         : "Write-Host 'SUKSES: cloudflared u përditësua.'",
     ];
     const env = { ...process.env, HR_MSI: plan.file, HR_QUICK_PID: String((quickState(inst) || {}).pid || 0) };
+    // Node.js runs this dashboard too: the installer closes it, so the steps after the installation cannot belong to it. A detached script does
+    // everything (install, start the application, start the dashboard again if it was closed) and leaves its result in a file that
+    // the dashboard reads when it is back (nodeResultTick) or while it is still alive (below).
+    if (what === 'node') return nodeInstallDetached(inst, plan, add, by);
     let stopped = false;
-    if (what === 'node') { add('Aplikacioni ndalet për pak çaste ...'); systemAction.quiet = true; try { await systemAction(inst, 'stop'); stopped = true; } finally { systemAction.quiet = false; } }
     let ok = false;
     try {
       ok = await new Promise((resolve) => {
@@ -1280,8 +1357,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.7.0';
+const DASH_VERSION = '1.7.1';
 const DASH_NOTES = [
+  { version: '1.7.1', date: '2026-10-24', notes: [
+    'Node.js: pas instalimit aplikacioni ndizet vetë dhe dashboard-i rindizet vetë nëse mbyllet.',
+  ] },
   { version: '1.7.0', date: '2026-10-24', notes: [
     'Programet e sistemit: shkarkimi dhe instalimi janë dy hapa; shkarkon tani dhe e instalon kur të duash.',
     'Mund ta caktosh kohën e instalimit (nga 02:00 si parazgjedhje, por e zgjedh ti), ose të instalosh menjëherë.',

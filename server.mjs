@@ -807,7 +807,7 @@ setInterval(() => {
 // minutes, and from the "Përditëso dashboard-in" button); the old files are kept in manager/.previous/, server.mjs is written last (its change
 // makes the dashboard start itself again) and a guard process puts the old files back when the new dashboard does not answer within 25 s.
 // Only an installed dashboard updates; only files that already exist here are replaced.
-const DASH_REPO = process.env.DASHBOARD_REPO || 'rogestshalaa/HRSystem-Dashboard';
+const DASH_REPO = process.env.DASHBOARD_REPO || 'rogest-network/HRSystem-Dashboard';
 const gitBlobSha = (buf) => crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + buf.length + '\0'), buf])).digest('hex');
 async function ghJson(url) {
   const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'hrsystem-dashboard' }, signal: AbortSignal.timeout(20000), cache: 'no-store' });
@@ -1046,8 +1046,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.5.0';
+const DASH_VERSION = '1.5.1';
 const DASH_NOTES = [
+  { version: '1.5.1', date: '2026-10-24', notes: [
+    'Dashboard-i lexon përditësimet nga emri i ri i GitHub (rogest-network); emri i vjetër vazhdon të punojë.',
+  ] },
   { version: '1.5.0', date: '2026-10-24', notes: [
     'Pamje e re profesionale: font Inter, menu e errët, ngjyra vjollcë, karta dhe butona të njëjtë në çdo faqe.',
     'Menuja anësore mbyllet me shigjetën lart (vetëm ikona); mbahet mend zgjedhja.',

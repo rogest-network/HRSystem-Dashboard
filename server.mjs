@@ -1046,8 +1046,16 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.4.2';
+const DASH_VERSION = '1.5.0';
 const DASH_NOTES = [
+  { version: '1.5.0', date: '2026-10-24', notes: [
+    'Pamje e re profesionale: font Inter, menu e errët, ngjyra vjollcë, karta dhe butona të njëjtë në çdo faqe.',
+    'Menuja anësore mbyllet me shigjetën lart (vetëm ikona); mbahet mend zgjedhja.',
+    'Çfarë ka të re: vetëm versioni i fundit është i hapur, të vjetrit hapen me një klik.',
+    'Kopje jashtë PC-së: karta e re e folderit me rrugën e plotë, gjendjen dhe veprimet Ndrysho, Shkëput, Rilidh, Hiq.',
+    'Veprime: veprimet e përditshme janë ndarë nga rikthimi dhe zona e rrezikut.',
+    'Log-u dhe Gabimet: rreshtat e gabimeve dhe kujdesit kanë ngjyrë dhe fjalë (GABIM, KUJDES).',
+  ] },
   { version: '1.4.2', date: '2026-10-24', notes: [
     'Cilësimet janë tani një buton i gjerë lart, poshtë logos.',
     'Çinstalo HRSystem u zhvendos te fundi i faqes Veprime (Zona e rrezikut) dhe pyet dy herë.',

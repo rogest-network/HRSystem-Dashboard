@@ -66,3 +66,5 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 - **v1.4.1:** an update shows how it was done: automatically (the night job) or manually (a button), in Historiku, Veprimet e fundit, Log and the phone message.
 
 - **v1.4.2:** Settings is a wide button under the logo; Uninstall is at the bottom of Veprime and asks twice.
+
+- **v1.5.0:** a full UI redesign (design system block at the end of the stylesheet): Inter, navy menu (#0B1220), purple actions (#5546F0), one button/field/card style, a collapsible menu, a version accordion (newest open, older collapsed), a folder card for the off-PC copy (full path, status, change / disconnect / reconnect / remove, guidance on errors), routine actions separated from recovery and the danger zone, log levels with colour and a word. The "new version" banner on Kryesore is short and has a button to the page "Cfare ka te re".

@@ -1283,7 +1283,7 @@ function updateKind(i, l) {
 // ONE automatic night job (owner, 2026-10-22: a backup at 02:00 and an update at 03:00 would save the database twice). Once a day, at the chosen hour
 // (default 02:00): when GitHub has a newer version or build of the program and "updateToo" is on, the update runs, and since the updater always begins
 // with a database backup, that is the day's backup (nothing is saved twice); otherwise the dashboard makes the backup itself. Only the newest `keep`
-// automatic backups are kept; manual ones and the updater's are never deleted by this rule. The result of the last run is shown in Veprime.
+// backups of the folder are kept (since 1.7.5 manual ones and the updater's count too). The result of the last run is shown in Veprime.
 function autoBackupOf(inst) {
   const s = readSettings(inst);
   return { on: s.autoBackup !== false, hour: Number.isInteger(s.autoBackupHour) ? s.autoBackupHour : 2, keep: Number.isInteger(s.autoBackupKeep) ? s.autoBackupKeep : 14, updateToo: s.autoUpdate !== false, last: s.autoBackupLast || null };
@@ -1301,11 +1301,12 @@ function saveAutoResult(inst, record, result, name) {
   const cur = readSettings(inst); cur.autoBackupLast = { ...record, result, name };
   try { fs.writeFileSync(settingsFile(inst), JSON.stringify(cur, null, 2)); } catch { /* read-only folder */ }
 }
+// Owner, 2026-10-25: "keep the last 7, all of them": after the night job ONLY the newest `keep` backups of the folder stay, whoever made them
+// (the night job, the updater or a button). `names` is no longer needed to tell them apart; the argument stays so the callers do not change.
 function rememberAndPrune(inst, names, keep) {
   const mine = readSettings(inst); mine.autoBackupFiles = [...new Set([...(mine.autoBackupFiles || []), ...names])].slice(-400);
   try { fs.writeFileSync(settingsFile(inst), JSON.stringify(mine, null, 2)); } catch { /* read-only folder */ }
-  const madeHere = new Set(mine.autoBackupFiles);
-  for (const old of listBackups(inst).filter((x) => madeHere.has(x.name)).slice(keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
+  for (const old of listBackups(inst).slice(keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
 }
 const skipNoted = new Map();
 async function autoBackupTick() {
@@ -1370,8 +1371,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.7.4';
+const DASH_VERSION = '1.7.5';
 const DASH_NOTES = [
+  { version: '1.7.5', date: '2026-10-25', notes: [
+    'Backup-et: pas punës së natës mbeten vetëm të fundit sa ke zgjedhur (p.sh. 7), pa dallim kush i ka bërë: nata, përditësimi ose butoni.',
+  ] },
   { version: '1.7.4', date: '2026-10-24', notes: [
     'Llamba e kuqe nuk ndizet më për një përgjigje të vetme të ngadaltë: aplikacioni dhe adresat pyeten edhe një herë para se të shfaqen si të rënë.',
   ] },

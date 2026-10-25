@@ -85,9 +85,9 @@ Search the section comments (`// ======`, `// ----`). Order in the file, roughly
 `{ instances: [ { id, name, url, health, installed, latest, update, backups[{…, check, tested, versions}], system, usage, history[100], notify{on,target,daily,hour}, offsite, job, autoBackup, autostart[], tokenSet, paths, access, ownerMissing, canUninstall, pinned, database, repo, channel, local, note } ], dashboard, dashboardRepo, errors{day}, location{ip,country,colo,host,zone}, security{password,env}, at }`
 
 ### API routes
-GET: `/api/status`, `/api/live` (SSE), `/api/job`, `/api/tools`, `/api/versions`, `/api/errors?id&source&limit`, `/api/errors-file`, `/api/backup-file` (download), `/api/diagnostics`.
+GET: `/api/bugs` (v1.8.0), `/api/status`, `/api/live` (SSE), `/api/job`, `/api/tools`, `/api/versions`, `/api/errors?id&source&limit`, `/api/errors-file`, `/api/backup-file` (download), `/api/diagnostics`.
 POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
-`backup`, `backup-delete`, `backup-restore`, `backup-test`, `open-folder`, `open`, `import` (SQL backup upload), `sql` (run SQL), `update`, `rollback`, `system?do=start|stop|restart`, `autostart`, `auto-backup`, `github-token`, `secrets`, `setup-link`, `developer-open`, `quick-tunnel`, `tunnel-token`, `tunnel-remove`, `address-remove`, `tool-update`, `unpin`, `notify`, `notify-test`, `daily-report`, `offsite`, `offsite-sync`, `errors-clear`, `dashboard-update`, `dashboard-password`, `dashboard-password-show`, `dashboard-logout`, `uninstall`.
+`bug-status` (v1.8.0), `backup`, `backup-delete`, `backup-restore`, `backup-test`, `open-folder`, `open`, `import` (SQL backup upload), `sql` (run SQL), `update`, `rollback`, `system?do=start|stop|restart`, `autostart`, `auto-backup`, `github-token`, `secrets`, `setup-link`, `developer-open`, `quick-tunnel`, `tunnel-token`, `tunnel-remove`, `address-remove`, `tool-update`, `unpin`, `notify`, `notify-test`, `daily-report`, `offsite`, `offsite-sync`, `errors-clear`, `dashboard-update`, `dashboard-password`, `dashboard-password-show`, `dashboard-logout`, `uninstall`.
 
 ---------------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
 
 ## 7. Settings file keys (`dashboard-settings.json`)
 
-`notify {on, target, daily, hour}`, `offsite {path, on}`, `offsiteLast`, `history[]`, `autoUpdate`, `autoUpdateHour`, `autoUpdateLast`, `autoBackup`, `autoBackupHour`, `autoBackupKeep`, `autoBackupLast`, `versionLog[]`, `backupVersions{}`, `backupTests{}`, `pinned`, `domainsSeen{}`, `domainsHidden[]`, `quickLast`, `quickWanted`, `ioDay` / `netDay` (traffic counters), `lastStaleAlert`, `lastDailyReport`, `manualStop`. Change through the code paths above, not by hand while the dashboard runs.
+`notify {on, target, daily, hour}`, `offsite {path, on}`, `offsiteLast`, `history[]`, `autoUpdate`, `autoUpdateHour`, `autoUpdateLast`, `autoBackup`, `autoBackupHour`, `autoBackupKeep`, `autoBackupLast`, `versionLog[]`, `backupVersions{}`, `backupTests{}`, `pinned`, `domainsSeen{}`, `domainsHidden[]`, `quickLast`, `quickWanted`, `ioDay` / `netDay` (traffic counters), `lastStaleAlert`, `lastDailyReport`, `manualStop`, `bugs {states{<id>:{status,at}}, notifiedAt}` (v1.8.0). Change through the code paths above, not by hand while the dashboard runs.
 
 ---------------------------------------------------------------------------
 
@@ -155,6 +155,8 @@ Real clean install through the wizard on a blank PC, real uninstall, a real phon
 ---------------------------------------------------------------------------
 
 ## 11. Current state and history (update this at the end of every dashboard task)
+
+**2026-10-25 (v1.8.0, PUBLISHED to the Dashboard repo with the tag v1.8.0 at the owner's word, together with the program V1.0.7):** new page **Gabimet e raportuara** (`pages.bugs`, menu item after Gabimet, icon `bug`, red count of reports still "reported" from `bugsNew` of the status). It shows the reports people send from the program (Profili → Rreth Aplikacionit → Raporto një gabim; program migration 0015, table `bug_reports`). Four tabs: Të raportuara / Në përpunim / Të zgjidhura / Roadmap; every report has buttons to move it between them ("Kalo në roadmap" is the on-request roadmap). Server: `readBugReports` reads the table READ-ONLY with the mysql command line (`mysqlQuery(..., true)` = UTF-8, one JSON object per row); `GET /api/bugs?id=`; `POST /api/bug-status?id=` {report, status: new|progress|solved|roadmap} (key needed); the choices are stored in `dashboard-settings.json` under `bugs.states` ({id: {status, at}}), NEVER in the application's database; `bugsCheck` (inside `watchTick`, every 5 minutes) refreshes the badge and sends ONE phone message "Raport gabimi nga <name>" for the reports since `bugs.notifiedAt` (the first look only remembers the newest; own notification switch "Raportet e gabimeve", category `bugs`). What people wrote is added as text nodes, so the language switch never translates it. Tested on a test dashboard (3700) against the test space database: reading, UTF-8, the moves and their persistence, the new-report detection (history entry), sq/en/sr, phone width light. NOT tested: the real ntfy message, the real shop database, dark mode on a phone, the menu on a phone for the new item.
 
 State on 2026-10-22 (Dashboard repo `main`, installed copy equal):
 - Features done: password (set once, show/hide, change, remove), accessibility (WCAG 2.2 AA), three languages, hidden quick tunnel, self-update with rollback, off-PC backup copy, version log per backup, rollback of the program, **error logs page (Gabimet)**, **server location**, **alerts** (old backup >36 h, address down 5 min), **backup test**, **daily report with an hour chosen by the owner** (Veprime → Njoftime), professional notifications (levels, titles, time), live SSE.

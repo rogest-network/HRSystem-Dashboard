@@ -1371,8 +1371,13 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.7.5';
+const DASH_VERSION = '1.8.0';
 const DASH_NOTES = [
+  { version: '1.8.0', date: '2026-10-25', notes: [
+    'Faqe e re "Gabimet e raportuara": raportet që punonjësit dërgojnë nga aplikacioni (Profili → Rreth Aplikacionit → Raporto një gabim) me emrin, rolin, pikën, telefonin dhe versionin.',
+    'Katër skeda: Të raportuara, Në përpunim, Të zgjidhura dhe Roadmap; çdo raport kalon nga një skedë te tjetra me një buton.',
+    'Njoftim në telefon kur vjen raport i ri (ndahet me çelës te Njoftimet) dhe numër i kuq te menuja.',
+  ] },
   { version: '1.7.5', date: '2026-10-25', notes: [
     'Backup-et: pas punës së natës mbeten vetëm të fundit sa ke zgjedhur (p.sh. 7), pa dallim kush i ka bërë: nata, përditësimi ose butoni.',
   ] },
@@ -1481,8 +1486,9 @@ function jobDone(inst, job) {
 
 // ---- notifications: ntfy.sh (a topic name the owner subscribes to in the free ntfy phone app) or any webhook URL; opt-in, off until set
 // What the owner can switch on or off on the phone: one switch per kind of message (all on by default). The daily report has its own switch.
-const NOTE_CATS = ['app', 'address', 'backup', 'disk', 'update'];
+const NOTE_CATS = ['app', 'address', 'backup', 'disk', 'update', 'bugs'];
 function noteCategory(title) {
+  if (/^Raport gabimi/.test(title)) return 'bugs';
   if (/^(Aplikacioni|Nisja me Windows)/.test(title)) return 'app';
   if (/^Adresa/.test(title)) return 'address';
   if (/^(Backup|Kopja)/.test(title)) return 'backup';
@@ -1533,6 +1539,57 @@ async function updateAvailableCheck(inst) {
   notify(inst, 'Ka version të ri', 'Versioni ' + l.version + ' është gati (instaluar: ' + ((i && i.name) || '?') + ').' + (a.updateToo ? ' Do të instalohet vetë në orën ' + String(a.hour).padStart(2, '0') + ':00.' : ' Përditësoje nga dashboard-i.') + (text ? NOTE_NL + NOTE_NL + 'Çfarë ka të re:' + NOTE_NL + text : ''), 'info');
   addHistory(inst, { title: 'Ka version të ri', ok: true, detail: l.version });
 }
+// ---- bug reports ("Raporto një gabim" in the program, migration 0015). The dashboard only READS the table (mysql command line, one JSON object per row,
+// local database only); the owner's own decisions (in progress / solved / roadmap) are kept in dashboard-settings.json under `bugs.states`, never written
+// to the application's database. No entry for a report = "reported". New reports are announced on the phone once (`bugs.notifiedAt`).
+const BUG_STATES = ['progress', 'solved', 'roadmap'];
+const bugNew = new Map(); // inst.id -> how many reports are still "reported" (for the menu badge)
+const bugChecked = new Map(); // inst.id -> time of the last look at the table
+async function readBugReports(inst) {
+  const cfg = readEnv(path.join(inst.root, '.env'));
+  const sql = "SELECT JSON_OBJECT('id',`id`,'reporter',`reporter_name`,'role',`reporter_role`,'store',`location_name`,'page',`page`,'message',`message`,'device',`device`,'version',`app_version`,'created',DATE_FORMAT(`created`,'%Y-%m-%dT%H:%i:%s.%fZ')) FROM `bug_reports` ORDER BY `created` DESC LIMIT 500";
+  let out;
+  try { out = await mysqlQuery(cfg, sql, cfg.DB_NAME, true); } catch (e) { if (/doesn't exist/i.test(String(e.message))) return { items: [], missing: true }; throw e; }
+  const items = [];
+  // Batch mode doubles every backslash of the JSON text; two backslashes become one again.
+  for (const line of String(out || '').split(/\r?\n/)) { if (!line.trim()) continue; try { items.push(JSON.parse(line.replace(/\\\\/g, '\\'))); } catch { /* a damaged line is skipped */ } }
+  return { items, missing: false };
+}
+function bugStatesOf(inst) { const b = readSettings(inst).bugs; return b && b.states && typeof b.states === 'object' ? b.states : {}; }
+async function bugsOf(inst) {
+  const { items, missing } = await readBugReports(inst), states = bugStatesOf(inst);
+  const list = items.map((x) => ({ ...x, status: BUG_STATES.includes((states[x.id] || {}).status) ? states[x.id].status : 'new', changed: (states[x.id] || {}).at || null }));
+  const counts = { new: 0, progress: 0, solved: 0, roadmap: 0 };
+  for (const x of list) counts[x.status] += 1;
+  bugNew.set(inst.id, counts.new);
+  return { items: list, counts, missing };
+}
+function setBugStatus(inst, report, status) {
+  if (!/^[0-9a-f]{24}$/.test(String(report))) throw new Error('Raporti nuk është i vlefshëm.');
+  if (status !== 'new' && !BUG_STATES.includes(status)) throw new Error('Gjendja nuk është e vlefshme.');
+  const cur = readSettings(inst), bugs = cur.bugs && typeof cur.bugs === 'object' ? cur.bugs : {};
+  const states = bugs.states && typeof bugs.states === 'object' ? bugs.states : {};
+  if (status === 'new') delete states[report]; else states[report] = { status, at: new Date().toISOString() };
+  if (Object.keys(states).length > 5000) throw new Error('Shumë raporte të shënuara.');
+  cur.bugs = { ...bugs, states };
+  settingsWrite(inst, cur);
+}
+// Every 5 minutes: refresh the badge and send ONE message for the reports that arrived since the last look (the first look only remembers the newest one).
+async function bugsCheck(inst) {
+  if (Date.now() - (bugChecked.get(inst.id) || 0) < 300000) return;
+  bugChecked.set(inst.id, Date.now());
+  const { items, missing } = await bugsOf(inst);
+  if (missing) return;
+  const cur = readSettings(inst), bugs = cur.bugs && typeof cur.bugs === 'object' ? cur.bugs : {};
+  const newest = items.length ? items[0].created : null;
+  if (bugs.notifiedAt === undefined) { cur.bugs = { ...bugs, notifiedAt: newest || new Date().toISOString() }; settingsWrite(inst, cur); return; }
+  const fresh = items.filter((x) => x.created > bugs.notifiedAt).reverse();
+  if (!fresh.length) return;
+  cur.bugs = { ...bugs, notifiedAt: newest }; settingsWrite(inst, cur);
+  const first = fresh[0];
+  notify(inst, 'Raport gabimi nga ' + (first.reporter || '?'), (first.store ? first.store + ': ' : '') + String(first.message || '').replace(/\s+/g, ' ').slice(0, 160) + (fresh.length > 1 ? NOTE_NL + '(+' + (fresh.length - 1) + ' raporte të tjera)' : ''), 'info');
+  addHistory(inst, { title: 'Raport i ri gabimi', ok: true, detail: (first.reporter || '?') + (fresh.length > 1 ? ' +' + (fresh.length - 1) : '') });
+}
 const watch = new Map();
 async function watchTick() {
   for (const inst of instances()) {
@@ -1567,6 +1624,7 @@ async function watchTick() {
     try { await addressCheck(inst); } catch { /* next time */ }
     try { await updateAvailableCheck(inst); } catch { /* next time */ }
     try { await dailyReportCheck(inst); } catch { /* next time */ }
+    try { await bugsCheck(inst); } catch { /* next time */ }
     const d = diskOf(inst.data || inst.root);
     if (d && d.total && d.free / d.total < 0.1) {
       const cur = readSettings(inst), day = new Date().toISOString().slice(0, 10);
@@ -1834,8 +1892,8 @@ async function addressCheck(inst) {
 }
 
 // 2) A backup is tested for real: loaded into a temporary database (hrtest_<time>), checked, and the temporary database is dropped.
-function mysqlQuery(cfg, sql, db) {
-  return run(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, '-N', '-B', '-e', sql, ...(db ? [db] : [])], { MYSQL_PWD: cfg.DB_PASSWORD });
+function mysqlQuery(cfg, sql, db, utf8 = false) { // utf8: text of people (names, messages) comes back as UTF-8, not in the console's code page
+  return run(mysqlPath(), [`--user=${cfg.DB_USER}`, '--protocol=TCP', `--host=${cfg.DB_HOST}`, `--port=${cfg.DB_PORT}`, ...(utf8 ? ['--default-character-set=utf8mb4'] : []), '-N', '-B', '-e', sql, ...(db ? [db] : [])], { MYSQL_PWD: cfg.DB_PASSWORD });
 }
 function runBackupTest(inst, name) {
   needLocal(inst);
@@ -1949,7 +2007,7 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), offsite: offsiteOf(inst), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), bugsNew: bugNew.get(inst.id) || 0, offsite: offsiteOf(inst), job: jobs.get(inst.id) || null };
 }
 
 // ---- Start with Windows (owner, 2026-10-22): the owner can stop or enable the automatic start of each part, or all at once ----
@@ -2178,6 +2236,11 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="gabime-${source}.log"`, 'Cache-Control': 'no-store' });
       return res.end(text);
     }
+    if (req.method === 'GET' && url.pathname === '/api/bugs') {
+      const inst = find(url.searchParams.get('id'));
+      if (!inst || !inst.root) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
+      try { needLocal(inst); return send(res, 200, await bugsOf(inst)); } catch (e) { logError('Raportet e gabimeve', e); return send(res, 200, { items: [], counts: { new: 0, progress: 0, solved: 0, roadmap: 0 }, error: 'Raportet nuk u lexuan: ' + String(e.message).slice(0, 160) }); }
+    }
     if (req.method === 'GET' && url.pathname === '/api/tools') {
       if (!find(url.searchParams.get('id'))) return send(res, 404, { error: 'Instalimi nuk u gjet.' });
       const inst = find(url.searchParams.get('id'));
@@ -2243,6 +2306,14 @@ const server = http.createServer(async (req, res) => {
         let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; }
         let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
         return send(res, 200, setNotify(inst, j.on, j.target, j.daily, j.hour, j.events));
+      }
+      if (url.pathname === '/api/bug-status') {
+        needLocal(inst);
+        let body = ''; for await (const c of req) { body += c; if (body.length > 2000) break; }
+        let j = {}; try { j = JSON.parse(body); } catch { /* none */ }
+        setBugStatus(inst, j.report, j.status);
+        const counts = (await bugsOf(inst)).counts;
+        return send(res, 200, { ok: true, counts });
       }
       if (url.pathname === '/api/notify-test') {
         needLocal(inst);

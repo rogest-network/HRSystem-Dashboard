@@ -1370,9 +1370,12 @@ function addHistory(inst, entry) {
 // The release notes as a short text for a phone message: "Versioni X:" and its "- " lines as bullets, cut at 600 characters.
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
-// the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.8.1';
+// after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
+const DASH_VERSION = '1.8.2';
 const DASH_NOTES = [
+  { version: '1.8.2', date: '2026-10-26', notes: [
+    'Faqja "Çfarë ka të re" u hoq nga dashboard-i: menuja, kartela te Kryesore, butonat te njoftimet dhe udhëzuesi.',
+  ] },
   { version: '1.8.1', date: '2026-10-26', notes: [
     'Udhëzuesi "Si ta përdorësh" u përditësua: Kryesore (veprime të shpejta, veprimet e fundit), Vendndodhja, Gabimet, Çfarë ka të re, zona e rrezikut dhe Eksporto SQL.',
     'Programet e sistemit shpjegohen me dy hapat: Shkarko, pastaj Instalo tani ose Cakto kohën; plus shkarkimi dhe instalimi automatik.',

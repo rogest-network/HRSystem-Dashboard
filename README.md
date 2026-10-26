@@ -54,9 +54,9 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 
 > Për Claude/zhvillues: shih `ARCHITECTURE.md` (si është ndërtuar, rregullat e ndryshimit, testimi).
 
-- **Release notes:** when a new version exists the overview shows what it contains ("Çfarë ka të re", from the text of the GitHub Release).
+- **Release notes:** the text of a new Release goes to the phone message "Ka version të ri" (the page "Çfarë ka të re" was removed from the dashboard in v1.8.2).
 
-- **Dashboard version:** v1.1.0; Veprime shows it with "Çfarë ka të re", and after each self-update the phone gets what is new.
+- **Dashboard version:** v1.8.2; after each self-update the phone gets what is new (DASH_NOTES). There is no "Çfarë ka të re" page any more.
 
 - **v1.2.0:** JetBrains Mono, icon cards, one set of status colours, "Kryesore" and a Ctrl+K search.
 

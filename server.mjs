@@ -1371,8 +1371,13 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // the page shows it ("Çfarë ka të re"), and after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion).
-const DASH_VERSION = '1.8.0';
+const DASH_VERSION = '1.8.1';
 const DASH_NOTES = [
+  { version: '1.8.1', date: '2026-10-26', notes: [
+    'Udhëzuesi "Si ta përdorësh" u përditësua: Kryesore (veprime të shpejta, veprimet e fundit), Vendndodhja, Gabimet, Çfarë ka të re, zona e rrezikut dhe Eksporto SQL.',
+    'Programet e sistemit shpjegohen me dy hapat: Shkarko, pastaj Instalo tani ose Cakto kohën; plus shkarkimi dhe instalimi automatik.',
+    'Te njoftimet shtohen raportet e gabimeve, dhe te problemet e zakonshme: raportimi kërkon programin 1.0.7 ose më të ri.',
+  ] },
   { version: '1.8.0', date: '2026-10-25', notes: [
     'Faqe e re "Gabimet e raportuara": raportet që punonjësit dërgojnë nga aplikacioni (Profili → Rreth Aplikacionit → Raporto një gabim) me emrin, rolin, pikën, telefonin dhe versionin.',
     'Katër skeda: Të raportuara, Në përpunim, Të zgjidhura dhe Roadmap; çdo raport kalon nga një skedë te tjetra me një buton.',

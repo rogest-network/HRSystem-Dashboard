@@ -22,7 +22,7 @@ Program i vogël që hapet vetëm në PC-në tënde (`http://127.0.0.1:<port>`, 
 - **Ekzekuto SQL** dhe **Importo databazën** (pas backup-it automatik); **/developer** hapet i zhbllokuar (dashboard-i dërgon SETUP_TOKEN te aplikacioni).
 
 ## Përditësimi i dashboard-it
-Vetë. Repoja e tij publike është `rogest-network/HRSystem-Dashboard` (vetëm dashboard-i; skriptet e instalimit nuk janë aty). Çdo 10 minuta krahason skedarët me hash-in git, shkarkon ata që ndryshojnë, i ruan të vjetrit te `manager\.previous`, kontrollon `server.mjs` dhe rinisët; një roje e rikthen versionin e vjetër nëse i riu nuk përgjigjet brenda 25 s. Nuk ka buton: nuk duhet bërë asgjë me dorë. Pas përditësimit faqja e hapur rifreskohet **një herë** vetë (versioni i faqes vjen me pulsin LIVE; një mbrojtje nuk lejon cikël). Vetëm për dashboard-in e instaluar.
+Vetë. Repoja e tij publike është `rogest-network/HRSystem-Dashboard` (vetëm dashboard-i; skriptet e instalimit nuk janë aty). Çdo minutë shikon commit-in e fundit dhe, kur ka të ri, krahason skedarët me hash-in git, shkarkon ata që ndryshojnë, i ruan të vjetrit te `manager\.previous`, kontrollon `server.mjs` dhe rinisët; një roje e rikthen versionin e vjetër nëse i riu nuk përgjigjet brenda 25 s. Nuk ka buton: nuk duhet bërë asgjë me dorë. Pas përditësimit faqja e hapur rifreskohet **një herë** vetë (versioni i faqes vjen me pulsin LIVE; një mbrojtje nuk lejon cikël). Vetëm për dashboard-in e instaluar.
 
 ## Instalime të tjera
 Opsionale: `instances.json` (kopje e `instances.example.json`, nuk shkon në GitHub) me fushat `id`, `name`, `url`, `repo`, `channel`, `root`, `data`, `task`. Pa të, gjendet vetë instalimi mbi `manager/`.
@@ -56,7 +56,7 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 
 - **Release notes:** the text of a new Release goes to the phone message "Ka version të ri" (the page "Çfarë ka të re" was removed from the dashboard in v1.8.2).
 
-- **Dashboard version:** v2.0.0 (look "Premium" by default, "Klasike" = the 1.9.1 glass look, in Settings; "LIVE • v<version>" in the sidebar foot); after each self-update the phone gets what is new (DASH_NOTES). There is no "Çfarë ka të re" page any more.
+- **Dashboard version:** v2.0.1 (checks for its own new version every minute) (look "Premium" by default, "Klasike" = the 1.9.1 glass look, in Settings; "LIVE • v<version>" in the sidebar foot); after each self-update the phone gets what is new (DASH_NOTES). There is no "Çfarë ka të re" page any more.
 
 - **v1.2.0:** JetBrains Mono, icon cards, one set of status colours, "Kryesore" and a Ctrl+K search.
 

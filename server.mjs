@@ -1140,6 +1140,15 @@ async function ghJson(url) {
   if (!res.ok) throw new Error('GitHub ' + res.status);
   return res.json();
 }
+// The newest commit of the dashboard repo, read the way `git ls-remote` does (a few hundred bytes over git's own HTTP door, not the
+// GitHub API): it is not one of the 60 API requests an hour a PC without a token gets, so it can be asked every minute (owner,
+// 2026-10-30: "10 minuta shumë kohë"). null when it cannot be read.
+async function dashboardHead() {
+  const res = await fetch(`https://github.com/${DASH_REPO}.git/info/refs?service=git-upload-pack`, { headers: { 'User-Agent': 'git/2.45 hrsystem-dashboard' }, signal: AbortSignal.timeout(15000), cache: 'no-store' });
+  if (!res.ok) return null;
+  const m = (await res.text()).match(/([0-9a-f]{40}) refs\/heads\/main\b/);
+  return m ? m[1] : null;
+}
 const dashSafe = (rel) => { const full = path.resolve(HERE, rel); return full.startsWith(HERE + path.sep) && !rel.startsWith('.previous') ? full : null; };
 // The repo holds only the dashboard (owner, 2026-10-22): the installer scripts (setup, update, uninstall, SQL import) live in the Setup folder / zip and are
 // never in this repo, so the dashboard never replaces them. (Until then the repo also carried root/<script>.ps1 mirrors of three of them.)
@@ -1223,20 +1232,32 @@ function startGuard() {
   try { if (fs.existsSync(path.join(HERE, '.updating'))) spawn(process.execPath, ['-e', GUARD, HERE], { detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch { /* no guard */ }
 }
 // Automatic: first check 2 minutes after the start, then every 10 minutes.
+// Every minute the newest commit is asked (dashboardHead, free); the full comparison with the GitHub API runs only when it changed since the
+// last good check, or every 10 minutes when the commit cannot be read (the old rhythm).
+let dashCheckedHead = null, dashFullAt = 0;
 async function autoUpdateDashboard() {
   try {
+    const head = await dashboardHead().catch(() => null);
+    // Nothing new since the last good check; a failed check is tried again after 5 minutes, without a readable commit every 10.
+    if (head && head === dashCheckedHead) return;
+    if (Date.now() - dashFullAt < (head && dashCheckedHead !== 'failed' ? 0 : head ? 300000 : 600000)) return;
+    dashFullAt = Date.now();
     const s = await dashboardState(true);
-    if (s && s.files > 0) {
+    if (!s) { dashCheckedHead = 'failed'; return; }
+    if (!s.files) { dashCheckedHead = head; return; }
+    {
       const r = await updateDashboard();
+      dashCheckedHead = head; // installed: this commit is done (a failed install throws and is tried again)
       if (r && r.files) for (const inst of instances()) if (inst.local) {
         // A new server.mjs restarts the dashboard, and the new process announces its version with the notes (announceDashboardVersion): no second message here.
         if (!r.server) { notify(inst, 'Dashboard-i u përditësua', 'U instaluan ' + r.files + ' skedarë të rinj të dashboard-it.', 'ok'); addHistory(inst, { title: 'Dashboard-i u përditësua', ok: true, detail: r.files + ' skedarë' }); }
       }
     }
-  } catch { /* next round */ }
+  } catch { dashCheckedHead = 'failed'; /* tried again after 5 minutes */ }
 }
 function INSTALLED_EARLY() { return fs.existsSync(path.join(path.dirname(HERE), 'current.txt')); }
-if (INSTALLED_EARLY()) { setTimeout(autoUpdateDashboard, 120000).unref(); setInterval(autoUpdateDashboard, 600000).unref(); }
+// Every minute (it was 10): one small read of the newest commit; the API is used only when it changed (see autoUpdateDashboard).
+if (INSTALLED_EARLY()) { setTimeout(autoUpdateDashboard, 60000).unref(); setInterval(autoUpdateDashboard, 60000).unref(); }
 // After a self-update the NEW process tells (once per installation) which version of the dashboard it is and what is new since the one this PC had before.
 // An installation that never recorded a version counts as 1.0.0 (a brand-new one with no history stays silent).
 function announceDashboardVersion() {
@@ -1373,8 +1394,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.0.0';
+const DASH_VERSION = '2.0.1';
 const DASH_NOTES = [
+  { version: '2.0.1', date: '2026-10-30', notes: [
+    'Dashboard-i e kontrollon versionin e vet të ri çdo minutë (ishte çdo 10 minuta), pa i harxhuar kërkesat e GitHub-it.',
+  ] },
   { version: '2.0.0', date: '2026-10-30', notes: [
     'Dashboard 2.0: pamje e re "Premium", e pastër si në iPhone (te Cilësimet mund të kthehesh te "Klasike").',
     'Njoftimet që mbyll nuk dalin më pas rifreskimit; njoftimet e suksesit largohen vetë pas pak sekondash.',

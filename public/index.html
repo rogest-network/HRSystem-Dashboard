@@ -706,6 +706,114 @@
   @media (max-width:980px) { .side .foot button .lbl { display:none; } .side .foot button { width:34px; padding:0; justify-content:center; gap:0; } }
   @media (max-width:700px) { ul.list li { flex-wrap:wrap; } ul.list li > .row { width:100%; } }
   @media (max-width:520px) { .top h1 { font-size:20px !important; } .card { padding:16px; } .toolbar input[type=search] { width:100%; } }
+
+  /* =====================================================================================================
+     v1.9 GLASS (owner, 2026-10-30: "glass, full premium edhe profi", after a picture). The last layer, so it wins:
+     a deep navy (dark) or pale (light) gradient with soft cyan / violet glows fixed behind everything, frosted-glass
+     panels (translucent fill + blur + a thin light border + an inner highlight), a glass sidebar, cyan as the main
+     accent and violet as the second. CSS only (no images, no library). Status colours keep their meaning.
+     Without backdrop-filter, or with "more contrast", the panels become solid so text stays readable.
+     ===================================================================================================== */
+  :root {
+    --bg:#E9EEF8; --card:rgba(255,255,255,.66); --text:#0B1530; --muted:#46526F; --line:rgba(15,23,42,.10); --soft:rgba(255,255,255,.55);
+    --accent:#0E7490; --accent-hover:#0B6178; --accent-soft:rgba(14,116,144,.12); --accent-text:#FFFFFF; --violet:#7C3AED;
+    --side:rgba(10,17,40,.80); --side-2:rgba(255,255,255,.09); --side-text:#D3DBEC; --side-muted:#93A0BC;
+    --glass-blur:18px; --glass-hi:inset 0 1px 0 rgba(255,255,255,.75);
+    --shadow:0 10px 30px -12px rgba(30,41,82,.22), inset 0 1px 0 rgba(255,255,255,.75);
+    --glow-a:rgba(34,211,238,.30); --glow-b:rgba(139,92,246,.26); --glow-c:rgba(14,116,144,.16);
+    --r-sm:10px; --r-md:14px; --r-lg:20px;
+    --ring:0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  :root[data-theme='dark'] {
+    --bg:#060A18; --card:rgba(20,28,56,.52); --text:#EEF2FF; --muted:#A6B1CC; --line:rgba(255,255,255,.10); --soft:rgba(255,255,255,.05);
+    --accent:#22D3EE; --accent-hover:#5BE1F3; --accent-soft:rgba(34,211,238,.14); --accent-text:#041620; --violet:#A78BFA;
+    --side:rgba(12,18,42,.50); --side-2:rgba(255,255,255,.08); --side-text:#D3DBEC; --side-muted:#8E9BB8;
+    --glass-hi:inset 0 1px 0 rgba(255,255,255,.07);
+    --shadow:0 18px 40px -18px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.07);
+    --glow-a:rgba(34,211,238,.26); --glow-b:rgba(139,92,246,.30); --glow-c:rgba(14,165,233,.12);
+  }
+  html { background:var(--bg); }
+  body { background:transparent; }
+  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(38% 46% at 8% 14%, var(--glow-a), transparent 72%),
+      radial-gradient(42% 52% at 94% 88%, var(--glow-b), transparent 72%),
+      radial-gradient(30% 36% at 58% 46%, var(--glow-c), transparent 72%),
+      linear-gradient(160deg, color-mix(in srgb, var(--bg) 88%, #1E3A8A) 0%, var(--bg) 55%, color-mix(in srgb, var(--bg) 90%, #4C1D95) 100%); }
+  .app, .main { background:transparent; }
+
+  /* glass surfaces */
+  .card, details.vh, .dlg, .a11y-panel, .boot-in, .tile {
+    background:var(--card); border:1px solid var(--line);
+    -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(150%); backdrop-filter:blur(var(--glass-blur)) saturate(150%);
+  }
+  .card { border-radius:var(--r-lg); box-shadow:var(--shadow); }
+  :root[data-theme='dark'] .card, :root[data-theme='dark'] details.vh, :root[data-theme='dark'] .dlg, :root[data-theme='dark'] .a11y-panel { border-color:rgba(255,255,255,.11); }
+  .card h2 { letter-spacing:-.005em; }
+  .kpi .v { font-size:clamp(20px, 1.6vw, 25px) !important; font-weight:650; letter-spacing:-.025em; color:var(--text); overflow-wrap:anywhere; }
+  .kic { border-radius:12px; box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c, var(--st-off)) 30%, transparent); }
+  .tile { box-shadow:var(--glass-hi); transition:transform .18s var(--ease-out, ease-out), border-color .18s, box-shadow .18s; }
+  @media (hover:hover) { .tile:hover { transform:translateY(-1px); border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); box-shadow:var(--glass-hi), 0 8px 24px -10px color-mix(in srgb, var(--accent) 45%, transparent); } }
+  .act .item, ul.list li, table.kv td { border-color:var(--line) !important; }
+  .card { min-width:0; } table.kv td.k { white-space:normal; overflow-wrap:anywhere; } /* long labels wrap instead of pushing the page sideways */
+  .act .item > .row { flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; min-width:0; } .act .item > :first-child { min-width:0; }
+  .val, .fold-path, pre.log { background:color-mix(in srgb, var(--soft) 100%, transparent); border-color:var(--line); }
+  :root[data-theme='dark'] pre.log { background:rgba(4,8,22,.55); }
+  .spark i { background:linear-gradient(180deg, var(--accent), var(--violet)); opacity:.8; border-radius:3px 3px 0 0; }
+  :root[data-theme='dark'] .spark i { box-shadow:0 0 8px -1px color-mix(in srgb, var(--accent) 70%, transparent); }
+  .progress { background:var(--soft); } .progress i { background:linear-gradient(90deg, var(--accent), var(--violet)); }
+
+  /* controls */
+  button.btn, a.btn { border-radius:var(--r-sm); }
+  :root[data-theme='dark'] button.btn:not(.ghost):not(.danger):not(:disabled), :root[data-theme='dark'] a.btn:not(.ghost):not(.danger) { box-shadow:0 6px 18px -8px rgba(34,211,238,.7); }
+  button.btn.ghost, a.btn.ghost, .iconbtn { background:var(--soft); border-color:var(--line); }
+  button.btn.ghost:hover, a.btn.ghost:hover, .iconbtn:hover { background:color-mix(in srgb, var(--accent) 10%, var(--soft)); }
+  button.btn.danger, a.btn.danger { background:var(--soft); }
+  button.btn:disabled, a.btn[aria-disabled="true"] { background:var(--soft); }
+  input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=hidden]), select, textarea { background-color:var(--soft); border-color:var(--line); border-radius:var(--r-sm); }
+  :root[data-theme='dark'] select option { background:#101833; color:#EEF2FF; }
+  .sw i { background:color-mix(in srgb, var(--muted) 35%, transparent); }
+
+  /* sidebar: frosted navy glass in both themes, cyan for the page on screen */
+  .side { background:var(--side); border-right:1px solid rgba(255,255,255,.08);
+    -webkit-backdrop-filter:blur(22px) saturate(160%); backdrop-filter:blur(22px) saturate(160%); }
+  .side .head { border-bottom-color:rgba(255,255,255,.08); } .side .foot { border-top-color:rgba(255,255,255,.08); }
+  @media (min-width:981px) { .side .head { grid-template-columns:minmax(0,1fr); } .side .brandrow { min-width:0; } .side .brandrow .brand { flex:1 1 auto; } } /* a long installation name ends in "…" inside the sidebar */
+  .side img.logo { filter:drop-shadow(0 0 10px rgba(34,211,238,.35)); }
+  .nav button:hover { background:rgba(255,255,255,.07); }
+  .nav button.on { background:linear-gradient(90deg, rgba(34,211,238,.20), rgba(34,211,238,.06)); color:#fff; box-shadow:inset 0 0 0 1px rgba(34,211,238,.22); }
+  .nav button.on svg { color:#67E8F9; }
+  .nav button.on::before { background:#22D3EE; box-shadow:0 0 12px 1px rgba(34,211,238,.75); }
+  .inst { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08); border-radius:var(--r-md); }
+  .inst select { background:transparent !important; border:0 !important; color:#fff; }
+  .side .gearbtn.on { background:rgba(34,211,238,.16); }
+  @media (max-width:980px) {
+    .side { border-bottom:1px solid rgba(255,255,255,.08); position:sticky; top:0; z-index:30; }
+    .nav button.on { background:#22D3EE; color:#041620; box-shadow:0 4px 14px -6px rgba(34,211,238,.8); }
+    .nav button.on svg { color:#041620; }
+  }
+
+  /* toast, dialogs, loading screen */
+  .toast { background:rgba(10,17,40,.86); border:1px solid rgba(255,255,255,.12); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); border-radius:var(--r-md); }
+  .dlg { border-radius:var(--r-lg); box-shadow:0 30px 60px -20px rgba(0,0,0,.5), var(--glass-hi); }
+  .dlg-overlay, .a11y-overlay { background:rgba(4,8,22,.45); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  .a11y-panel { border-radius:var(--r-lg); }
+  .boot { background:var(--bg); }
+  .boot-in { padding:26px 24px; border-radius:var(--r-lg); box-shadow:var(--shadow); }
+  .boot-bar i { background:linear-gradient(90deg, var(--accent), var(--violet)); }
+  details.vh, .fold-state { border-radius:var(--r-md); }
+  details.vh.latest { background:color-mix(in srgb, var(--accent) 9%, var(--card)); border-color:color-mix(in srgb, var(--accent) 38%, var(--line)); }
+  .banner { -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); border-radius:var(--r-lg); }
+
+  /* no blur available, or the person asked for more contrast: solid panels */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+    :root { --card:rgba(255,255,255,.94); --soft:rgba(244,247,252,.96); --side:#0B1530; }
+    :root[data-theme='dark'] { --card:rgba(17,25,50,.96); --soft:rgba(255,255,255,.06); --side:#0A1029; }
+  }
+  html.a11y-contrast { --card:#FFFFFF; --soft:#F3F5F9; }
+  html.a11y-contrast[data-theme='dark'] { --card:#0E1630; --soft:#16203E; }
+  html.a11y-contrast body::before { display:none; }
+  @media (forced-colors: active) { body::before { display:none; } .card, .side { -webkit-backdrop-filter:none; backdrop-filter:none; } }
 </style>
 </head>
 <body>
@@ -886,6 +994,7 @@ const TR_LIST = [
   ["automatikisht", "automatically", "automatski"], ["manualisht", "manually", "ručno"],
   ["e fundit", "last", "poslednji"], ["në 24 orë", "in 24 hours", "u 24 sata"], ["dashboard-i dhe programi", "the dashboard and the program", "dashboard i program"],
   /* v1.5: design system, collapsible menu, version accordion, folder management, log levels */
+  ["Pamje e re \"glass\": sfond i errët me drita të buta, kartela si xham, menu anësore prej xhami dhe ngjyrë kryesore e kaltër (edhe në temën e çelët).", "New \"glass\" look: a dark background with soft lights, glass-like cards, a glass side menu and a cyan main colour (also in the light theme).", "Novi \"glass\" izgled: tamna pozadina sa mekim svetlima, kartice kao staklo, stakleni bočni meni i cijan glavna boja (i u svetloj temi)."],
   ["Përditësimi i programit nuk dështon më për shkak të njoftimit \"npm notice\" (versioni i ri i npm-it).", "The program update no longer fails because of the \"npm notice\" message (a new npm version).", "Ažuriranje programa više ne zakazuje zbog poruke \"npm notice\" (nova verzija npm-a)."],
   ["Përditësimi i programit nuk dështon më për shkak të paralajmërimeve të npm-it të ri (pas përditësimit të Node.js).", "The program update no longer fails because of warnings from the new npm (after the Node.js update).", "Ažuriranje programa više ne zakazuje zbog upozorenja novog npm-a (posle ažuriranja Node.js)."],
   ["Backup-et: pas punës së natës mbeten vetëm të fundit sa ke zgjedhur (p.sh. 7), pa dallim kush i ka bërë: nata, përditësimi ose butoni.", "Backups: after the night job only the newest ones you chose stay (e.g. 7), whoever made them: the night job, the update or the button.", "Backup-ovi: posle noćnog posla ostaju samo najnoviji koje si izabrao (npr. 7), bez obzira ko ih je napravio: noć, ažuriranje ili dugme."],

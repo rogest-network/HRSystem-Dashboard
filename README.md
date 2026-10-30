@@ -56,7 +56,7 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 
 - **Release notes:** the text of a new Release goes to the phone message "Ka version të ri" (the page "Çfarë ka të re" was removed from the dashboard in v1.8.2).
 
-- **Dashboard version:** v2.0.1 (checks for its own new version every minute) (look "Premium" by default, "Klasike" = the 1.9.1 glass look, in Settings; "LIVE • v<version>" in the sidebar foot); after each self-update the phone gets what is new (DASH_NOTES). There is no "Çfarë ka të re" page any more.
+- **Dashboard version:** v2.0.1 (checks for its own new version every minute; redesign "Glass" as the default look (published 2026-10-30): toolbar with search, theme, notifications and account, new Home, drawer menu on a phone; "Premium (2.0)" and "Klasike" (the 1.9.1 glass look) selectable in Settings; "LIVE • v<version>" in the sidebar foot); after each self-update the phone gets what is new (DASH_NOTES). There is no "Çfarë ka të re" page any more.
 
 - **v1.2.0:** JetBrains Mono, icon cards, one set of status colours, "Kryesore" and a Ctrl+K search.
 

@@ -1373,8 +1373,12 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '1.9.0';
+const DASH_VERSION = '1.9.1';
 const DASH_NOTES = [
+  { version: '1.9.1', date: '2026-10-30', notes: [
+    'Data te Historiku dhe në tabela shfaqet sërish në një rresht, jo shifër për shifër.',
+    'Më shumë ngjyra dhe lëvizje: gradientë te titujt, butonat dhe kartelat, ndriçim që lëviz ngadalë në sfond.',
+  ] },
   { version: '1.9.0', date: '2026-10-30', notes: [
     'Pamje e re "glass": sfond i errët me drita të buta, kartela si xham, menu anësore prej xhami dhe ngjyrë kryesore e kaltër (edhe në temën e çelët).',
   ] },

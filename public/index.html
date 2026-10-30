@@ -755,7 +755,8 @@
   .tile { box-shadow:var(--glass-hi); transition:transform .18s var(--ease-out, ease-out), border-color .18s, box-shadow .18s; }
   @media (hover:hover) { .tile:hover { transform:translateY(-1px); border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); box-shadow:var(--glass-hi), 0 8px 24px -10px color-mix(in srgb, var(--accent) 45%, transparent); } }
   .act .item, ul.list li, table.kv td { border-color:var(--line) !important; }
-  .card { min-width:0; } table.kv td.k { white-space:normal; overflow-wrap:anywhere; } /* long labels wrap instead of pushing the page sideways */
+  /* long labels wrap between words instead of pushing the page sideways; "anywhere" let the table squeeze a date to one digit a line (1.9.1) */
+  .card { min-width:0; } table.kv td.k { white-space:normal; overflow-wrap:break-word; min-width:10.5em; } @media (max-width:520px) { table.kv td.k { min-width:6.2em; } }
   .act .item > .row { flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; min-width:0; } .act .item > :first-child { min-width:0; }
   .val, .fold-path, pre.log { background:color-mix(in srgb, var(--soft) 100%, transparent); border-color:var(--line); }
   :root[data-theme='dark'] pre.log { background:rgba(4,8,22,.55); }
@@ -814,6 +815,60 @@
   html.a11y-contrast[data-theme='dark'] { --card:#0E1630; --soft:#16203E; }
   html.a11y-contrast body::before { display:none; }
   @media (forced-colors: active) { body::before { display:none; } .card, .side { -webkit-backdrop-filter:none; backdrop-filter:none; } }
+
+  /* =====================================================================================================
+     v1.9.1 COLOUR + MOTION (owner, 2026-10-30: "profesional me ngjyra, me gradientë, animacione, krejt").
+     Motion uses only transform / opacity (the compositor does it, no repaint of the page) and is switched off by
+     prefers-reduced-motion (the global rule above). Colours come from the two accents, so light and dark both work.
+     ===================================================================================================== */
+  /* the glows drift slowly behind the page (a bigger layer, moved and scaled; never the page itself) */
+  body::before { inset:-12%; will-change:transform; animation:glowdrift 34s ease-in-out infinite alternate; }
+  @keyframes glowdrift { 0% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(3%,-2%,0) scale(1.06); } 100% { transform:translate3d(-3%,2%,0) scale(1.02); } }
+
+  /* page title: a soft gradient from the text colour into the accent */
+  .top h1 { background:linear-gradient(100deg, var(--text) 35%, var(--accent) 80%, var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  /* cards: a thin gradient edge (cyan top-left, violet bottom-right) and a light that follows the hover */
+  .card { position:relative; isolation:isolate; }
+  .card::after { content:""; position:absolute; inset:0; border-radius:inherit; padding:1px; pointer-events:none; z-index:-1;
+    background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, transparent), transparent 38%, transparent 62%, color-mix(in srgb, var(--violet) 55%, transparent));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    opacity:.55; transition:opacity .25s var(--ease-out, ease-out); }
+  @media (hover:hover) { .card:hover::after { opacity:1; } }
+
+  /* KPI icon chips and numbers */
+  .kic { background:linear-gradient(135deg, color-mix(in srgb, var(--c, var(--accent)) 26%, transparent), color-mix(in srgb, var(--violet) 14%, transparent)) !important; }
+  :root[data-theme='dark'] .kpi .v { text-shadow:0 0 22px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+  /* primary buttons: a cyan → blue (dark) / teal → indigo (light) gradient with a short press */
+  button.btn:not(.ghost):not(.danger):not(:disabled), a.btn:not(.ghost):not(.danger) {
+    background:linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #6366F1)); border-color:transparent;
+    transition:transform .12s var(--ease-out, ease-out), filter .18s, box-shadow .18s; }
+  @media (hover:hover) { button.btn:not(.ghost):not(.danger):not(:disabled):hover, a.btn:not(.ghost):not(.danger):hover { filter:brightness(1.08); } }
+  button.btn:not(:disabled):active, a.btn:active, .tile:active, .iconbtn:active { transform:scale(.97); }
+
+  /* status pills glow a little in the dark; the "online" dot breathes */
+  :root[data-theme='dark'] .pill.ok { box-shadow:0 0 14px -4px color-mix(in srgb, var(--ok) 70%, transparent); }
+  :root[data-theme='dark'] .pill.bad { box-shadow:0 0 14px -4px color-mix(in srgb, var(--bad) 70%, transparent); }
+  .dot.on { animation:dotbreathe 2.6s ease-in-out infinite; }
+  @keyframes dotbreathe { 50% { box-shadow:0 0 0 5px rgba(52,211,153,.08); } }
+
+  /* a section change: the cards rise in one after another (short, so it never slows the work) */
+  .page.enter .card { animation:rise .3s var(--ease-out, ease-out) both; }
+  .page.enter .card:nth-of-type(2) { animation-delay:30ms; } .page.enter .card:nth-of-type(3) { animation-delay:60ms; }
+  .page.enter .card:nth-of-type(4) { animation-delay:90ms; } .page.enter .card:nth-of-type(n+5) { animation-delay:120ms; }
+
+  /* the progress bars and the loading bar shimmer while they move */
+  .progress i, .boot-bar i { background-size:200% 100%; animation:shimmer 2.4s linear infinite; background-image:linear-gradient(90deg, var(--accent), var(--violet), var(--accent)); }
+  @keyframes shimmer { to { background-position:-200% 0; } }
+
+  /* the active menu item: a gradient bar and a soft glow */
+  .nav button.on { background:linear-gradient(90deg, rgba(34,211,238,.24), rgba(139,92,246,.10)); }
+  .nav button.on::before { background:linear-gradient(180deg, #22D3EE, #A78BFA); }
+
+  html.a11y-contrast .top h1, html.a11y-contrast button.btn, html.a11y-contrast a.btn { background:none; color:var(--text); -webkit-background-clip:border-box; background-clip:border-box; }
+  html.a11y-contrast .card::after { display:none; }
+  @media (forced-colors: active) { .top h1 { background:none; color:CanvasText; } .card::after { display:none; } }
 </style>
 </head>
 <body>
@@ -995,6 +1050,8 @@ const TR_LIST = [
   ["e fundit", "last", "poslednji"], ["në 24 orë", "in 24 hours", "u 24 sata"], ["dashboard-i dhe programi", "the dashboard and the program", "dashboard i program"],
   /* v1.5: design system, collapsible menu, version accordion, folder management, log levels */
   ["Pamje e re \"glass\": sfond i errët me drita të buta, kartela si xham, menu anësore prej xhami dhe ngjyrë kryesore e kaltër (edhe në temën e çelët).", "New \"glass\" look: a dark background with soft lights, glass-like cards, a glass side menu and a cyan main colour (also in the light theme).", "Novi \"glass\" izgled: tamna pozadina sa mekim svetlima, kartice kao staklo, stakleni bočni meni i cijan glavna boja (i u svetloj temi)."],
+  ["Data te Historiku dhe në tabela shfaqet sërish në një rresht, jo shifër për shifër.", "The date in History and in tables shows on one line again, not one digit per line.", "Datum u Istoriji i u tabelama ponovo se prikazuje u jednom redu, a ne cifru po cifru."],
+  ["Më shumë ngjyra dhe lëvizje: gradientë te titujt, butonat dhe kartelat, ndriçim që lëviz ngadalë në sfond.", "More colour and motion: gradients on titles, buttons and cards, a light that drifts slowly in the background.", "Više boja i pokreta: gradijenti na naslovima, dugmadima i karticama, svetlo koje se polako pomera u pozadini."],
   ["Përditësimi i programit nuk dështon më për shkak të njoftimit \"npm notice\" (versioni i ri i npm-it).", "The program update no longer fails because of the \"npm notice\" message (a new npm version).", "Ažuriranje programa više ne zakazuje zbog poruke \"npm notice\" (nova verzija npm-a)."],
   ["Përditësimi i programit nuk dështon më për shkak të paralajmërimeve të npm-it të ri (pas përditësimit të Node.js).", "The program update no longer fails because of warnings from the new npm (after the Node.js update).", "Ažuriranje programa više ne zakazuje zbog upozorenja novog npm-a (posle ažuriranja Node.js)."],
   ["Backup-et: pas punës së natës mbeten vetëm të fundit sa ke zgjedhur (p.sh. 7), pa dallim kush i ka bërë: nata, përditësimi ose butoni.", "Backups: after the night job only the newest ones you chose stay (e.g. 7), whoever made them: the night job, the update or the button.", "Backup-ovi: posle noćnog posla ostaju samo najnoviji koje si izabrao (npr. 7), bez obzira ko ih je napravio: noć, ažuriranje ili dugme."],

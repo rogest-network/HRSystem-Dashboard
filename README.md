@@ -56,7 +56,7 @@ Hapet **pa çelës** (vendim i pronarit): dëgjon vetëm te `127.0.0.1`, refuzon
 
 - **Release notes:** the text of a new Release goes to the phone message "Ka version të ri" (the page "Çfarë ka të re" was removed from the dashboard in v1.8.2).
 
-- **Dashboard version:** v1.9.0 (glass look); after each self-update the phone gets what is new (DASH_NOTES). There is no "Çfarë ka të re" page any more.
+- **Dashboard version:** v1.9.1 (glass look, colour and motion); after each self-update the phone gets what is new (DASH_NOTES). There is no "Çfarë ka të re" page any more.
 
 - **v1.2.0:** JetBrains Mono, icon cards, one set of status colours, "Kryesore" and a Ctrl+K search.
 

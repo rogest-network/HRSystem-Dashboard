@@ -1401,6 +1401,7 @@ const DASH_NOTES = [
     'Pamje e re "Glass" (e paracaktuar): panele si xham i ngrirë në blu të zbehtë dhe lejla, menu anësore prej xhami dhe shirit sipër me kërkim, temë, njoftime dhe llogari.',
     'Kryesore e re: "Mirë se vini", statusi, performanca, hapësira dhe rrjeti me grafikë, databaza, versioni, adresat, veprime të shpejta, gjendja e sistemit dhe veprimet e fundit.',
     'Në telefon menuja hapet si sirtar nga butoni lart majtas. Premium (2.0) dhe Klasike mbeten te Cilësimet → Pamja e dashboard-it.',
+    'Xhami më i fortë mbi një sfond me ngjyra; pa profilin lart djathtas; "Krijuar nga Rogest Network" në kartelën anash; njoftimet, menutë dhe dritaret mbyllen me animacion të butë.',
   ] },
   { version: '2.0.0', date: '2026-10-30', notes: [
     'Dashboard 2.0: pamje e re "Premium", e pastër si në iPhone (te Cilësimet mund të kthehesh te "Klasike").',

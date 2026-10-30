@@ -873,7 +873,14 @@
   html.a11y-contrast .top h1, html.a11y-contrast button.btn, html.a11y-contrast a.btn { background:none; color:var(--text); -webkit-background-clip:border-box; background-clip:border-box; }
   html.a11y-contrast .card::after { display:none; }
   @media (forced-colors: active) { .top h1 { background:none; color:CanvasText; } .card::after { display:none; } }
-  .banner.leaving { opacity:0; transform:translateY(-6px); transition:opacity .2s var(--ease-out, ease-out), transform .2s var(--ease-out, ease-out); }
+  .banner.leaving { opacity:0; transform:translateY(-8px) scale(.985); transition:opacity .18s cubic-bezier(.4,0,1,1), transform .18s cubic-bezier(.4,0,1,1); pointer-events:none; }
+  .banner.folding { height:0 !important; margin-top:0 !important; margin-bottom:0 !important; padding-top:0 !important; padding-bottom:0 !important; border-width:0 !important;
+    transition:height .2s cubic-bezier(.23,1,.32,1), margin .2s cubic-bezier(.23,1,.32,1), padding .2s cubic-bezier(.23,1,.32,1); }
+  .gpop.leaving { opacity:0; transform:scale(.97) translateY(-4px); transition:opacity .14s ease-in, transform .14s ease-in; pointer-events:none; }
+  .cmdk-overlay.leaving, .a11y-overlay.leaving { opacity:0; transition:opacity .15s ease-in; pointer-events:none; }
+  .cmdk-overlay.leaving > *, .a11y-overlay.leaving > * { transform:translateY(-6px) scale(.98); transition:transform .15s ease-in; }
+  .toast { transition:opacity .2s ease-in, transform .2s ease-in; }
+  @media (prefers-reduced-motion: reduce) { .banner.leaving, .banner.folding, .gpop.leaving, .cmdk-overlay.leaving, .a11y-overlay.leaving { transition:none; } }
 
   /* =====================================================================================================
      2.0 PREMIUM (owner, 2026-10-30: "dizajn real premium, shumë premium, iPhone made profesional", with "Klasike" kept in
@@ -1033,13 +1040,13 @@
   :root[data-look="glass"] {
     --gfont:"Segoe UI Variable Text","Segoe UI Variable","SF Pro Text",-apple-system,"Segoe UI",system-ui,sans-serif;
     --gfont-d:"Segoe UI Variable Display","Segoe UI Variable","SF Pro Display",-apple-system,"Segoe UI",system-ui,sans-serif;
-    --bg:#EDF1FA; --text:#0E1A3C; --muted:#56617D; --line:rgba(14,26,60,.08); --soft:rgba(255,255,255,.62);
-    --card:rgba(255,255,255,.64); --card-edge:rgba(255,255,255,.85); --card-solid:#FFFFFF;
+    --bg:#C3CDF7; --text:#0E1A3C; --muted:#4F5A78; --line:rgba(14,26,60,.08); --soft:rgba(255,255,255,.42);
+    --card:rgba(255,255,255,.40); --card-edge:rgba(255,255,255,.75); --g-sheen:linear-gradient(135deg, rgba(255,255,255,.42), rgba(255,255,255,.06) 60%); --card-solid:#FFFFFF;
     --accent:#3F5BF5; --accent-2:#6C4DF6; --accent-hover:#3550E8; --accent-soft:rgba(63,91,245,.10); --accent-text:#FFFFFF; --violet:#6C4DF6;
-    --side:rgba(255,255,255,.58); --side-2:rgba(14,26,60,.06); --side-text:#1A2650; --side-muted:#5C6786;
-    --g-sh:0 1px 1px rgba(20,32,80,.03), 0 2px 6px -2px rgba(20,32,80,.06), 0 18px 40px -18px rgba(20,32,80,.18);
-    --g-hi:inset 0 1px 0 rgba(255,255,255,.9);
-    --g-blur:16px; --g-blur-2:20px;
+    --side:rgba(255,255,255,.30); --side-glow:linear-gradient(180deg, rgba(122,140,255,.34), rgba(160,140,255,.20) 55%, rgba(255,255,255,.10)); --side-2:rgba(255,255,255,.42); --side-text:#1A2650; --side-muted:#5C6786;
+    --g-sh:0 1px 2px rgba(30,40,110,.05), 0 24px 48px -22px rgba(40,50,140,.30);
+    --g-hi:inset 0 1px 0 rgba(255,255,255,.95), inset 0 0 0 1px rgba(255,255,255,.18);
+    --g-blur:26px; --g-blur-2:30px;
     --r-xs:8px; --r-sm:12px; --r-md:16px; --r-lg:22px;
     --g1:4px; --g2:8px; --g3:12px; --g4:16px; --g5:20px; --g6:24px; --g8:32px;
     --g-ease:cubic-bezier(.23,1,.32,1); --g-ease-drawer:cubic-bezier(.32,.72,0,1);
@@ -1049,11 +1056,11 @@
   }
   :root[data-look="glass"][data-theme='dark'] {
     --bg:#070C1F; --text:#EAF0FF; --muted:#9DA9C8; --line:rgba(255,255,255,.08); --soft:rgba(255,255,255,.06);
-    --card:rgba(20,29,62,.56); --card-edge:rgba(255,255,255,.10); --card-solid:#121A38;
+    --card:rgba(255,255,255,.06); --card-edge:rgba(255,255,255,.14); --g-sheen:linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,0) 60%); --card-solid:#121A38;
     --accent:#7C93FF; --accent-2:#9B7BFF; --accent-hover:#93A6FF; --accent-soft:rgba(124,147,255,.14); --accent-text:#071030; --violet:#9B7BFF;
-    --side:rgba(13,20,46,.62); --side-2:rgba(255,255,255,.07); --side-text:#DCE4FA; --side-muted:#93A0C0;
+    --side:rgba(255,255,255,.04); --side-glow:linear-gradient(180deg, rgba(90,110,255,.18), rgba(140,100,255,.10) 55%, rgba(255,255,255,0)); --side-2:rgba(255,255,255,.08); --side-text:#DCE4FA; --side-muted:#93A0C0;
     --g-sh:0 1px 1px rgba(0,0,0,.2), 0 20px 44px -20px rgba(0,0,0,.6);
-    --g-hi:inset 0 1px 0 rgba(255,255,255,.06);
+    --g-hi:inset 0 1px 0 rgba(255,255,255,.14);
     --ring:0 0 0 3px rgba(124,147,255,.35);
     --g-tile:linear-gradient(140deg, rgba(124,147,255,.18), rgba(155,123,255,.12));
     --g-prim:linear-gradient(120deg, #4F6BF7, #7A5AF5);
@@ -1062,16 +1069,21 @@
   /* the field behind everything: still, soft and pale (no drift: it is behind work, not a show) */
   :root[data-look="glass"] body::before { inset:0; animation:none; transform:none; will-change:auto;
     background:
-      radial-gradient(42% 38% at 12% 8%, rgba(147,197,253,.55), transparent 70%),
-      radial-gradient(40% 44% at 92% 18%, rgba(196,181,253,.50), transparent 72%),
-      radial-gradient(46% 40% at 70% 96%, rgba(165,180,252,.42), transparent 72%),
-      radial-gradient(30% 30% at 30% 70%, rgba(255,255,255,.7), transparent 70%),
-      linear-gradient(160deg, #F4F6FD 0%, #EBEFFB 50%, #EFEBFB 100%); }
+      linear-gradient(118deg, transparent 36%, rgba(255,255,255,.50) 45%, transparent 55%),
+      linear-gradient(128deg, transparent 60%, rgba(255,255,255,.30) 65%, transparent 70%),
+      radial-gradient(60% 65% at 0% 0%, rgba(79,110,255,.85), transparent 70%),
+      radial-gradient(55% 60% at 100% 0%, rgba(150,110,255,.80), transparent 70%),
+      radial-gradient(60% 65% at 100% 100%, rgba(99,102,241,.75), transparent 72%),
+      radial-gradient(55% 60% at 0% 100%, rgba(217,140,255,.65), transparent 72%),
+      radial-gradient(45% 45% at 55% 50%, rgba(125,211,252,.55), transparent 70%),
+      linear-gradient(160deg, #B9C6FA 0%, #CFC6F7 50%, #B8C3F5 100%); }
   :root[data-look="glass"][data-theme='dark'] body::before {
     background:
-      radial-gradient(40% 40% at 8% 10%, rgba(56,189,248,.20), transparent 72%),
-      radial-gradient(42% 46% at 94% 86%, rgba(139,92,246,.26), transparent 72%),
-      radial-gradient(34% 36% at 60% 40%, rgba(59,91,245,.12), transparent 72%),
+      linear-gradient(118deg, transparent 40%, rgba(160,170,255,.07) 47%, transparent 54%),
+      radial-gradient(40% 40% at 8% 10%, rgba(56,120,248,.42), transparent 72%),
+      radial-gradient(42% 46% at 94% 86%, rgba(139,92,246,.45), transparent 72%),
+      radial-gradient(34% 36% at 60% 40%, rgba(59,91,245,.22), transparent 72%),
+      radial-gradient(30% 34% at 90% 10%, rgba(217,70,239,.22), transparent 72%),
       linear-gradient(160deg, #0A1130 0%, #070C1F 55%, #0E0A2A 100%); }
   :root[data-look="glass"] .app, :root[data-look="glass"] .main { background:transparent; }
   :root[data-look="glass"] .app { grid-template-columns:264px minmax(0,1fr); }
@@ -1081,7 +1093,7 @@
   /* panels */
   :root[data-look="glass"] .card, :root[data-look="glass"] details.vh, :root[data-look="glass"] .banner, :root[data-look="glass"] .boot-in {
     background:var(--card); border:1px solid var(--card-edge); border-radius:var(--r-lg); box-shadow:var(--g-sh), var(--g-hi);
-    -webkit-backdrop-filter:blur(var(--g-blur)) saturate(140%); backdrop-filter:blur(var(--g-blur)) saturate(140%); }
+    background-image:var(--g-sheen); -webkit-backdrop-filter:blur(var(--g-blur)) saturate(180%); backdrop-filter:blur(var(--g-blur)) saturate(180%); }
   :root[data-look="glass"] .card { padding:var(--g5); position:relative; isolation:auto; }
   :root[data-look="glass"] .card::after { display:none; }
   :root[data-look="glass"] .card h2 { font-family:var(--gfont-d); font-size:15px; font-weight:650; letter-spacing:-.01em; text-transform:none; color:var(--text); }
@@ -1123,8 +1135,9 @@
   :root[data-look="glass"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=hidden]), :root[data-look="glass"] select, :root[data-look="glass"] textarea { background-color:var(--card); border:1px solid var(--line); border-radius:var(--r-sm); color:var(--text); }
 
   /* side menu: frosted, the page on screen is a filled blue pill */
-  :root[data-look="glass"] .side { background:var(--side); color:var(--side-text); border-right:1px solid var(--card-edge); padding:var(--g5) var(--g4) var(--g4); gap:var(--g1);
-    -webkit-backdrop-filter:blur(var(--g-blur-2)) saturate(150%); backdrop-filter:blur(var(--g-blur-2)) saturate(150%); box-shadow:1px 0 0 var(--line); }
+  :root[data-look="glass"] .toast { background:rgba(14,26,60,.88); color:#fff; -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); }
+  :root[data-look="glass"] .side { background:var(--side-glow), var(--side); color:var(--side-text); border-right:1px solid var(--card-edge); padding:var(--g5) var(--g4) var(--g4); gap:var(--g1);
+    -webkit-backdrop-filter:blur(var(--g-blur-2)) saturate(180%); backdrop-filter:blur(var(--g-blur-2)) saturate(180%); box-shadow:inset -1px 0 0 rgba(255,255,255,.45), 12px 0 40px -24px rgba(40,50,140,.25); }
   :root[data-look="glass"] .side .head { border-bottom:0; padding:0 var(--g1) var(--g4); }
   :root[data-look="glass"] .side .brand b { font-family:var(--gfont-d); font-size:17px; font-weight:700; letter-spacing:-.015em; color:var(--side-text); }
   :root[data-look="glass"] .side .brand span { color:var(--side-muted); font-size:12.5px; }
@@ -1143,6 +1156,7 @@
   :root[data-look="glass"] .inst select { color:var(--side-text); }
   :root[data-look="glass"] .gstatus { margin-top:auto; padding:var(--g3) var(--g4); border-radius:var(--r-md); background:var(--card); border:1px solid var(--card-edge); box-shadow:var(--g-hi); display:grid; gap:var(--g2); }
   :root[data-look="glass"] .gstatus-h { display:flex; align-items:center; gap:var(--g2); font-size:14px; color:var(--side-text); }
+  :root[data-look="glass"] .gcredit { gap:5px; font-size:12.5px; } :root[data-look="glass"] .gcredit span { color:var(--side-muted); } :root[data-look="glass"] .gcredit b { font-weight:650; }
   :root[data-look="glass"] .gstatus.down .gstatus-h b { color:var(--bad); }
   :root[data-look="glass"] .gstatus .foot { display:flex; align-items:center; justify-content:space-between; gap:var(--g2); border:0; padding:0; margin:0; }
   :root[data-look="glass"] .gstatus .live { color:var(--side-muted); font-size:11.5px; }
@@ -1367,13 +1381,28 @@ const dismissals = {
 // while the pointer or the keyboard focus is on it. The deadline lives here, not in the element, because the page is redrawn often.
 const AUTO_HIDE_MS = 7000;
 const noticeTimers = {};
+// 2.0.1: closing animation. A notice fades and slides up, then its height folds so the page below moves up smoothly
+// (no jump); a menu or window fades out. done() runs after it (at once with reduced motion). transform/opacity first, then height.
+const calmMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.classList.contains('a11y-motion');
+function leave(node, done, fold) {
+  if (!node || !node.isConnected || calmMotion()) { if (done) done(); else if (node) node.remove(); return; }
+  if (node.classList.contains('leaving')) return;
+  node.classList.add('leaving');
+  setTimeout(() => {
+    if (!fold) { if (done) done(); else node.remove(); return; }
+    const h = node.getBoundingClientRect().height;
+    node.style.height = h + 'px'; node.style.overflow = 'hidden'; void node.offsetHeight;
+    node.classList.add('folding');
+    setTimeout(() => { if (done) done(); else node.remove(); }, 200);
+  }, fold ? 180 : 150);
+}
 function autoHide(box, key) {
   const now = Date.now();
   const t = noticeTimers[key] || (noticeTimers[key] = { left: AUTO_HIDE_MS, since: now, held: false });
   if (!t.held) { t.left -= now - t.since; t.since = now; }
   if (t.left <= 0) { dismissals.add(key); return false; }
   let timer = null;
-  const start = () => { clearTimeout(timer); t.held = false; t.since = Date.now(); timer = setTimeout(() => { dismissals.add(key); box.classList.add('leaving'); setTimeout(() => box.remove(), 200); }, Math.max(t.left, 1200)); };
+  const start = () => { clearTimeout(timer); t.held = false; t.since = Date.now(); timer = setTimeout(() => { dismissals.add(key); leave(box, null, true); }, Math.max(t.left, 1200)); };
   const hold = () => { clearTimeout(timer); if (!t.held) { t.left -= Date.now() - t.since; t.held = true; } };
   box.addEventListener('pointerenter', hold); box.addEventListener('focusin', hold);
   box.addEventListener('pointerleave', start); box.addEventListener('focusout', (e) => { if (!box.contains(e.relatedTarget)) start(); });
@@ -1578,6 +1607,7 @@ const TR_LIST = [
   ["Ka version të ri të programit:", "A new program version:", "Nova verzija programa:"],
   ["Ka build të ri të versionit", "A new build of version", "Novi build verzije"],
   ["i fundit", "last", "poslednji"],
+  ["Xhami më i fortë mbi një sfond me ngjyra; pa profilin lart djathtas; \"Krijuar nga Rogest Network\" në kartelën anash; njoftimet, menutë dhe dritaret mbyllen me animacion të butë.", "Stronger glass over a coloured background; no profile at the top right; \"Created by Rogest Network\" in the side card; notices, menus and windows close with a soft animation.", "Jače staklo na obojenoj pozadini; bez profila gore desno; \"Napravio Rogest Network\" u bočnoj kartici; obaveštenja, meniji i prozori se zatvaraju mekom animacijom."],
   ["Pamje e re \"Glass\" (e paracaktuar): panele si xham i ngrirë në blu të zbehtë dhe lejla, menu anësore prej xhami dhe shirit sipër me kërkim, temë, njoftime dhe llogari.", "A new \"Glass\" look (the default): frosted-glass panels in pale blue and lavender, a glass side menu and a top bar with search, theme, notifications and account.", "Novi izgled \"Glass\" (podrazumevani): paneli kao mat staklo u svetloplavoj i lavandi, stakleni bočni meni i gornja traka sa pretragom, temom, obaveštenjima i nalogom."],
   ["Kryesore e re: \"Mirë se vini\", statusi, performanca, hapësira dhe rrjeti me grafikë, databaza, versioni, adresat, veprime të shpejta, gjendja e sistemit dhe veprimet e fundit.", "A new Home: \"Welcome\", status, performance, space and network with charts, database, version, addresses, quick actions, system health and recent activity.", "Nova početna: \"Dobro došli\", status, performanse, prostor i mreža sa grafikonima, baza, verzija, adrese, brze radnje, stanje sistema i poslednje radnje."],
   ["Në telefon menuja hapet si sirtar nga butoni lart majtas. Premium (2.0) dhe Klasike mbeten te Cilësimet → Pamja e dashboard-it.", "On a phone the menu opens as a drawer from the button at the top left. Premium (2.0) and Classic stay in Settings → Dashboard look.", "Na telefonu se meni otvara kao fioka sa dugmeta gore levo. Premium (2.0) i Klasični ostaju u Podešavanja → Izgled dashboard-a."],
@@ -2194,7 +2224,7 @@ function view(s) {
   };
   const changeAddress = () => {
     const prev = document.activeElement;
-    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
+    const close = () => { leave(overlay); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
     const opt = (title, text, fn) => { const b = el('button', { type: 'button', class: 'btn ghost', style: 'display:block;width:100%;text-align:left;padding:12px;margin-bottom:10px;height:auto' }, el('b', { style: 'display:block' }, title), el('span', { class: 'sub', style: 'display:block;white-space:normal;margin-top:3px' }, text)); b.onclick = () => { close(); fn(); }; return b; };
     const closeBtn = el('button', { type: 'button', class: 'btn' }, 'Mbyll'); closeBtn.onclick = close;
     const panel = el('div', { class: 'a11y-panel', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'addrTitle' },
@@ -2253,7 +2283,7 @@ function view(s) {
   };
   const openVersions = (v) => {
     const prev = document.activeElement;
-    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
+    const close = () => { leave(overlay); document.removeEventListener('keydown', onKey); if (prev && prev.focus) prev.focus(); };
     const go2 = async (name, source, bk) => {
       if (!await confirmAsync('Rikthej aplikacionin te versioni ' + name + (bk ? ' DHE databazën nga ' + bk.name : '') + '?' + NL + (bk ? 'Para databazës bëhet një backup i gjendjes së tanishme; pastaj FSHIHEN tabelat dhe ngarkohet ' + bk.name + '.' + NL : '') + (source === 'repo' ? 'Shkarkohet nga GitHub, bëhet backup i databazës dhe build (disa minuta).' : 'Kalon menjëherë (kodi është në këtë PC).') + NL + 'Databaza mbetet siç është; përditësimet automatike ndalen deri në një version më të ri.')) return;
       close();
@@ -2308,7 +2338,7 @@ function view(s) {
     const key = 'update:' + state.cur + ':' + s.update + ':' + newV;
     if (dismissals.has(key)) return '';
     const go2 = el('button', { type: 'button', class: 'btn' }, 'Përditëso në ' + newV); go2.disabled = busy; go2.onclick = () => updBtn.onclick();
-    const close = el('button', { type: 'button', class: 'btn ghost' }, 'Mbyll'); close.onclick = () => { dismissals.add(key); render(); };
+    const close = el('button', { type: 'button', class: 'btn ghost' }, 'Mbyll'); close.onclick = () => { dismissals.add(key); leave(close.closest('.banner'), render, true); };
     return el('div', { class: 'banner run' }, el('p', {}, el('b', {}, s.update === 'build' ? 'Ka build të ri të versionit ' + newV : 'Ka version të ri të programit: ' + newV), ' · instaluar: ' + verText), el('div', { class: 'row' }, go2, close));
   };
   const mini = (rows) => el('div', { class: 'mini' }, ...rows.map(([k, v, st, acts]) => el('div', {}, el('span', {}, k), el('b', {}, st ? el('i', { class: 'sd ' + st }) : '', v, ...(acts || [])))));
@@ -2782,7 +2812,7 @@ function view(s) {
     if (dismissals.has(key)) return '';
     const close = el('button', { type: 'button', class: 'btn ghost' }, 'Në rregull');
     const box = el('div', { class: 'banner run', role: 'status' }, el('p', {}, el('b', {}, 'Dashboard-i u përditësua në v' + dashVer)), el('div', { class: 'row' }, close));
-    close.onclick = () => { dismissals.add(key); box.remove(); };
+    close.onclick = () => { dismissals.add(key); leave(box, null, true); };
     return autoHide(box, key) ? box : '';
   };
   // Uninstall: at the bottom of Veprime, far from the menu so it cannot be hit by mistake; it asks twice.
@@ -2996,7 +3026,7 @@ function openPalette() {
     list,
     el('div', { class: 'ft' }, el('span', {}, el('kbd', {}, '↑ ↓'), ' ', 'për të lëvizur'), el('span', {}, el('kbd', {}, 'Enter'), ' ', 'për të hapur'), el('span', {}, el('kbd', {}, 'Esc'), ' ', 'për të mbyllur')));
   const overlay = el('div', { class: 'cmdk-overlay', id: 'cmdk' }, panel);
-  const close = () => { overlay.remove(); if (prev && prev.focus) { try { prev.focus(); } catch { /* gone */ } } };
+  const close = () => { leave(overlay); if (prev && prev.focus) { try { prev.focus(); } catch { /* gone */ } } };
   const run = (it) => { close(); setTimeout(() => it.run(), 0); };
   const paint = () => {
     list.replaceChildren();
@@ -3061,7 +3091,7 @@ function popover(trigger, build, cls) {
     if (wasOpen) return;
     const box = el('div', { class: 'gpop ' + (cls || '') });
     const close = () => {
-      box.remove(); trigger.setAttribute('aria-expanded', 'false');
+      leave(box); trigger.setAttribute('aria-expanded', 'false');
       document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', key);
       if (popClose === close) popClose = null;
     };
@@ -3119,8 +3149,10 @@ function glassBar(s, j) {
         return b;
       }) : [el('p', { class: 'gempty' }, 'Nuk ka njoftime.')]),
       (() => { const all = el('button', { type: 'button', role: 'menuitem', class: 'gall' }, 'Shiko historikun'); all.onclick = () => { close(); go('history'); }; return all; })()), 'gpop-notes');
-  const name = brandName(s.name), sec = j.security || {};
-  const acct = popover(el('button', { type: 'button', class: 'gacct', 'aria-label': name + ' · ' + L.open }, el('span', { class: 'gavatar', 'aria-hidden': 'true' }, name.slice(0, 1).toUpperCase()), el('span', { class: 'gacct-t' }, el('b', {}, name), el('small', {}, sectionLabel(state.section))), icon('chevD')), (close) =>
+  const sec = j.security || {};
+  const out = sec.password ? (() => { const b = el('button', { type: 'button', class: 'gico', 'aria-label': 'Dil nga dashboard-i', title: 'Dil nga dashboard-i' }, icon('key')); b.onclick = async () => { await fetch('/api/dashboard-logout?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY } }).catch(() => {}); location.reload(); }; return b; })() : '';
+  const name = brandName(s.name);
+  const acct = false && popover(el('button', { type: 'button', class: 'gacct', 'aria-label': name + ' · ' + L.open }, el('span', { class: 'gavatar', 'aria-hidden': 'true' }, name.slice(0, 1).toUpperCase()), el('span', { class: 'gacct-t' }, el('b', {}, name), el('small', {}, sectionLabel(state.section))), icon('chevD')), (close) =>
     el('div', { class: 'gmenu', role: 'menu', 'aria-label': name },
       el('div', { class: 'gpop-h' }, el('b', {}, s.name), el('span', {}, 'Dashboard · v' + (j.dashboardVersion || ''))),
       mi(close, 'gear', L.open, () => go('settings')),
@@ -3128,7 +3160,7 @@ function glassBar(s, j) {
       el('p', { class: 'gpop-h2' }, L.lang),
       el('div', { class: 'glangs' }, ...Object.keys(HELP).map((k) => { const b = el('button', { type: 'button', class: helpLang() === k ? 'on' : '', 'aria-pressed': String(helpLang() === k) }, HELP[k].name); b.onclick = () => { close(); store.set('lang', k); applyPrefs(); render(); }; return b; })),
       sec.password ? mi(close, 'key', 'Dil nga dashboard-i', async () => { await fetch('/api/dashboard-logout?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY } }).catch(() => {}); location.reload(); }) : ''), 'gpop-acct');
-  return el('header', { class: 'gtop', id: 'gtop' }, menuBtn, search, el('div', { class: 'gtools' }, themeBtn, bell, acct));
+  return el('header', { class: 'gtop', id: 'gtop' }, menuBtn, search, el('div', { class: 'gtools' }, themeBtn, bell, out));
 }
 // The side menu as a drawer on a phone (the button in the toolbar opens it; a tap outside, Escape or a page choice closes it).
 function applyDrawer() {
@@ -3181,10 +3213,11 @@ function render() {
       j.instances.length > 1 ? el('div', { class: 'inst' }, select) : '',
       nav,
       el('div', { class: 'gstatus' + (appOk ? '' : ' down') },
-        el('div', { class: 'gstatus-h' }, el('i', { class: 'gsd ' + (appOk ? 'on' : 'off') }), el('b', { class: 'lbl' }, appOk ? 'Sistemi online' : 'Aplikacioni nuk përgjigjet')),
+        // owner 2026-10-30: no "Sistemi online" title; the credit sits here (a warning only while the application does not answer)
+        appOk ? el('div', { class: 'gstatus-h gcredit' }, el('span', { class: 'lbl' }, 'Krijuar nga'), el('b', { class: 'lbl' }, 'Rogest Network'))
+          : el('div', { class: 'gstatus-h' }, el('i', { class: 'gsd off' }), el('b', { class: 'lbl' }, 'Aplikacioni nuk përgjigjet')),
         el('div', { class: 'foot' }, liveEl(), refresh),
-        openApp),
-      el('div', { class: 'credit-side' }, el('span', {}, 'Krijuar nga'), ' ', el('b', {}, 'Rogest Network')));
+        openApp));
     // The toolbar is built again with the data, except while one of its menus is open (it would close under the owner's eyes).
     if (!popClose) { const bar = glassBar(s, j), old = $('gtop'); if (old) old.replaceWith(bar); else $('main').prepend(bar); }
   } else {
@@ -3209,7 +3242,7 @@ function render() {
   const jobKey = job && job.ended ? 'job:' + state.cur + ':' + job.ended : '';
   if (job && job.state !== 'running' && job.ended && Date.now() - job.ended < (job.state === 'ok' ? 900000 : 86400000) && !dismissals.has(jobKey)) {
     const ok = job.state === 'ok';
-    const close = el('button', { type: 'button', class: 'iconbtn' }, 'Mbyll'); close.onclick = () => { dismissals.add(jobKey); render(); };
+    const close = el('button', { type: 'button', class: 'iconbtn' }, 'Mbyll'); close.onclick = () => { dismissals.add(jobKey); leave(close.closest('.banner'), render, true); };
     const see = el('button', { type: 'button', class: 'iconbtn' }, 'Shiko log-un'); see.onclick = () => go('log');
     done = el('div', { class: 'banner ' + (ok ? 'ok' : 'bad'), role: ok ? 'status' : 'alert' },
       el('p', {}, el('b', {}, jobName(job.title) + (ok ? ' u krye' : ' dështoi') + (byOf(job) ? ' ' + byOf(job) : '')), ' · ' + fmtTime(job.ended, true) + (ok && s.installed && s.installed.name ? ' · versioni ' + s.installed.name : '')),

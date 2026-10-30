@@ -796,6 +796,23 @@ async function toolsInfo() {
 const TOOL_NAMES = { node: 'Node.js', cloudflared: 'Cloudflare Tunnel' };
 const stagingDir = (inst) => path.join(inst.root, 'tools-staging');
 const toolPlans = (inst) => readSettings(inst).toolPlans || {};
+// A version whose installation finished but did not change the program on disk (owner 2026-10-30: "nëse është më i riu, s'ka nevojë të
+// riinstalohet çdo herë"): kept in toolStuck so the automatic download/install does not repeat it every night. A newer version clears it.
+// The hour of the automatic installation of Node.js / cloudflared: the owner's hour, but never the hour of the night job (backup/update): then
+// one hour after it (2.0.2, owner 2026-10-30: two automatic jobs at the same hour, one of them could not run).
+function toolHour(inst) {
+  const ta = readSettings(inst).toolAuto || {};
+  const night = autoBackupOf(inst).hour;
+  const h = Number.isInteger(ta.hour) && ta.hour >= 0 && ta.hour <= 23 ? ta.hour : (night + 1) % 24;
+  return h === night ? (night + 1) % 24 : h;
+}
+function setToolStuck(inst, what, version) {
+  const cur = readSettings(inst);
+  cur.toolStuck = cur.toolStuck || {};
+  if (version) cur.toolStuck[what] = version; else delete cur.toolStuck[what];
+  if (!Object.keys(cur.toolStuck).length) delete cur.toolStuck;
+  settingsWrite(inst, cur);
+}
 function saveToolPlan(inst, what, plan) {
   const cur = readSettings(inst);
   cur.toolPlans = cur.toolPlans || {};
@@ -867,7 +884,7 @@ async function stageTool(inst, what, add) {
   const plan = { version: t.latest, from: t.installed, file, sha: r.sha, downloadedAt: Date.now() };
   // "Instalo vetë" is on: the installation is set for the next time the owner's hour comes (02:00 unless he chose another).
   const ta = readSettings(inst).toolAuto || {};
-  if (ta.install) { plan.at = nextNight(Number.isInteger(ta.hour) && ta.hour >= 0 && ta.hour <= 23 ? ta.hour : 2); add('Instalimi u caktua automatikisht për ' + new Date(plan.at).toLocaleString('sq-AL') + '.'); }
+  if (ta.install) { plan.at = nextNight(toolHour(inst)); add('Instalimi u caktua automatikisht për ' + new Date(plan.at).toLocaleString('sq-AL') + '.'); }
   saveToolPlan(inst, what, plan);
   return true;
 }
@@ -999,7 +1016,15 @@ function toolInstall(inst, what, by = 'manual') {
       if (stopped) { add('Aplikacioni ndizet përsëri ...'); systemAction.quiet = true; try { await systemAction(inst, 'start'); } catch (e) { add('GABIM: aplikacioni nuk u ndez: ' + e.message); ok = false; } finally { systemAction.quiet = false; } }
       toolsCache.at = 0;
     }
-    if (ok) { saveToolPlan(inst, what, null); fs.rmSync(plan.file, { force: true }); }
+    if (ok) {
+      saveToolPlan(inst, what, null); fs.rmSync(plan.file, { force: true });
+      // Check that the program on disk really changed; if not, say so once and do not repeat the same version automatically.
+      const now = (await toolsInfo().catch(() => ({})))[what] || {};
+      if (now.installed && verCmp(now.installed, plan.version) < 0) {
+        add('KUJDES: instalimi mbaroi, por ' + TOOL_NAMES[what] + ' mbeti ' + now.installed + '. Ky version nuk do të provohet më automatikisht.');
+        setToolStuck(inst, what, plan.version); ok = false;
+      } else setToolStuck(inst, what, null);
+    }
     return ok;
   }, by);
 }
@@ -1028,6 +1053,7 @@ async function toolScheduleTick() {
           for (const what of ['node', 'cloudflared']) {
             const key = inst.id + ':' + what;
             if (!info[what].update || plannedOf(inst, what) || Date.now() - (toolAutoLast.get(key) || 0) < 6 * 3600000) continue;
+            if (((readSettings(inst).toolStuck || {})[what]) === info[what].latest) continue; // installed once without effect: only by hand
             toolAutoLast.set(key, Date.now());
             toolDownload(inst, what, 'auto');
             break;
@@ -1331,7 +1357,6 @@ function rememberAndPrune(inst, names, keep) {
   try { fs.writeFileSync(settingsFile(inst), JSON.stringify(mine, null, 2)); } catch { /* read-only folder */ }
   for (const old of listBackups(inst).slice(keep)) { try { fs.unlinkSync(path.join(backupDir(inst), old.name)); } catch { /* in use */ } }
 }
-const skipNoted = new Map();
 async function autoBackupTick() {
   const now = new Date();
   const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
@@ -1342,11 +1367,9 @@ async function autoBackupTick() {
     // Once a day PER HOUR: when the owner moves the hour (e.g. 01:00 -> 19:00) the job runs again at the new hour even if it already ran today at the old one
     // (owner, 2026-10-23: he moved it to 19:00 to get an update and nothing happened because today's run had been done). An old record without an hour counts as the same hour.
     const doneToday = auto.last && auto.last.date === today && (auto.last.hour === undefined || auto.last.hour === auto.hour);
-    if (auto.on || auto.updateToo) {
-      // The reason is written to the history once, so "why did it not run at this hour?" can be answered from the dashboard.
-      const noted = today + '|' + auto.hour;
-      if (now.getHours() === auto.hour && doneToday && skipNoted.get(inst.id) !== noted) { skipNoted.set(inst.id, noted); addHistory(inst, { title: 'Puna automatike nuk u nis', ok: false, detail: 'sot u krye tashmë në orën e njëjtë (' + auto.last.date + ')' }); }
-    }
+    // 2.0.2 (owner 2026-10-30: "puna automatike dështoi sepse u krye në orë të njëjtë sot"): a run already done this hour today is not a
+    // failure, so nothing is written to the history any more (it was written again, in red, after every restart of the dashboard in that hour,
+    // e.g. after its own self-update). The result of the day's run stays in Veprime > Automatik.
     if ((!auto.on && !auto.updateToo) || now.getHours() !== auto.hour || doneToday) continue;
     const running = jobs.get(inst.id);
     if (running && running.state === 'running') continue;
@@ -1394,8 +1417,12 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.0.1';
+const DASH_VERSION = '2.0.2';
 const DASH_NOTES = [
+  { version: '2.0.2', date: '2026-10-30', notes: [
+    'Pamje e re "Minimale" (e paracaktuar): e pastër dhe profesionale, me sipërfaqe të bardha, vija të holla dhe pa xham; Glass, Premium dhe Klasike mbeten te Cilësimet.',
+    'Përditësimi i Node.js dhe cloudflared nuk përsëritet më: nëse instalimi nuk e ndryshon versionin, i njëjti version nuk provohet më automatikisht.',
+  ] },
   { version: '2.0.1', date: '2026-10-30', notes: [
     'Dashboard-i e kontrollon versionin e vet të ri çdo minutë (ishte çdo 10 minuta), pa i harxhuar kërkesat e GitHub-it.',
     'Pamje e re "Glass" (e paracaktuar): panele si xham i ngrirë në blu të zbehtë dhe lejla, menu anësore prej xhami dhe shirit sipër me kërkim, temë, njoftime dhe llogari.',
@@ -2298,7 +2325,7 @@ const server = http.createServer(async (req, res) => {
       const inst = find(url.searchParams.get('id'));
       const info = await toolsInfo();
       const ta = inst ? (readSettings(inst).toolAuto || {}) : {};
-      return send(res, 200, { ...info, node: { ...info.node, plan: inst ? planView(plannedOf(inst, 'node')) : null }, cloudflared: { ...info.cloudflared, plan: inst ? planView(plannedOf(inst, 'cloudflared')) : null }, auto: { download: ta.download !== false, install: !!ta.install, hour: Number.isInteger(ta.hour) && ta.hour >= 0 && ta.hour <= 23 ? ta.hour : 2 } });
+      return send(res, 200, { ...info, node: { ...info.node, plan: inst ? planView(plannedOf(inst, 'node')) : null }, cloudflared: { ...info.cloudflared, plan: inst ? planView(plannedOf(inst, 'cloudflared')) : null }, auto: { download: ta.download !== false, install: !!ta.install, hour: inst ? toolHour(inst) : 3 } });
     }
     if (req.method === 'GET' && url.pathname === '/api/diagnostics') {
       const inst = find(url.searchParams.get('id'));
@@ -2450,9 +2477,9 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/tool-schedule') { const at = url.searchParams.get('at'); return send(res, 200, toolSchedule(inst, String(url.searchParams.get('what') || ''), at === 'none' ? null : at)); }
       if (url.pathname === '/api/tool-auto') {
         needLocal(inst);
-        const cur = readSettings(inst); const hh = parseInt(url.searchParams.get('hour'), 10); cur.toolAuto = { download: url.searchParams.get('download') !== '0', install: url.searchParams.get('install') === '1', hour: Number.isInteger(hh) && hh >= 0 && hh <= 23 ? hh : 2 };
+        const cur = readSettings(inst); const hh = parseInt(url.searchParams.get('hour'), 10); cur.toolAuto = { download: url.searchParams.get('download') !== '0', install: url.searchParams.get('install') === '1', hour: Number.isInteger(hh) && hh >= 0 && hh <= 23 ? hh : (autoBackupOf(inst).hour + 1) % 24 };
         settingsWrite(inst, cur);
-        return send(res, 200, cur.toolAuto);
+        return send(res, 200, { ...cur.toolAuto, hour: toolHour(inst) });
       }
       if (url.pathname === '/api/tunnel-token') {
         let body = '';

@@ -366,7 +366,44 @@ function spawnUpdater(inst, add, zip) {
 function runUpdate(inst, by = 'manual') {
   needLocal(inst);
   if (!fs.existsSync(path.join(inst.root, 'updater.ps1'))) throw new Error('updater.ps1 nuk u gjet te ' + inst.root);
-  return startJob(inst, 'Perditesim', (add) => spawnUpdater(inst, add), by);
+  const before = installed(inst);
+  return startJob(inst, 'Perditesim', async (add) => {
+    const ok = await spawnUpdater(inst, add);
+    return ok ? guardBuiltCss(inst, before && !before.error ? before.name : null, add) : ok;
+  }, by);
+}
+
+// The CSS a build wrote (releases\<name>\dist\assets\*.css). Tailwind writes the screen classes as ".sm\:hidden" (one backslash); on
+// 2026-11-09 a new build package (postcss-selector-parser 7.2.0) made a lockless install write three, so every phone/computer switch was dead
+// while the app still answered the health check. Returns the reason, or null when the CSS is fine (also when it cannot be read: no guessing).
+function builtCssProblem(inst, name) {
+  const dir = path.join(inst.root, 'releases', name, 'dist', 'assets');
+  let css = '';
+  try { css = fs.readdirSync(dir).filter((f) => f.endsWith('.css')).map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n'); } catch { return null; }
+  if (!css) return 'no-css';
+  if (css.includes('\\\\\\:')) return 'triple-backslash';
+  if (!/\.(sm|md|lg)\\:/.test(css)) return 'no-screen-classes';
+  return null;
+}
+
+// After a successful update: the installed updater.ps1 (the shop keeps the one of its Setup) only checks that the app answers. A broken CSS
+// is caught here and the previous version (still on this PC, no build) is put back and pinned, so the night job does not install it again.
+async function guardBuiltCss(inst, previous, add) {
+  const now = installed(inst);
+  if (!now || now.error || !previous || now.name === previous) return true;
+  const problem = builtCssProblem(inst, now.name);
+  if (!problem) return true;
+  add('Kontrolli pas përditësimit: CSS-ja e versionit të ri është e prishur. Po kthehet versioni i mëparshëm...');
+  if (!localVersions(inst).includes(previous)) { add('Versioni i mëparshëm nuk ndodhet më në këtë PC: aplikacioni mbeti me versionin e ri.'); return false; }
+  const common = path.join(inst.root, 'hr-common.ps1');
+  const script = `. ${q(common)}; $ErrorActionPreference = 'Stop'; $cfg = Use-HrEnv; $port = [int]$cfg['PORT']; if (-not $port) { $port = 3000 }; ` +
+    `Set-Content -Path $script:CurrentFile -Value ${q(previous)} -NoNewline; Restart-HrApp; ` +
+    `if (Wait-Health $port 60) { 'OK' } else { Set-Content -Path $script:CurrentFile -Value ${q(now.name)} -NoNewline; Restart-HrApp; Wait-Health $port 60 | Out-Null; 'FAIL' }`;
+  const out = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data || '' }).catch((e) => 'FAIL ' + e.message);
+  if (!/OK\s*$/.test(String(out).trim())) { add('Versioni i mëparshëm nuk u përgjigj; aplikacioni mbeti me versionin e ri.'); return false; }
+  await pinNow(inst);
+  add('U kthye versioni i mëparshëm. Përditësimet automatike janë ndalur deri në një version më të ri në GitHub.');
+  return false;
 }
 
 // ---- Go back to an older version of the program (owner, 2026-10-22) ----
@@ -1417,8 +1454,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.0.2';
+const DASH_VERSION = '2.0.3';
 const DASH_NOTES = [
+  { version: '2.0.3', date: '2026-11-09', notes: [
+    'Pas çdo përditësimi të programit kontrollohet pamja (CSS-ja e ndërtuar): nëse del e prishur, kthehet vetë versioni i mëparshëm dhe përditësimet automatike ndalen deri në një version më të ri.',
+  ] },
   { version: '2.0.2', date: '2026-10-30', notes: [
     'Pamje e re "Minimale" (e paracaktuar): e pastër dhe profesionale, me sipërfaqe të bardha, vija të holla dhe pa xham; Glass, Premium dhe Klasike mbeten te Cilësimet.',
     'Përditësimi i Node.js dhe cloudflared nuk përsëritet më: nëse instalimi nuk e ndryshon versionin, i njëjti version nuk provohet më automatikisht.',

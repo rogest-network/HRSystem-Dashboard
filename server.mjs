@@ -117,7 +117,7 @@ process.on('unhandledRejection', (e) => { console.error('unhandledRejection:', e
 const history = new Map(); // instance id -> last speed samples (ms, 0 = down)
 
 // Only what runs on THIS PC (owner, 2026-10-21): the folders listed in the config that exist here, plus the standard install
-// C:\HRSystem when it is found. Other hosts (Hostinger, VPS, other computers) are not shown.
+// C:\HRSystem when it is found. Other computers are not shown.
 function instances() {
   // The list file is optional: an installation needs none (C:\HRSystem is found by itself); a missing or broken file means an empty list.
   let configured = [];
@@ -193,8 +193,8 @@ async function token(inst) {
   return tokens.get(key);
 }
 
-// The app zip of a Release: HRSystem-<version>.zip (from 1.0.2) or, in the older Releases, HRSystemV<version>-Hostinger.zip.
-const isAppAsset = (a) => /^HRSystem-\d+\.\d+\.\d+\.zip$/.test(a.name) || /-Hostinger\.zip$/.test(a.name);
+// The app zip of a Release: HRSystem-<version>.zip.
+const isAppAsset = (a) => /^HRSystem-\d+\.\d+\.\d+\.zip$/.test(a.name);
 async function latest(inst) {
   // No repository saved (owner, 2026-10-22: nothing is built in): the GitHub token tells which one it reads.
   if (!inst.repo) {
@@ -512,7 +512,7 @@ function mysqlRun(inst, cfg, sqlFile, add, db) {
   });
 }
 
-// Replace the whole database with a dump (e.g. from Hostinger's phpMyAdmin): backup, drop the tables, load the dump, then run the
+// Replace the whole database with a dump (e.g. an export made with phpMyAdmin or mysqldump): backup, drop the tables, load the dump, then run the
 // migrations the dump does not have yet (the installed release's own migrate-cli). The backup is the way back.
 function runImport(inst, name, text) {
   needLocal(inst);
@@ -525,7 +525,7 @@ async function importSteps(inst, name, text, add) {
   const stamp = Date.now();
   const dropFile = path.join(dir, `drop-${stamp}.tmp.sql`);
   const dumpFile = path.join(dir, `import-${stamp}.tmp.sql`);
-  // MariaDB 11.4+ names a collation MySQL 8.4 does not know; the standard one is the same for this app.
+  // An old dump may name a utf8mb4_uca1400_* collation MySQL 8.4 does not know; the standard one is the same for this app.
   fs.writeFileSync(dumpFile, text.replace(/utf8mb4_uca1400_[a-z_]+/g, 'utf8mb4_unicode_ci').replace(/^\s*(CREATE DATABASE|USE)\b.*$/gim, '-- (skipped) $&'));
   {
     try {
@@ -1454,8 +1454,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.0.3';
+const DASH_VERSION = '2.0.4';
 const DASH_NOTES = [
+  { version: '2.0.4', date: '2026-11-10', notes: [
+    'Pastrim i brendshëm: dashboard-i njeh vetëm skedarin e sotëm të versionit (HRSystem-<versioni>.zip) dhe MySQL 8.4; emrat e vjetër u hoqën.',
+  ] },
   { version: '2.0.3', date: '2026-11-09', notes: [
     'Pas çdo përditësimi të programit kontrollohet pamja (CSS-ja e ndërtuar): nëse del e prishur, kthehet vetë versioni i mëparshëm dhe përditësimet automatike ndalen deri në një version më të ri.',
   ] },

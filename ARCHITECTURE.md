@@ -16,7 +16,7 @@ Last updated: 2026-10-22. If you change behaviour, update this file in the same 
 - UI languages: Albanian (source), English, Serbian.
 
 ### Hard rules (never break)
-1. **Local only.** Never add anything that watches, probes or changes the live site (Hostinger, staff.butikuregina.com), Cloudflare zone settings, or the live database. Probing the installation's *own* public address for the address-down alert is the only outward check.
+1. **Local only.** Never add anything that watches, probes or changes the live site (the shop's server and its address), Cloudflare zone settings, or the live database. Probing the installation's *own* public address for the address-down alert is the only outward check.
 2. **Never use drive D:** (the owner's external HDD). Everything lives on C:.
 3. Never type/ask for the owner's passwords. Never print tokens/secrets (they are masked).
 4. Dashboard-only changes publish **only** to the Dashboard repo (no asking). Program (`Source/`) changes are a different workflow (ask which repos). Installer scripts (setup, update, uninstall, SQL import) live ONLY in `Setup/Claude Studio/installer/` and the Setup zip; no repo carries them (owner, 2026-10-22: each repo holds only its own system).
@@ -107,7 +107,7 @@ POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
 
 - **Backup:** `/api/backup` → `mysqldump` (`--single-transaction`, utf8mb4) to `<data>/backups/<name>.sql` → `checkBackup` → history entry → optional off-PC copy. Auto backup runs at `autoBackupHour` (default 2), keeps `autoBackupKeep` (7). Failure → error notification + history.
 - **Backup test:** creates temp DB, loads the dump, counts tables/users, drops the DB; result stored in `backupTests`, shown as "I provuar".
-- **Update of the program:** `runUpdate` → `updater.ps1` (reads `update.json` {repo, channel}; `stable` = newest non-pre-release, `test` = newest incl. pre-releases) → backup, build, migrations, health check, automatic return on failure. Release asset name: `HRSystemV<x>-Hostinger.zip` up to 1.0.1, `HRSystem-<x>.zip` from 1.0.2 (both accepted).
+- **Update of the program:** `runUpdate` → `updater.ps1` (reads `update.json` {repo, channel}; `stable` = newest non-pre-release, `test` = newest incl. pre-releases) → backup, build, migrations, health check, automatic return on failure. Release asset name: `HRSystem-<x>.zip` (the only one accepted since dashboard 2.0.4; was: both accepted).
 - **Self-heal:** app down >1 min and not manually stopped and autostart on → start it, notify.
 - **Address alert:** each learned public domain is requested every 30 s; 5 min down → alert, back → "Adresa u kthye".
 - **Daily report:** composed from health, backup age/test, disk, addresses, version; level ok/warn/error by content.
@@ -150,11 +150,13 @@ POST (all need the key; `?id=<instance>` selects the instance, 404 if unknown):
 
 ## 10. Not yet verified (be honest in reports)
 
-Real clean install through the wizard on a blank PC, real uninstall, a real phone (layout and notifications on iOS/Android), screen readers (NVDA/VoiceOver), MariaDB, Windows Home vs Pro differences.
+Real clean install through the wizard on a blank PC, real uninstall, a real phone (layout and notifications on iOS/Android), screen readers (NVDA/VoiceOver), Windows Home vs Pro differences.
 
 ---------------------------------------------------------------------------
 
 ## 11. Current state and history (update this at the end of every dashboard task)
+
+**2026-11-10 (v2.0.4, owner: "duhet të jetë vetëm MySQL, jo MariaDB as Hostinger"):** cleanup only. `isAppAsset` accepts only `HRSystem-<x>.zip` (no Release with the old name exists any more: Regina keeps v1.0.13+, the Template one Release); the comments of `instances()`, `runImport` and the collation replace (`utf8mb4_uca1400_*` of an old dump → `utf8mb4_unicode_ci`, the replace itself stays) no longer name old hosts or databases; this file and README the same. Tested on a copy (3700) against C:/HRTest/regina: page loads, `/api/status` answers with the instance and its latest version, `node --check` of server.mjs and of the page script.
 
 **2026-11-09 (v2.0.3, owner: "a i ke përmirsu edhe ato?" after the broken-CSS find of program V1.0.17B2):** `runUpdate` remembers the installed version, and after a SUCCESSFUL `spawnUpdater` calls `guardBuiltCss(inst, previous, add)`: `builtCssProblem(inst, name)` reads `releases\<name>\dist\assets\*.css` and reports `triple-backslash` (`\\\:`, the postcss-selector-parser 7.2.0 break of 2026-11-09), `no-screen-classes` (no `.sm\:`/`.md\:`/`.lg\:`) or `no-css`; unreadable folder = no verdict (null). On a problem: if the previous version is still in `releases\` (no build), `current.txt` goes back to it, `Restart-HrApp`, `Wait-Health` (if that fails, the new one is put back), then `pinNow` so the night job does not install the same build again; the job ends as an error with the lines "Kontrolli pas përditësimit: ..." and "U kthye versioni i mëparshëm. ..." (TR_LIST rows en/sr). Why in the dashboard: an installed `updater.ps1` comes only from the Setup zip (the shop keeps its old one), the dashboard self-updates every minute. The same check (`Test-BuiltCss`) and `npm ci` with the release's lockfile (`Install-HrPackages`) are in `installer/hr-common.ps1` for new Setup zips. Tested on a copy (3700) against C:\HRTest\regina with a stub updater switching to a copy of the release whose CSS had `\:` → `\\\:`: the job logged both lines, `current.txt` went back to the good release, the pin was written, the app answered; the test space was restored (stub, settings, current.txt, broken copy removed). `node --check` of server.mjs and of the page script. NOT tested: a real failing build through the real updater on the shop, the job lines on screen in en/sr (rows added, exact text).
 

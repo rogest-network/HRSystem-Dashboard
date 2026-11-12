@@ -28,28 +28,33 @@ const authed = (req) => { if (!SIGN_IN) return true; const m = /(?:^|;\s*)mgr=([
 let failures = []; // times of wrong keys: 5 in a minute locks the sign-in for a minute
 // The sign-in page (only when a dashboard password is set): same type, colours and motion as the dashboard; the button shows a spinner while the key is checked.
 const LOGIN_HTML = `<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HRSystem Dashboard</title><style>
-:root{color-scheme:light dark;--bg:#f3f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--accent:#4f46e5;--bad:#b91c1c;--badbg:#fee2e2;--out:cubic-bezier(.23,1,.32,1)}
-@media(prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#131a2e;--text:#e5e9f4;--muted:#8b97b1;--line:#222c47;--accent:#818cf8;--bad:#f87171;--badbg:#3f1519}button{color:#0b1020!important}button i{border-color:#0b1020!important;border-right-color:transparent!important}}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:14px/1.55 "Anthropic Sans","Styrene B",ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-form{width:min(360px,92vw);display:grid;gap:14px;padding:28px 26px 24px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 44px rgba(2,6,23,.1);animation:rise .34s var(--out) both}
-@keyframes rise{from{opacity:0;transform:translateY(8px)}}
-.logo{width:auto;height:46px;display:block;object-fit:contain}
-h1{margin:6px 0 0;font-size:20px;font-weight:600;letter-spacing:-.02em}p{margin:0;color:var(--muted);font-size:12.5px}
-input{font:inherit;height:40px;padding:0 13px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);outline:none;transition:border-color .15s var(--out),box-shadow .15s var(--out)}
-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 24%,transparent)}
+:root{color-scheme:light dark;--bg:#F4F5F7;--card:#fff;--text:#171C26;--muted:#4A5465;--line:#E1E4EA;--ctl:#8A93A4;--accent:#1F4FD1;--on:#fff;--bad:#B4231A;--out:cubic-bezier(.23,1,.32,1)}
+@media(prefers-color-scheme:dark){:root{--bg:#0E1116;--card:#161A21;--text:#E8EBF1;--muted:#B3BBC9;--line:#262C37;--ctl:#6B7587;--accent:#8AB0FF;--on:#0B1220;--bad:#FF8F85}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:16px;background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+form{width:min(380px,100%);display:grid;gap:12px;padding:28px 24px 24px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.logo{width:auto;height:40px;display:block;object-fit:contain}
+h1{margin:8px 0 0;font-size:22px;font-weight:600;letter-spacing:-.012em;line-height:1.2}p{margin:0;color:var(--muted);font-size:13px}
+input{font:inherit;height:44px;padding:0 12px;border-radius:8px;border:1px solid var(--ctl);background:var(--card);color:var(--text);margin-top:4px}
+input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
 input.bad{border-color:var(--bad)}
-button{font:inherit;font-weight:600;height:40px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .14s var(--out),filter .15s}
-@media(hover:hover){button:not(:disabled):hover{filter:brightness(1.08)}}
+button{font:inherit;font-weight:600;height:44px;border:0;border-radius:8px;background:var(--accent);color:var(--on);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .12s var(--out),filter .15s}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(hover:hover) and (pointer:fine){button:not(:disabled):hover{filter:brightness(1.1)}}
 button:not(:disabled):active{transform:scale(.97)}button:disabled{opacity:.7;cursor:default}
-button i{display:none;width:14px;height:14px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}button.busy i{display:block}
+button i{display:none;width:14px;height:14px;border:2px solid var(--on);border-right-color:transparent;border-radius:50%;animation:spin .6s linear infinite}button.busy i{display:block}
 @keyframes spin{to{transform:rotate(360deg)}}
-#e{min-height:19px;color:var(--bad);font-size:13px;opacity:0;transform:translateY(-3px);transition:opacity .15s,transform .15s var(--out)}#e.on{opacity:1;transform:none}
+#e{min-height:20px;color:var(--bad);font-size:13px;font-weight:500;opacity:0;transition:opacity .15s}#e.on{opacity:1}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-</style></head><body><form id="f"><img class="logo" alt="" aria-hidden="true" src="data:image/png;base64,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"><h1>HRSystem Dashboard</h1><p>Shkruaj fjalëkalimin për të hyrë.</p><input id="k" type="password" autocomplete="off" placeholder="Fjalëkalimi i dashboard-it" autofocus required aria-describedby="e"><button id="b"><i></i><span id="bt">Hyr</span></button><p id="e" role="alert"></p><p>Harrove fjalëkalimin? Fshi skedarin manager\\dashboard.key (vetëm administratori).</p></form><script>
-f.onsubmit=async function(ev){ev.preventDefault();b.disabled=true;b.classList.add("busy");bt.textContent="Po hyhet...";e.className="";k.classList.remove("bad");
+</style></head><body><form id="f"><img class="logo" alt="" aria-hidden="true" src="data:image/png;base64,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"><h1>HRSystem Dashboard</h1><p id="lead">Shkruaj fjalëkalimin për të hyrë.</p><input id="k" type="password" autocomplete="off" placeholder="Fjalëkalimi i dashboard-it" autofocus required aria-describedby="e"><button id="b"><i></i><span id="bt">Hyr</span></button><p id="e" role="alert"></p><p id="fg">__FORGOT__</p></form><script>
+var L={sq:{lead:"Shkruaj fjalëkalimin për të hyrë.",ph:"Fjalëkalimi i dashboard-it",go:"Hyr",busy:"Po hyhet...",open:"Po hapet...",many:"Shumë tentativa. Prit një minutë.",down:"Dashboard-i nuk përgjigjet.",bad:"Fjalëkalimi nuk është i saktë.",file:"Harrove fjalëkalimin? Fshi skedarin manager\\dashboard.key (vetëm administratori).",env:"Fjalëkalimi vendoset nga variabla DASHBOARD_KEY e kompjuterit: e ndryshon administratori."},
+en:{lead:"Type the password to sign in.",ph:"Dashboard password",go:"Sign in",busy:"Signing in...",open:"Opening...",many:"Too many tries. Wait a minute.",down:"The dashboard does not answer.",bad:"The password is not correct.",file:"Forgot the password? Delete the file manager\\dashboard.key (administrator only).",env:"The password comes from the computer's DASHBOARD_KEY variable: the administrator changes it."},
+sr:{lead:"Upiši lozinku da se prijaviš.",ph:"Lozinka dashboard-a",go:"Prijavi se",busy:"Prijava...",open:"Otvara se...",many:"Previše pokušaja. Sačekaj minut.",down:"Dashboard ne odgovara.",bad:"Lozinka nije tačna.",file:"Zaboravio si lozinku? Obriši fajl manager\\dashboard.key (samo administrator).",env:"Lozinka dolazi iz promenljive DASHBOARD_KEY računara: menja je administrator."}};
+var lg="sq";try{lg=localStorage.getItem("lang")||""}catch(x){lg=""}if(!L[lg]){var n=String(navigator.language||"").slice(0,2).toLowerCase();lg=n==="en"?"en":(n==="sr"||n==="hr"||n==="bs"||n==="me")?"sr":"sq"}var T=L[lg];
+document.documentElement.lang=lg;document.getElementById("lead").textContent=T.lead;k.placeholder=T.ph;bt.textContent=T.go;var fg=document.getElementById("fg");fg.textContent=T[fg.textContent==="env"?"env":"file"];
+f.onsubmit=async function(ev){ev.preventDefault();b.disabled=true;b.classList.add("busy");bt.textContent=T.busy;e.className="";k.classList.remove("bad");
 var r;try{r=await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:k.value})})}catch(x){r={ok:false,status:0}}
-if(r.ok){bt.textContent="Po hapet...";location.reload();return}
-b.disabled=false;b.classList.remove("busy");bt.textContent="Hyr";k.classList.add("bad");e.textContent=r.status===429?"Shumë provime. Prit një minutë.":r.status===0?"Dashboard-i nuk përgjigjet.":"Fjalëkalimi nuk është i saktë.";e.className="on";k.select()};
+if(r.ok){bt.textContent=T.open;location.reload();return}
+b.disabled=false;b.classList.remove("busy");bt.textContent=T.go;k.classList.add("bad");e.textContent=r.status===429?T.many:r.status===0?T.down:T.bad;e.className="on";k.select()};
 k.oninput=function(){k.classList.remove("bad");e.className=""};
 var h=/[#&]key=([0-9a-f]+)/.exec(location.hash);if(h){history.replaceState(null,"",location.pathname);k.value=h[1];f.requestSubmit()}</script></body></html>`;
 
@@ -277,7 +282,7 @@ async function backup(inst) {
   try { return await backupRaw(inst); } catch (e) { addHistory(inst, { title: 'Backup', ok: false, detail: String(e.message).slice(0, 160) }); notify(inst, 'Backup-i dështoi', String(e.message).slice(0, 160), 'error'); throw e; }
 }
 async function backupRaw(inst) {
-  if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter: backup-in e bën nga paneli i hostit.');
+  if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet në këtë kompjuter.');
   const cfg = readEnv(path.join(inst.root, '.env'));
   const dir = backupDir(inst);
   fs.mkdirSync(dir, { recursive: true });
@@ -332,7 +337,7 @@ const clean = (t) => t.replace(/\x1b\[[0-9;]*m/g, '').replace(/\r/g, '');
 
 function startJob(inst, title, launch, by = 'manual') {
   const old = jobs.get(inst.id);
-  if (old && old.state === 'running') throw new Error('Nje veprim po ekzekutohet: "' + old.title + '". Prit te mbaroje.');
+  if (old && old.state === 'running') throw new Error('Një veprim po ekzekutohet: "' + (old.title === 'Perditesim' ? 'Përditësimi i aplikacionit' : old.title) + '". Prit të mbarojë.');
   const job = { title, state: 'running', lines: [], started: Date.now(), by };   // by: 'manual' (a button) or 'auto' (the night job)
   jobs.set(inst.id, job);
   const add = (t) => { for (const l of clean(String(t)).split('\n')) if (l.trim()) job.lines.push(l); job.lines = job.lines.slice(-200); };
@@ -344,7 +349,7 @@ function startJob(inst, title, launch, by = 'manual') {
 }
 
 function needLocal(inst) {
-  if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet ne kete kompjuter.');
+  if (!inst.root || !inst.data) throw new Error('Ky instalim nuk ndodhet në këtë kompjuter.');
 }
 
 // The update is the installation's own updater.ps1 (backup, build, migrations, health check, automatic return).
@@ -545,7 +550,7 @@ async function importSteps(inst, name, text, add) {
       add(await run(process.execPath, ['server/core/migrate-cli.mjs'], cfg, relDir));
       add('SUKSES: databaza u importua.');
     } catch (e) {
-      add('Nese databaza ka mbetur gjysme, rikthe backup-in e mesiperm (Ekzekuto SQL ose sql-import.bat).');
+      add('Nëse databaza ka mbetur përgjysmë, rikthe backup-in e mësipërm (Ekzekuto SQL ose sql-import.bat).');
       throw e;
     } finally {
       fs.rmSync(dropFile, { force: true });
@@ -585,7 +590,7 @@ function runSql(inst, name, text) {
       });
       add('SUKSES: SQL u ekzekutua.');
     } catch (e) {
-      add('Backup-i para SQL ruhet; asgje tjeter nuk u ndryshua pas gabimit.');
+      add('Backup-i para SQL ruhet; asgjë tjetër nuk u ndryshua pas gabimit.');
       throw e;
     } finally {
       fs.rmSync(tmp, { force: true });
@@ -605,12 +610,12 @@ function pathsOf(inst, env) {
   }
   const list = [
     { key: 'root', label: 'Folderi kryesor (aplikacioni, skriptet)', path: inst.root },
-    ...(release ? [{ key: 'release', label: 'Kodi qe po punon (versioni ' + release + ')', path: path.join(inst.root, 'releases', release) }] : []),
-    { key: 'env', label: 'Cilesimet (.env: porta, databaza, adresa)', path: path.join(inst.root, '.env'), file: true },
-    { key: 'launcher', label: 'Nisesi i aplikacionit (start-hrsystem.ps1)', path: path.join(inst.root, 'start-hrsystem.ps1'), file: true },
-    { key: 'data', label: 'Te dhenat (databaza, backup-et)', path: inst.data },
-    { key: 'mysql', label: 'Skedaret e databazes MySQL', path: mysqlData },
-    { key: 'backups', label: 'Backup-et e databazes', path: path.join(inst.data, 'Backups') },
+    ...(release ? [{ key: 'release', label: 'Kodi që po punon (versioni ' + release + ')', path: path.join(inst.root, 'releases', release) }] : []),
+    { key: 'env', label: 'Cilësimet (.env: porta, databaza, adresa)', path: path.join(inst.root, '.env'), file: true },
+    { key: 'launcher', label: 'Nisësi i aplikacionit (start-hrsystem.ps1)', path: path.join(inst.root, 'start-hrsystem.ps1'), file: true },
+    { key: 'data', label: 'Të dhënat (databaza, backup-et)', path: inst.data },
+    { key: 'mysql', label: 'Skedarët e databazës MySQL', path: mysqlData },
+    { key: 'backups', label: 'Backup-et e databazës', path: path.join(inst.data, 'Backups') },
     // PHP and phpMyAdmin (2.0.5), only once they were installed with "Hap databazën"
     ...(fs.existsSync(path.join(inst.root, 'tools', 'phpmyadmin')) ? [{ key: 'tools', label: 'Mjetet e databazës (PHP, phpMyAdmin)', path: path.join(inst.root, 'tools') }] : []),
   ];
@@ -631,7 +636,7 @@ function normalizeDomain(raw) {
   if (!d) return '';
   if (!/^https?:[/][/]/i.test(d)) d = 'https://' + d;
   const m = /^(https?:[/][/][A-Za-z0-9.-]+(?::[0-9]+)?)(?:[/].*)?$/i.exec(d);
-  if (!m) throw new Error('Adresa nuk duket e sakte (p.sh. https://staff.butikuregina.com).');
+  if (!m) throw new Error('Adresa nuk duket e saktë (p.sh. https://hr.kompania.com).');
   return m[1].toLowerCase();
 }
 
@@ -743,7 +748,7 @@ function runTunnel(inst, rawToken) {
   needLocal(inst);
   { const cur = readSettings(inst); delete cur.domainsHidden; settingsWrite(inst, cur); } // a new tunnel: the names it carries are shown again
   const token = String(rawToken || '').replace(/^.*service\s+install\s+/i, '').trim().replace(/^["']|["']$/g, '');
-  if (token.length < 20 || /\s/.test(token)) throw new Error('Tokeni i Cloudflare nuk duket i sakte (ngjite sic e jep Cloudflare).');
+  if (token.length < 20 || /\s/.test(token)) throw new Error('Tokeni i Cloudflare nuk duket i saktë (ngjite siç e jep Cloudflare).');
   const script = [
     "$ErrorActionPreference = 'Stop'",
     "$cf = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source",
@@ -1209,12 +1214,38 @@ const pmaDirs = (inst) => { const tools = path.join(inst.root, 'tools'); return 
 const fwd = (p) => String(p).replace(/\\/g, '/');
 const phpStr = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
 const pmaRun = { proc: null, instId: '', port: 0, started: 0, last: 0, out: [] }; // the one phpMyAdmin that runs (one installation at a time)
+// phpmyadmin-data holds, while phpMyAdmin is open, the PHP session file with the database password, and always secret.hex and the one-time
+// token. The install folder inherits "Authenticated Users: Modify" from C:\, so on installs where the DASHBOARD made this folder any Windows
+// account could read it. An elevated dashboard closes it: inheritance off, only SYSTEM and Administrators (well-known SIDs, so the Windows
+// language does not matter). A dashboard that is NOT elevated (a test copy) must not do it: it would lock itself out. A failure is logged
+// once and never blocks phpMyAdmin.
+let elevatedSeen = null; // asked once per run
+const isElevated = () => (elevatedSeen ??= new Promise((resolve) => execFile(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'fltmc.exe'), [], { windowsHide: true, timeout: 15000 }, (err) => resolve(!err))));
+let pmaAclFailed = false;
+async function pmaCloseData(inst) {
+  const dir = pmaDirs(inst).data;
+  try {
+    if (!fs.existsSync(dir) || !(await isElevated())) return false;
+    await run(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe'), [dir, '/inheritance:r', '/grant:r', '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F']);
+    return true;
+  } catch (e) { if (!pmaAclFailed) { pmaAclFailed = true; logError('phpMyAdmin', new Error('Leja e folderit phpmyadmin-data nuk u mbyll: ' + String(e.message).slice(0, 200))); } return false; }
+}
+// "Installed" means the files are really there (2.3.0): the record, php.exe with its extensions, and phpMyAdmin with its libraries. A folder that
+// lost a part (an antivirus, a cleanup by hand) counts as not installed, so the automatic install puts it back.
+function pmaFilesOk(inst) {
+  const d = pmaDirs(inst);
+  return fs.existsSync(path.join(d.php, 'php.exe')) && fs.existsSync(path.join(d.php, 'ext', 'php_mysqli.dll'))
+    && fs.existsSync(path.join(d.pma, 'index.php')) && fs.existsSync(path.join(d.pma, 'vendor', 'autoload.php'));
+}
 function pmaInfo(inst) {
   const d = pmaDirs(inst);
   const meta = readJsonFile(path.join(d.data, 'installed.json')) || {};
-  const installed = !!meta.version && fs.existsSync(path.join(d.php, 'php.exe')) && fs.existsSync(path.join(d.pma, 'index.php'));
+  const installed = !!meta.version && pmaFilesOk(inst);
   const running = !!(pmaRun.proc && pmaRun.instId === inst.id);
-  return { installed, installing: !installed && pmaBg.has(inst.id), version: installed ? String(meta.version) : '', php: installed ? String(meta.php || '') : '', running, port: running ? pmaRun.port : 0, since: running ? pmaRun.started : 0 };
+  const hc = installed ? pmaHealth.get(inst.id) : null;
+  // health: does PHP really start? 'ok' (with the version php.exe reports), 'bad' (with the reason), 'checking' or 'unknown' (not looked at yet).
+  const health = !installed ? null : hc && hc.busy && !hc.state ? { state: 'checking' } : hc && hc.state ? { state: hc.state, php: hc.php || '', error: hc.error || '', at: hc.at } : { state: 'unknown' };
+  return { installed, installing: pmaBg.has(inst.id) && (!installed || pmaRepairing.has(inst.id)), version: installed ? String(meta.version) : '', php: installed ? String(meta.php || '') : '', running, port: running ? pmaRun.port : 0, since: running ? pmaRun.started : 0, health };
 }
 // The PHP line phpMyAdmin supports (its version.json says e.g. ">=7.2,<8.4" -> 8.3). Only the current lines 8.4 and 8.3 are considered.
 function pmaPhpLine(constraint, rel) {
@@ -1249,20 +1280,104 @@ async function moveDir(from, to) {
     try { fs.renameSync(from, to); return; } catch (e) { if (i >= 10) throw e; await new Promise((r) => setTimeout(r, 1000)); }
   }
 }
-const runCode = (file, args) => new Promise((resolve) => execFile(file, args, { windowsHide: true, timeout: 60000, env: { ...process.env, PHP_INI_SCAN_DIR: '' } }, (err, stdout, stderr) =>
-  resolve({ code: err ? (typeof err.code === 'number' ? err.code : -1) : 0, out: String(stdout || '') + String(stderr || '') })));
+// A file that Windows cannot start at all (damaged, not a program) makes execFile throw at once: that is an answer too (code -1), not a crash.
+const runCode = (file, args) => new Promise((resolve) => {
+  try {
+    execFile(file, args, { windowsHide: true, timeout: 60000, env: { ...process.env, PHP_INI_SCAN_DIR: '' } }, (err, stdout, stderr) =>
+      resolve({ code: err ? (typeof err.code === 'number' ? err.code : -1) : 0, out: String(stdout || '') + String(stderr || '') || (err ? String(err.message || '') : '') }));
+  } catch (e) { resolve({ code: -1, out: String(e.message || e) }); }
+});
 // php -v and php -m with the dashboard's php.ini: a missing Visual C++ runtime (0xC0000135) or a missing module is said plainly.
 async function pmaCheckPhp(inst) {
   const d = pmaDirs(inst), exe = path.join(d.php, 'php.exe'), ini = path.join(d.php, 'php.ini');
   const v = await runCode(exe, ['-c', ini, '-v']);
   const vc = v.code === -1073741515 || v.code === 3221225781 || /vcruntime|msvcp|VCRUNTIME140/i.test(v.out);
-  if (vc) throw new Error('PHP nuk niset: mungon Microsoft Visual C++ Redistributable 2015-2022 (x64). Instaloje nga faqja e Microsoft (vc_redist.x64.exe) dhe provo përsëri.');
+  if (vc) throw Object.assign(new Error(VC_MISSING), { vc: true });
   if (v.code !== 0 || !/^PHP \d/.test(v.out.trim())) throw new Error('PHP nuk niset (kodi ' + v.code + '): ' + v.out.trim().split(/\r?\n/)[0].slice(0, 160));
   const m = await runCode(exe, ['-c', ini, '-m']);
   const mods = m.out.toLowerCase().split(/\r?\n/).map((l) => l.trim());
   const missing = ['mysqli', 'mbstring', 'session'].filter((x) => !mods.includes(x));
   if (missing.length) throw new Error('PHP nuk ka modulet e nevojshme: ' + missing.join(', ') + '.');
   return v.out.trim().split(/\r?\n/)[0].replace(/\s*\(.*$/, '');
+}
+// ---- PHP for Windows needs Microsoft's Visual C++ runtime (owner, 2026-11-12: "installin me e pas PHP krejt mirë në rregull"). When it is
+// missing the dashboard installs it itself: Microsoft's own installer from Microsoft's own address, run only when Windows confirms that the
+// file is signed by Microsoft Corporation (a file with any other signature, or none, is deleted and nothing runs). The installed dashboard runs
+// elevated, so /quiet needs no question. Never with HR_TOOLS_DRY=1 (tests): then the plain message stays.
+const VC_URL = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
+const VC_MISSING = 'PHP nuk niset: mungon Microsoft Visual C++ Redistributable 2015-2022 (x64). Instaloje nga faqja e Microsoft (vc_redist.x64.exe) dhe provo përsëri.';
+async function vcRedistFetch(dir) {
+  const file = path.join(dir, 'vc_redist.x64.exe'), part = file + '.part';
+  fs.mkdirSync(dir, { recursive: true });
+  fs.rmSync(file, { force: true });
+  const r = await fetch(VC_URL, { headers: { 'User-Agent': 'HRSystem-Dashboard' }, redirect: 'follow', signal: AbortSignal.timeout(15 * 60000) })
+    .catch(() => { throw new Error('Microsoft Visual C++ Redistributable nuk u shkarkua (faqja e Microsoft nuk u arrit). Kontrollo internetin dhe provo përsëri.'); });
+  if (!r.ok || !r.body) throw new Error('Shkarkimi dështoi (HTTP ' + r.status + ').');
+  const out = fs.createWriteStream(part);
+  let size = 0;
+  try {
+    for await (const chunk of r.body) {
+      size += chunk.length;
+      if (size > 200 * 1048576) throw new Error('Skedari i shkarkuar është më i madh se sa pritej: nuk u instalua.');
+      if (!out.write(chunk)) await new Promise((res) => out.once('drain', res));
+    }
+    await new Promise((res, rej) => out.end((e) => (e ? rej(e) : res())));
+  } catch (e) { out.destroy(); fs.rmSync(part, { force: true }); throw e; }
+  fs.renameSync(part, file);
+  // Windows checks the signature (the chain up to a trusted root, and that the file was not changed after signing); the signer must be Microsoft.
+  const sig = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+    `$s = Get-AuthenticodeSignature -LiteralPath ${q(file)}; [string]$s.Status + '|' + [string]$s.SignerCertificate.Subject`]).catch(() => '');
+  const cut = sig.indexOf('|'), status = cut < 0 ? sig.trim() : sig.slice(0, cut).trim(), subject = cut < 0 ? '' : sig.slice(cut + 1);
+  if (status !== 'Valid' || !/(^|,\s*)O=Microsoft Corporation(\s*,|\s*$)/.test(subject)) {
+    fs.rmSync(file, { force: true });
+    throw new Error('Nënshkrimi i skedarit vc_redist.x64.exe nuk është i Microsoft: nuk u instalua.');
+  }
+  return { file, size };
+}
+// 0 = installed, 1638 = a newer one is already there, 3010 = installed, Windows wants a restart.
+async function vcRedistInstall(inst, add) {
+  const dl = path.join(pmaDirs(inst).tools, 'downloads');
+  try {
+    add('PHP nuk niset: mungon Microsoft Visual C++ Redistributable. Po shkarkohet nga Microsoft ...');
+    const got = await vcRedistFetch(dl);
+    add('U shkarkua (' + Math.max(1, Math.round(got.size / 1048576)) + ' MB): nënshkrimi i Microsoft u verifikua.');
+    add('Po instalohet Microsoft Visual C++ Redistributable ...');
+    const code = await new Promise((resolve) => execFile(got.file, ['/install', '/quiet', '/norestart'], { windowsHide: true, timeout: 15 * 60000 }, (err) => resolve(err ? (typeof err.code === 'number' ? err.code : -1) : 0)));
+    if (![0, 1638, 3010].includes(code)) throw new Error('Instalimi i Microsoft Visual C++ Redistributable dështoi (kodi ' + code + ').' + ([5, 1602, 1603, 1625, 1730, 1925, -1].includes(code) ? ' Duhen leje administratori: hape dashboard-in si administrator ose instaloje vetë (vc_redist.x64.exe).' : ''));
+    add('Microsoft Visual C++ Redistributable u instalua.' + (code === 3010 ? ' Rinise kompjuterin që të hyjë plotësisht në fuqi.' : ''));
+    addHistory(inst, { title: 'Microsoft Visual C++ u instalua', ok: true, detail: 'PHP e kërkon për phpMyAdmin.' + (code === 3010 ? ' Rinise kompjuterin.' : '') });
+  } finally { fs.rmSync(dl, { recursive: true, force: true }); }
+}
+// PHP checked and, when only the Visual C++ runtime is missing, repaired and checked again. Returns "PHP 8.3.x".
+const vcTried = new Map(); // instance id -> when the runtime install was last tried (not again within 6 hours when it did not help)
+async function pmaPhpReady(inst, add, fix = true) {
+  try { return await pmaCheckPhp(inst); }
+  catch (e) {
+    if (!e.vc || !fix || toolsDry() || Date.now() - (vcTried.get(inst.id) || 0) < 6 * 3600000) throw e;
+    vcTried.set(inst.id, Date.now());
+    await vcRedistInstall(inst, add);
+    const v = await pmaCheckPhp(inst);
+    vcTried.delete(inst.id);
+    return v;
+  }
+}
+// The health of an installed phpMyAdmin (2.3.0): "installed" has to mean that PHP really starts. The answer is kept (6 hours when good,
+// 10 minutes when bad, so a repair shows soon) and asked again after an install; the status only reads what is kept.
+const pmaHealth = new Map();    // instance id -> { state: 'ok' | 'bad', php, error, vc, at, busy }
+const pmaRepairing = new Set(); // instance ids whose install is a repair of a broken one
+function pmaVerify(inst, { fix = true, force = false, add = () => {} } = {}) {
+  const cur = pmaHealth.get(inst.id) || {};
+  if (cur.busy) return cur.busy;
+  if (!force && cur.state && Date.now() - cur.at < (cur.state === 'ok' ? 6 * 3600000 : 600000)) return Promise.resolve(cur);
+  const busy = (async () => {
+    let next;
+    try { pmaWriteIni(inst); const php = await pmaPhpReady(inst, add, fix); next = { state: 'ok', php: php.replace(/^PHP\s+/, ''), error: '', vc: false, at: Date.now() }; }
+    catch (e) { next = { state: 'bad', php: '', error: String(e.message || e).slice(0, 300), vc: !!e.vc, at: Date.now() }; }
+    pmaHealth.set(inst.id, next);
+    return next;
+  })();
+  pmaHealth.set(inst.id, { ...cur, busy });
+  return busy;
 }
 function pmaWriteIni(inst) {
   const d = pmaDirs(inst), ext = path.join(d.php, 'ext');
@@ -1352,9 +1467,9 @@ function hrs_page(int $code, array $lines): void
 }
 $open = [
     'Hape nga dashboard-i',
-    'Hap dashboard-in e HRSystem: Veprime › Databaza › Hap databazën (phpMyAdmin).',
-    'Open it from the HRSystem dashboard: Actions › Database › Open the database (phpMyAdmin).',
-    'Otvori ga iz HRSystem dashboard-a: Akcije › Baza › Otvori bazu (phpMyAdmin).',
+    'Hap dashboard-in e HRSystem: Veprime › Databaza › Hap databazën.',
+    'Open it from the HRSystem dashboard: Actions › Database › Open the database.',
+    'Otvori ga iz HRSystem dashboard-a: Akcije › Baza › Otvori bazu.',
 ];
 if (isset($_GET['bye'])) {
     session_name($c['session']);
@@ -1491,6 +1606,7 @@ async function pmaInstall(inst, add) {
   const dl = path.join(d.tools, 'downloads');
   fs.rmSync(dl, { recursive: true, force: true });
   fs.mkdirSync(d.data, { recursive: true });
+  await pmaCloseData(inst);
   try {
     add('Po shkarkohet PHP ' + phpVer + ' ...');
     const phpZip = path.join(dl, build.file);
@@ -1518,7 +1634,10 @@ async function pmaInstall(inst, add) {
   } finally { fs.rmSync(dl, { recursive: true, force: true }); }
   pmaWriteIni(inst);
   add('Po kontrollohet PHP ...');
-  add('PHP punon: ' + await pmaCheckPhp(inst));
+  pmaHealth.delete(inst.id);
+  const ready = await pmaPhpReady(inst, add); // a missing Visual C++ runtime is installed here (signed by Microsoft), then PHP is checked again
+  add('PHP punon: ' + ready);
+  pmaHealth.set(inst.id, { state: 'ok', php: ready.replace(/^PHP\s+/, ''), error: '', vc: false, at: Date.now() });
   fs.writeFileSync(path.join(d.data, 'installed.json'), JSON.stringify({ version: pmaVer, php: phpVer, at: Date.now() }));
   add('phpMyAdmin u instalua: ' + pmaVer + ' · PHP ' + phpVer + '. Po hapet ...');
   return true;
@@ -1533,6 +1652,7 @@ async function pmaStart(inst) {
   let port = 0;
   for (let p = PMA_PORT; p <= PMA_PORT + 9 && !port; p++) if (await portFree(p)) port = p;
   if (!port) throw new Error('Portat 3510-3519 janë të zëna: phpMyAdmin nuk u nis.');
+  await pmaCloseData(inst); // before the session files and the token are written
   pmaWriteIni(inst);
   pmaWriteRunFiles(inst, port);
   pmaClearSessions(inst);
@@ -1592,7 +1712,18 @@ async function pmaOpen(inst, lang) {
     startJob(inst, 'Instalimi i phpMyAdmin', (add) => pmaInstall(inst, add));
     return { installing: true };
   }
-  const port = await pmaStart(inst);
+  // Installed, but does PHP start? (skipped while it already runs). A missing Visual C++ runtime is installed on the spot; anything else that
+  // keeps php.exe from starting is repaired by installing again (the same job as the first install).
+  if (!(pmaRun.proc && pmaRun.instId === inst.id)) {
+    const hc = await pmaVerify(inst, { force: (pmaHealth.get(inst.id) || {}).state !== 'ok' });
+    if (hc.state !== 'ok') {
+      if (hc.vc) throw new Error(hc.error);
+      logError('phpMyAdmin', new Error(hc.error));
+      startJob(inst, 'Instalimi i phpMyAdmin', (add) => { add(hc.error); add('PHP nuk niset: po instalohet përsëri.'); return pmaInstall(inst, add); });
+      return { installing: true };
+    }
+  }
+  const port = await pmaStart(inst).catch((e) => { pmaHealth.delete(inst.id); throw e; }); // a start that fails: PHP is looked at again before the next try
   const token = crypto.randomBytes(32).toString('hex');
   fs.writeFileSync(path.join(pmaDirs(inst).data, 'signon-token.json'), JSON.stringify({ hash: crypto.createHash('sha256').update(token).digest('hex'), exp: Math.floor((Date.now() + PMA_TOKEN_MS) / 1000), lang: ['sq', 'en', 'sr'].includes(lang) ? lang : 'sq' }));
   pmaRun.last = Date.now();
@@ -1604,15 +1735,34 @@ async function pmaOpen(inst, lang) {
 // Gabimet (the same message is not logged again). It only writes inside <install folder>\tools. HR_PMA_AUTO=0 turns it off (tests).
 const pmaBg = new Map();     // instance id -> the promise of the install that runs by itself (it never rejects)
 const pmaBgFail = new Map(); // instance id -> the last failure message
+const pmaRepairAt = new Map(); // instance id -> when a broken install was last installed again by itself (at most once in 6 hours)
 function pmaEnsure(inst) {
-  if (!inst.root || !inst.data || pmaBg.has(inst.id) || pmaInfo(inst).installed) return;
+  if (!inst.root || !inst.data || pmaBg.has(inst.id)) return;
   const job = jobs.get(inst.id);
   if (job && job.state === 'running') return; // e.g. the install started by the button, or a program update: next round
+  const installed = pmaInfo(inst).installed;
+  let repair = false;
+  if (installed) {
+    // 2.3.0: an installed phpMyAdmin is looked at too. PHP that does not start is repaired: the Visual C++ runtime inside pmaVerify, anything
+    // else (a damaged php.exe, a missing module) by installing again. Not while it is open and in use.
+    if (pmaRun.proc && pmaRun.instId === inst.id) return;
+    const hc = pmaHealth.get(inst.id);
+    if (!hc || !hc.state || (hc.state === 'bad' && Date.now() - hc.at >= 600000)) { pmaVerify(inst, { force: true }).then((n) => { if (n.state === 'bad') pmaEnsure(inst); }); return; }
+    if (hc.state === 'ok' || hc.vc || Date.now() - (pmaRepairAt.get(inst.id) || 0) < 6 * 3600000) return;
+    repair = true; pmaRepairAt.set(inst.id, Date.now()); pmaRepairing.add(inst.id);
+  }
   const p = pmaInstall(inst, () => {})
-    .then(() => { pmaBgFail.delete(inst.id); const i = pmaInfo(inst); addHistory(inst, { title: 'phpMyAdmin u instalua', ok: true, detail: 'phpMyAdmin ' + i.version + ' · PHP ' + i.php + '. U instalua vetë, që të jetë gati.' }); })
-    .catch((e) => { if (pmaBgFail.get(inst.id) !== e.message) logError('phpMyAdmin', e); pmaBgFail.set(inst.id, e.message); })
-    .finally(() => pmaBg.delete(inst.id));
+    .then(() => { pmaBgFail.delete(inst.id); const i = pmaInfo(inst); addHistory(inst, { title: repair ? 'phpMyAdmin u riparua' : 'phpMyAdmin u instalua', ok: true, detail: 'phpMyAdmin ' + i.version + ' · PHP ' + i.php + (repair ? '. PHP nuk nisej: u instalua përsëri vetë.' : '. U instalua vetë, që të jetë gati.') }); })
+    .catch((e) => { if (pmaBgFail.get(inst.id) !== e.message) logError('phpMyAdmin', e); pmaBgFail.set(inst.id, e.message); if (pmaInfo(inst).installed) pmaHealth.set(inst.id, { state: 'bad', php: '', error: String(e.message).slice(0, 300), vc: !!e.vc, at: Date.now() }); })
+    .finally(() => { pmaBg.delete(inst.id); pmaRepairing.delete(inst.id); });
   pmaBg.set(inst.id, p);
+}
+// What the status shows. The first look at PHP is started here when nothing is known yet (php -v, read only: no install, no repair with
+// HR_PMA_AUTO=0); the status itself never waits for it.
+function pmaStatus(inst) {
+  const info = pmaInfo(inst);
+  if (info.installed && info.health && info.health.state === 'unknown') { pmaVerify(inst, { fix: process.env.HR_PMA_AUTO !== '0' }).catch(() => {}); info.health = { state: 'checking' }; }
+  return info;
 }
 if (process.env.HR_PMA_AUTO !== '0') {
   const all = () => { try { for (const inst of instances()) pmaEnsure(inst); } catch (e) { logError('phpMyAdmin', e); } };
@@ -1694,7 +1844,7 @@ async function updateDashboard() {
     for (const c of changed) {
       const blob = await ghJson(`https://api.github.com/repos/${DASH_REPO}/git/blobs/${c.sha}`);
       const buf = Buffer.from(blob.content || '', 'base64');
-      if (gitBlobSha(buf) !== c.sha) throw new Error('Skedari ' + c.rel + ' nuk u shkarkua i plotë.');
+      if (gitBlobSha(buf) !== c.sha) throw new Error('Nuk u shkarkua i plotë skedari ' + c.rel + '.');
       files.push({ rel: c.rel, buf });
     }
     files.sort((a, b) => (a.rel === 'server.mjs') - (b.rel === 'server.mjs'));
@@ -1900,8 +2050,14 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.2.0';
+const DASH_VERSION = '2.3.0';
 const DASH_NOTES = [
+  { version: '2.3.0', date: '2026-11-12', notes: [
+    'Dashboard-i ka një pamje të re, të vetme: gjendja tani, çfarë pret prej teje, pastaj hollësitë; tabela të vërteta për backup-et, historikun dhe gabimet; menu që ngushtohet në ikona; në telefon pllaka dy në rresht. Pamjet e vjetra (Minimale, Glass, Premium, Klasike) u hoqën.',
+    'PHP për phpMyAdmin mbahet në rregull vetë: gjendja e tij shihet te Veprime; Microsoft Visual C++ që mungon instalohet vetë (i nënshkruar nga Microsoft) dhe një instalim i dëmtuar riparohet vetë.',
+    '"Si ta përdorësh" u shkrua nga e para: detyrë pas detyre, me përmbajtje dhe kërkim, në shqip, anglisht dhe serbisht.',
+    'Qasja online u hoq: dashboard-i hapet përsëri vetëm në kompjuterin ku është instaluar.',
+  ] },
   { version: '2.2.0', date: '2026-11-12', notes: [
     'Qasja online (Cilësimet): dashboard-i hapet nga larg me adresën e tunelit, vetëm me përdorues dhe fjalëkalim.',
     'Nga larg nuk lejohen phpMyAdmin, SQL, importi/kthimi dhe shkarkimi i backup-eve, çinstalimi dhe fjalëkalimet; çdo hyrje online vjen si njoftim në telefon.',
@@ -2585,7 +2741,8 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), bugsNew: bugNew.get(inst.id) || 0, offsite: offsiteOf(inst), phpmyadmin: inst.root ? pmaInfo(inst) : null, job: jobs.get(inst.id) || null };
+  const allBackups = inst.data ? listBackups(inst) : [];
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, allBackups.slice(0, 60)).map((b) => ({ ...b, check: checkBackup(inst, b) })), backupsTotal: allBackups.length, system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), bugsNew: bugNew.get(inst.id) || 0, offsite: offsiteOf(inst), phpmyadmin: inst.root ? pmaStatus(inst) : null, job: jobs.get(inst.id) || null };
 }
 
 // ---- Start with Windows (owner, 2026-10-22): the owner can stop or enable the automatic start of each part, or all at once ----
@@ -2731,154 +2888,16 @@ const send = (res, code, data, type = 'application/json') => {
   res.end(typeof data === 'string' ? data : JSON.stringify(data));
 };
 
-// ======================= Online access (v2.2.0, owner 2026-11-12: "bëje online, amo me kusht: për online duhet me i lanë user edhe password nga Cilësimet, edhe me e lidh me tunnel") =======================
-// The dashboard still LISTENS on 127.0.0.1 only. A Cloudflare tunnel on this PC sends the online address (e.g. panel-admin.butikuregina.com)
-// to this port; such a request carries Cf-Connecting-IP / Cf-Ray and the online Host. It is answered ONLY when, in Cilësimet › "Qasja online",
-// the switch is on and a username + password (scrypt hash) are set, and only after that sign-in (its own session, separate from the local
-// password). From afar the dangerous actions stay closed (phpMyAdmin, SQL, import/restore, backup download, uninstall, secrets, tokens, folders on
-// the PC, the security settings): only the allow-list below passes. Local use (127.0.0.1) is unchanged.
-const ONLINE_FILE = path.join(HERE, 'online-auth.json'); // not in the repo: self-update never touches it
-const readOnline = () => { const j = readJsonFile(ONLINE_FILE) || {}; return { on: !!j.on, host: String(j.host || ''), user: String(j.user || ''), salt: String(j.salt || ''), hash: String(j.hash || '') }; };
-const onlineReady = (o) => !!(o.on && o.host && o.user && o.salt && o.hash);
-const scryptHex = (pass, salt) => crypto.scryptSync(String(pass), Buffer.from(salt, 'hex'), 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('hex');
-const onlineSessions = new Map(); // token -> { user, ip, created, last }
-const ONLINE_IDLE_MS = 60 * 60000, ONLINE_MAX_MS = 12 * 3600000;
-const onlineFails = new Map();   // ip -> [times]
-let onlineFailsAll = [];          // every wrong try (all addresses)
-let onlineClosedUntil = 0;        // 20 wrong tries in an hour close the online sign-in for an hour
-const clientIp = (req) => String(req.headers['cf-connecting-ip'] || req.socket.remoteAddress || '').slice(0, 64);
-const isRemote = (req) => { const h = (req.headers.host || '').split(':')[0].toLowerCase(); return !!(req.headers['cf-connecting-ip'] || req.headers['cf-ray']) || (h !== '127.0.0.1' && h !== 'localhost'); };
-function onlineSession(req) {
-  const m = /(?:^|;\s*)hrsonline=([0-9a-f]{64})/.exec(req.headers.cookie || '');
-  const s = m && onlineSessions.get(m[1]);
-  if (!s) return null;
-  const now = Date.now();
-  if (now - s.last > ONLINE_IDLE_MS || now - s.created > ONLINE_MAX_MS) { onlineSessions.delete(m[1]); return null; }
-  s.last = now;
-  return { token: m[1], ...s };
-}
-// What may be done from afar (POST /api/<name>); everything else answers 403. GET: everything except the backup download and diagnostics.
-const REMOTE_POST_OK = new Set(['backup', 'backup-test', 'update', 'rollback', 'system', 'notify', 'notify-test', 'daily-report', 'auto-backup', 'dashboard-update', 'bug-status', 'unpin', 'tool-update', 'errors-clear', 'phpmyadmin-stop', 'online-logout']);
-const REMOTE_GET_BLOCKED = new Set(['/api/backup-file', '/api/diagnostics']);
-const remoteHeaders = { 'Strict-Transport-Security': 'max-age=31536000', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' };
-function noteOnline(title, msg, level) {
-  try { const inst = instances().find((i) => i.root) || instances()[0]; if (inst) { notify(inst, title, msg, level); addHistory(inst, { title, ok: level !== 'error', detail: msg }); } } catch (e) { logError('Qasja online', e); }
-}
-const ONLINE_LOGIN_HTML = `<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>HRSystem Dashboard · Hyrja</title><style>
-:root{color-scheme:light dark;--bg:#f4f5f7;--card:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#1f2937;--bad:#b91c1c}
-@media(prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--text:#e6edf3;--muted:#8b949e;--line:#30363d;--accent:#e6edf3;--bad:#f87171}button{color:#0d1117!important}}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;padding:16px}
-form{width:min(380px,100%);display:grid;gap:12px;padding:28px 24px;background:var(--card);border:1px solid var(--line);border-radius:14px}
-h1{margin:0;font-size:20px;font-weight:650;letter-spacing:-.01em}p{margin:0 0 6px;color:var(--muted);font-size:13px}
-label{font-size:13px;font-weight:600;display:grid;gap:6px}
-input{font:inherit;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text)}
-input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-button{font:inherit;font-weight:600;height:44px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;margin-top:4px}
-button:disabled{opacity:.6;cursor:default}
-#e{min-height:20px;color:var(--bad);font-size:13px}
-</style></head><body><form id="f" autocomplete="on"><h1>HRSystem Dashboard</h1><p>Hyrja online · Online sign-in · Online prijava</p>
-<label>Përdoruesi<input id="u" name="username" autocomplete="username" required maxlength="40" autofocus></label>
-<label>Fjalëkalimi<input id="p" name="password" type="password" autocomplete="current-password" required maxlength="200"></label>
-<button id="b" type="submit">Hyr</button><div id="e" role="alert"></div></form>
-<script>
-document.getElementById("f").addEventListener("submit",async function(ev){ev.preventDefault();var b=document.getElementById("b"),e=document.getElementById("e");b.disabled=true;e.textContent="";
-var r;try{r=await fetch("/online-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:document.getElementById("u").value,pass:document.getElementById("p").value})})}catch(x){r={ok:false,status:0}}
-if(r.ok){location.replace("/");return}
-e.textContent=r.status===429?"Shumë tentativa. Provo pas 15 minutash.":r.status===403?"Përdoruesi ose fjalëkalimi nuk është i saktë.":"Lidhja dështoi. Provo përsëri.";b.disabled=false;document.getElementById("p").value="";document.getElementById("p").focus()});
-</script></body></html>`;
-// Validation of the settings saved on this computer (Cilësimet › Qasja online).
-function saveOnline(body) {
-  const cur = readOnline();
-  const host = String(body.host ?? cur.host).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-  if (host && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(host)) throw new Error('Adresa online nuk është e vlefshme (p.sh. panel-admin.butikuregina.com).');
-  const user = String(body.user ?? cur.user).trim();
-  if (user && !/^[A-Za-z0-9._-]{3,40}$/.test(user)) throw new Error('Përdoruesi: 3-40 shkronja, numra, pikë, viza.');
-  let { salt, hash } = cur;
-  const pass = body.pass == null ? '' : String(body.pass);
-  if (pass) {
-    if (pass.length < 10 || pass.length > 200) throw new Error('Fjalëkalimi duhet të ketë së paku 10 shenja.');
-    if (user && pass.toLowerCase().includes(user.toLowerCase())) throw new Error('Fjalëkalimi nuk duhet ta përmbajë përdoruesin.');
-    salt = crypto.randomBytes(16).toString('hex');
-    hash = scryptHex(pass, salt);
-  }
-  const on = body.on == null ? cur.on : !!body.on;
-  if (on && !(host && user && salt && hash)) throw new Error('Për qasjen online cakto adresën, përdoruesin dhe fjalëkalimin.');
-  const next = { on, host, user, salt, hash, at: Date.now() };
-  fs.writeFileSync(ONLINE_FILE, JSON.stringify(next, null, 2));
-  // A new password, a new user, a new address or turning it off ends every online session.
-  if (pass || user !== cur.user || host !== cur.host || !on) onlineSessions.clear();
-  return { on, host, user, set: !!(salt && hash), sessions: onlineSessions.size };
-}
+// Online access (v2.2.0) was REMOVED in v2.3.0 (owner, 2026-11-12: "heke mundësinë e lidhjes online të dashboardit, boje veç kështu local"):
+// the dashboard answers only 127.0.0.1 / localhost again. The settings file 2.2.0 may have written is deleted at start.
+try { fs.rmSync(path.join(HERE, 'online-auth.json'), { force: true }); } catch { /* none */ }
 
 const server = http.createServer(async (req, res) => {
-  // This machine (127.0.0.1 / localhost), or the online address through the tunnel when "Qasja online" is on (v2.2.0). Any other Host = 403
-  // (DNS rebinding, other sites calling the API).
-  const host = (req.headers.host || '').split(':')[0].toLowerCase();
-  const remote = isRemote(req);
+  // Only this machine, only its own page: blocks DNS-rebinding and other sites calling the API (online access was removed in v2.3.0).
+  const host = (req.headers.host || '').split(':')[0];
+  if (host !== '127.0.0.1' && host !== 'localhost') return send(res, 403, { error: 'forbidden' });
   const url = new URL(req.url, 'http://x');
-  if (remote) {
-    const o = readOnline();
-    if (!onlineReady(o) || host !== o.host) return send(res, 403, { error: 'forbidden' });
-    for (const [k, v] of Object.entries(remoteHeaders)) res.setHeader(k, v);
-    const ip = clientIp(req);
-    if (req.method === 'POST' && url.pathname === '/online-login') {
-      const now = Date.now();
-      onlineFailsAll = onlineFailsAll.filter((t) => now - t < 3600000);
-      const mine = (onlineFails.get(ip) || []).filter((t) => now - t < 15 * 60000);
-      if (now < onlineClosedUntil || mine.length >= 5) return send(res, 429, { error: 'too_many' });
-      let body = '';
-      for await (const c of req) { body += c; if (body.length > 2000) break; }
-      let j = {};
-      try { j = JSON.parse(body); } catch { /* wrong */ }
-      const userOk = sameText(String(j.user || ''), o.user);
-      const passOk = sameText(scryptHex(String(j.pass || '').slice(0, 200), o.salt), o.hash); // always computed: same time for a wrong user
-      if (!userOk || !passOk) {
-        mine.push(now); onlineFails.set(ip, mine); onlineFailsAll.push(now);
-        if (onlineFailsAll.length >= 20) { onlineClosedUntil = now + 3600000; onlineFailsAll = []; noteOnline('Hyrja online u mbyll për 1 orë', '20 tentativa të gabuara brenda një ore. E fundit nga ' + ip + '.', 'error'); }
-        else if (mine.length === 5) noteOnline('Hyrje online e dështuar', '5 tentativa të gabuara nga ' + ip + ': kjo adresë pret 15 minuta.', 'warn');
-        return send(res, 403, { error: 'wrong_login' });
-      }
-      onlineFails.delete(ip);
-      for (const [t, s] of onlineSessions) if (now - s.last > ONLINE_IDLE_MS || now - s.created > ONLINE_MAX_MS) onlineSessions.delete(t);
-      if (onlineSessions.size >= 20) onlineSessions.delete(onlineSessions.keys().next().value);
-      const token = crypto.randomBytes(32).toString('hex');
-      onlineSessions.set(token, { user: o.user, ip, created: now, last: now });
-      noteOnline('Hyrje online në dashboard', 'Përdoruesi ' + o.user + ' nga ' + ip + '.', 'info');
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `hrsonline=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${ONLINE_MAX_MS / 1000}`, 'Cache-Control': 'no-store' });
-      return res.end('{"ok":true}');
-    }
-    const sess = onlineSession(req);
-    if (!sess) {
-      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/login')) return send(res, 200, ONLINE_LOGIN_HTML, 'text/html');
-      return send(res, 401, { error: 'sign_in_required' });
-    }
-    if (req.method === 'POST' && url.pathname === '/api/online-logout') {
-      if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
-      onlineSessions.delete(sess.token);
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'hrsonline=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0', 'Cache-Control': 'no-store' });
-      return res.end('{"ok":true}');
-    }
-    if (req.method === 'POST' && !(url.pathname.startsWith('/api/') && REMOTE_POST_OK.has(url.pathname.slice(5)))) return send(res, 403, { error: 'Ky veprim bëhet vetëm në kompjuterin ku është instaluar dashboard-i.' });
-    if (req.method === 'GET' && REMOTE_GET_BLOCKED.has(url.pathname)) return send(res, 403, { error: 'Ky veprim bëhet vetëm në kompjuterin ku është instaluar dashboard-i.' });
-    if (req.method !== 'GET' && req.method !== 'POST') return send(res, 405, { error: 'method' });
-  } else if (host !== '127.0.0.1' && host !== 'localhost') return send(res, 403, { error: 'forbidden' });
   try {
-    if (req.method === 'GET' && url.pathname === '/api/online') {
-      const o = readOnline();
-      return send(res, 200, { remote, on: o.on, host: o.host, user: remote ? '' : o.user, set: !!(o.salt && o.hash), ready: onlineReady(o), sessions: remote ? undefined : onlineSessions.size });
-    }
-    if (!remote && req.method === 'POST' && (url.pathname === '/api/online-settings' || url.pathname === '/api/online-logout-all')) {
-      if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
-      if (!authed(req)) return send(res, 401, { error: 'sign_in_required' });
-      if (url.pathname === '/api/online-logout-all') { const n = onlineSessions.size; onlineSessions.clear(); return send(res, 200, { ok: true, ended: n }); }
-      let body = '';
-      for await (const c of req) { body += c; if (body.length > 4000) return send(res, 413, { error: 'too_large' }); }
-      let j;
-      try { j = JSON.parse(body || '{}'); } catch { return send(res, 400, { error: 'JSON i gabuar.' }); }
-      const r = saveOnline(j);
-      try { const inst = instances().find((i) => i.root); if (inst) addHistory(inst, { title: 'Qasja online u ndryshua', ok: true, detail: (r.on ? 'Ndezur' : 'Fikur') + (r.host ? ' · ' + r.host : '') + (r.user ? ' · ' + r.user : '') + (j.pass ? ' · fjalëkalim i ri' : '') }); } catch { /* history only */ }
-      return send(res, 200, r);
-    }
     if (req.method === 'POST' && url.pathname === '/login') {
       const now = Date.now();
       failures = failures.filter((t) => now - t < 60000);
@@ -2891,8 +2910,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/`, 'Cache-Control': 'no-store' });
       return res.end('{"ok":true}');
     }
-    if (!remote && !authed(req)) { // an online request has passed its own sign-in above
-      if (req.method === 'GET' && url.pathname === '/') return send(res, 200, LOGIN_HTML, 'text/html');
+    if (!authed(req)) {
+      if (req.method === 'GET' && url.pathname === '/') return send(res, 200, LOGIN_HTML.replace('__FORGOT__', process.env.DASHBOARD_KEY ? 'env' : 'file'), 'text/html');
       return send(res, 401, { error: 'sign_in_required' });
     }
     if (req.method === 'GET' && url.pathname === '/') {
@@ -3069,7 +3088,7 @@ const server = http.createServer(async (req, res) => {
         if (SIGN_IN) {
           const now = Date.now();
           failures = failures.filter((t) => now - t < 60000);
-          if (failures.length >= 5) return send(res, 429, { error: 'Shumë provime. Prit një minutë.' });
+          if (failures.length >= 5) return send(res, 429, { error: 'Shumë tentativa. Prit një minutë.' });
           if (!sameText(String(j.current || ''), LOGIN_KEY)) { failures.push(now); return send(res, 403, { error: 'Fjalëkalimi aktual nuk është i saktë.' }); }
         }
         try { setDashboardPassword(j.password); } catch (e) { return send(res, 400, { error: e.message }); }
@@ -3104,7 +3123,7 @@ const server = http.createServer(async (req, res) => {
         for await (const c of req) { body += c; if (body.length > 2000) break; }
         let given = '';
         try { given = String(JSON.parse(body).token || '').trim(); } catch { /* wrong body */ }
-        if (!/^[A-Za-z0-9_]{20,}$/.test(given)) return send(res, 400, { error: 'Tokeni nuk duket i sakte (ngjite sic e jep GitHub).' });
+        if (!/^[A-Za-z0-9_]{20,}$/.test(given)) return send(res, 400, { error: 'Tokeni nuk duket i saktë (ngjite siç e jep GitHub).' });
         const common = path.join(inst.root, 'hr-common.ps1');
         if (!fs.existsSync(common)) return send(res, 400, { error: 'hr-common.ps1 nuk u gjet te ' + inst.root });
         await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `. ${q(common)}; Save-GitHubToken $env:HR_NEW_TOKEN`], { HR_NEW_TOKEN: given, HRSYSTEM_ROOT: inst.root, HRSYSTEM_DATA: inst.data });
@@ -3186,17 +3205,17 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/import') {
         const chunks = [];
         let size = 0;
-        for await (const c of req) { size += c.length; if (size > 300 * 1024 * 1024) return send(res, 413, { error: 'Skedari eshte shume i madh (max 300 MB).' }); chunks.push(c); }
+        for await (const c of req) { size += c.length; if (size > 300 * 1024 * 1024) return send(res, 413, { error: 'Skedari është shumë i madh (maksimumi 300 MB).' }); chunks.push(c); }
         const name = path.basename(url.searchParams.get('name') || 'databaza.sql');
-        if (!/\.sql$/i.test(name)) return send(res, 400, { error: 'Zgjidh nje skedar .sql' });
+        if (!/\.sql$/i.test(name)) return send(res, 400, { error: 'Zgjidh një skedar .sql.' });
         return send(res, 200, runImport(inst, name, Buffer.concat(chunks).toString('utf8')));
       }
       if (url.pathname === '/api/sql') {
         const chunks = [];
         let size = 0;
-        for await (const c of req) { size += c.length; if (size > 50 * 1024 * 1024) return send(res, 413, { error: 'Skedari eshte shume i madh (max 50 MB).' }); chunks.push(c); }
+        for await (const c of req) { size += c.length; if (size > 50 * 1024 * 1024) return send(res, 413, { error: 'Skedari është shumë i madh (maksimumi 50 MB).' }); chunks.push(c); }
         const name = path.basename(url.searchParams.get('name') || 'skedar.sql');
-        if (!/\.sql$/i.test(name)) return send(res, 400, { error: 'Zgjidh nje skedar .sql' });
+        if (!/\.sql$/i.test(name)) return send(res, 400, { error: 'Zgjidh një skedar .sql.' });
         return send(res, 200, runSql(inst, name, Buffer.concat(chunks).toString('utf8')));
       }
     }

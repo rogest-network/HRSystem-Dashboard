@@ -1474,6 +1474,41 @@ function autoHide(box, key) {
 
 // ---- Language of the whole dashboard (sq default, en, sr): [Albanian, English, Serbian]. Exact strings first, then longer fragments (so dynamic texts are translated too).
 const TR_LIST = [
+  // Qasja online (2.2.0)
+  ["Qasja online", "Online access", "Online pristup"],
+  ["Je i lidhur nga larg (online). Cilësimet e qasjes online, phpMyAdmin, SQL, importi dhe kthimi i backup-it, shkarkimi i backup-eve, çinstalimi dhe fjalëkalimet ndryshohen vetëm në kompjuterin ku është instaluar dashboard-i.", "You are connected from afar (online). The online access settings, phpMyAdmin, SQL, backup import and restore, backup downloads, uninstall and passwords are changed only on the computer where the dashboard is installed.", "Povezan si na daljinu (online). Podešavanja online pristupa, phpMyAdmin, SQL, uvoz i vraćanje backup-a, preuzimanje backup-a, deinstalacija i lozinke menjaju se samo na računaru gde je dashboard instaliran."],
+  ["Adresa online", "Online address", "Online adresa"],
+  ["p.sh. panel-admin.butikuregina.com", "e.g. panel-admin.butikuregina.com", "npr. panel-admin.butikuregina.com"],
+  ["Përdoruesi", "Username", "Korisnik"],
+  ["3-40 shkronja ose numra", "3-40 letters or digits", "3-40 slova ili cifara"],
+  ["Fjalëkalimi i ri (bosh = mbetet i njëjti)", "New password (empty = keep the same)", "Nova lozinka (prazno = ostaje ista)"],
+  ["Fjalëkalimi", "Password", "Lozinka"],
+  ["së paku 10 shenja", "at least 10 characters", "najmanje 10 znakova"],
+  ["Përsërit fjalëkalimin", "Repeat the password", "Ponovi lozinku"],
+  ["Mungon adresa, përdoruesi ose fjalëkalimi.", "The address, username or password is missing.", "Nedostaje adresa, korisnik ili lozinka."],
+  ["Fikur: dashboard-i hapet vetëm në këtë kompjuter.", "Off: the dashboard opens only on this computer.", "Isključeno: dashboard se otvara samo na ovom računaru."],
+  ["sesione të hapura", "open sessions", "otvorene sesije"],
+  ["Ruaj qasjen online", "Save online access", "Sačuvaj online pristup"],
+  ["GABIM: fjalëkalimet nuk janë njësoj.", "ERROR: the passwords do not match.", "GREŠKA: lozinke se ne poklapaju."],
+  ["GABIM: cakto fjalëkalimin.", "ERROR: set the password.", "GREŠKA: postavi lozinku."],
+  ["Qasja online u ndez", "Online access was turned on", "Online pristup je uključen"],
+  ["Qasja online u ruajt (fikur).", "Online access was saved (off).", "Online pristup je sačuvan (isključen)."],
+  ["Mbyll të gjitha sesionet online", "End all online sessions", "Zatvori sve online sesije"],
+  ["Sesionet online u mbyllën.", "The online sessions were ended.", "Online sesije su zatvorene."],
+  ["Hap dashboard-in nga larg me adresën e tunelit të këtij kompjuteri. Pa përdorues dhe fjalëkalim nuk hapet. Nga larg nuk lejohen: phpMyAdmin, SQL, importi dhe kthimi i backup-it, shkarkimi i backup-eve, çinstalimi, fjalëkalimet. Për çdo hyrje online vjen njoftim në telefon.", "Open the dashboard from afar at the tunnel address of this computer. It does not open without a username and password. Not allowed from afar: phpMyAdmin, SQL, backup import and restore, backup downloads, uninstall, passwords. Every online sign-in sends a message to the phone.", "Otvori dashboard na daljinu adresom tunela ovog računara. Ne otvara se bez korisnika i lozinke. Na daljinu nisu dozvoljeni: phpMyAdmin, SQL, uvoz i vraćanje backup-a, preuzimanje backup-a, deinstalacija, lozinke. Svaka online prijava šalje poruku na telefon."],
+  ["Lejo qasjen online", "Allow online access", "Dozvoli online pristup"],
+  ["Ky veprim bëhet vetëm në kompjuterin ku është instaluar dashboard-i.", "This action is done only on the computer where the dashboard is installed.", "Ova radnja se radi samo na računaru gde je dashboard instaliran."],
+  ["Adresa online nuk është e vlefshme (p.sh. panel-admin.butikuregina.com).", "The online address is not valid (e.g. panel-admin.butikuregina.com).", "Online adresa nije ispravna (npr. panel-admin.butikuregina.com)."],
+  ["Përdoruesi: 3-40 shkronja, numra, pikë, viza.", "Username: 3-40 letters, digits, dots, dashes.", "Korisnik: 3-40 slova, cifara, tačaka, crtica."],
+  ["Fjalëkalimi duhet të ketë së paku 10 shenja.", "The password must have at least 10 characters.", "Lozinka mora imati najmanje 10 znakova."],
+  ["Fjalëkalimi nuk duhet ta përmbajë përdoruesin.", "The password must not contain the username.", "Lozinka ne sme sadržati korisnika."],
+  ["Për qasjen online cakto adresën, përdoruesin dhe fjalëkalimin.", "For online access set the address, username and password.", "Za online pristup postavi adresu, korisnika i lozinku."],
+  ["Hyrje online në dashboard", "Online sign-in to the dashboard", "Online prijava na dashboard"],
+  ["Hyrje online e dështuar", "Failed online sign-in", "Neuspela online prijava"],
+  ["Hyrja online u mbyll për 1 orë", "Online sign-in closed for 1 hour", "Online prijava zatvorena na 1 sat"],
+  ["Qasja online u ndryshua", "Online access was changed", "Online pristup je promenjen"],
+  ["Qasja online (Cilësimet): dashboard-i hapet nga larg me adresën e tunelit, vetëm me përdorues dhe fjalëkalim.", "Online access (Settings): the dashboard opens from afar at the tunnel address, only with a username and password.", "Online pristup (Podešavanja): dashboard se otvara na daljinu adresom tunela, samo sa korisnikom i lozinkom."],
+  ["Nga larg nuk lejohen phpMyAdmin, SQL, importi/kthimi dhe shkarkimi i backup-eve, çinstalimi dhe fjalëkalimet; çdo hyrje online vjen si njoftim në telefon.", "From afar phpMyAdmin, SQL, backup import/restore and download, uninstall and passwords are not allowed; every online sign-in arrives as a phone message.", "Na daljinu nisu dozvoljeni phpMyAdmin, SQL, uvoz/vraćanje i preuzimanje backup-a, deinstalacija i lozinke; svaka online prijava stiže kao poruka na telefon."],
   ["Pastrim i brendshëm: dashboard-i njeh vetëm skedarin e sotëm të versionit (HRSystem-<versioni>.zip) dhe MySQL 8.4; emrat e vjetër u hoqën.", "Internal cleanup: the dashboard knows only today's version file (HRSystem-<version>.zip) and MySQL 8.4; the old names are gone.", "Interno čišćenje: dashboard poznaje samo današnju datoteku verzije (HRSystem-<verzija>.zip) i MySQL 8.4; stari nazivi su uklonjeni."],
   ["Pas çdo përditësimi të programit kontrollohet pamja (CSS-ja e ndërtuar): nëse del e prishur, kthehet vetë versioni i mëparshëm dhe përditësimet automatike ndalen deri në një version më të ri.", "After every program update the look (the built CSS) is checked: if it is broken, the previous version comes back by itself and automatic updates stop until a newer version.", "Posle svakog ažuriranja programa proverava se izgled (izgrađeni CSS): ako je pokvaren, prethodna verzija se sama vraća i automatska ažuriranja staju do novije verzije."],
   ["Kontrolli pas përditësimit: CSS-ja e versionit të ri është e prishur. Po kthehet versioni i mëparshëm...", "Check after the update: the CSS of the new version is broken. Going back to the previous version...", "Provera posle ažuriranja: CSS nove verzije je pokvaren. Vraća se prethodna verzija..."],
@@ -2252,7 +2287,55 @@ function settingsBody() {
     el('div', { class: 'tiles' }, contactLink('phone', 'WhatsApp', '+383 44 508 769', 'https://wa.me/38344508769'), contactLink('mail', 'Email', 'rogestnetwork@gmail.com', 'mailto:rogestnetwork@gmail.com')));
   const reset = el('button', { type: 'button', class: 'btn ghost' }, L.reset);
   reset.onclick = () => { for (const k of ['theme', 'textsize', 'contrast', 'motion', 'font', 'links', 'spacing', 'targets', 'cb', 'focus', 'toastStay']) store.set(k, k === 'theme' ? 'system' : '0'); store.set('look', 'premium'); if (store.get('pause', '0') === '1') setPause(false); applyPrefs(); render(); };
-  return el('div', { class: 'settings' }, el('div', { class: 'grid2' }, el('div', { class: 'stack' }, langCard, lookCard, securityCard), el('div', { class: 'stack' }, accessCard, extrasCard, contactCard)), el('div', { class: 'row' }, reset));
+  return el('div', { class: 'settings' }, el('div', { class: 'grid2' }, el('div', { class: 'stack' }, langCard, lookCard, securityCard, onlineCard()), el('div', { class: 'stack' }, accessCard, extrasCard, contactCard)), el('div', { class: 'row' }, reset));
+}
+// Qasja online (v2.2.0): the online address (a tunnel on this PC sends it here), a username and a password; the switch works only when all three
+// are set. Changed only on this computer; from afar the card only says it is online and offers "Dil".
+function onlineCard() {
+  const o = state.online || {};
+  const box = el('div', { class: 'card' }, el('h2', {}, 'Qasja online'));
+  if (o.remote) {
+    const out = el('button', { type: 'button', class: 'btn ghost' }, 'Dil nga dashboard-i');
+    out.onclick = async () => { await fetch('/api/online-logout?id=' + encodeURIComponent(state.cur), { method: 'POST', headers: { 'X-Manager-Key': KEY } }).catch(() => {}); location.replace('/'); };
+    box.append(el('p', { class: 'desc', style: 'margin:0 0 10px' }, 'Je i lidhur nga larg (online). Cilësimet e qasjes online, phpMyAdmin, SQL, importi dhe kthimi i backup-it, shkarkimi i backup-eve, çinstalimi dhe fjalëkalimet ndryshohen vetëm në kompjuterin ku është instaluar dashboard-i.'), el('div', { class: 'row' }, out));
+    return box;
+  }
+  const input = (label, type, value, autocomplete, placeholder) => el('label', { style: 'display:grid;gap:6px;font-weight:600;font-size:13px' }, label,
+    el('input', { type, value: value || '', autocomplete, placeholder: placeholder || '', 'aria-label': label, style: 'font:inherit;min-height:44px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)' }));
+  const hostL = input('Adresa online', 'text', o.host, 'off', 'p.sh. panel-admin.butikuregina.com');
+  const userL = input('Përdoruesi', 'text', o.user, 'username', '3-40 shkronja ose numra');
+  const passL = input(o.set ? 'Fjalëkalimi i ri (bosh = mbetet i njëjti)' : 'Fjalëkalimi', 'password', '', 'new-password', 'së paku 10 shenja');
+  const pass2L = input('Përsërit fjalëkalimin', 'password', '', 'new-password', '');
+  const [hostI, userI, passI, pass2I] = [hostL, userL, passL, pass2L].map((l) => l.querySelector('input'));
+  const onI = el('input', { type: 'checkbox' }); onI.checked = !!o.on;
+  const status = el('p', { class: 'desc', role: 'status', style: 'margin:0' },
+    o.ready ? 'Online: https://' + o.host + ' · sesione të hapura: ' + (o.sessions || 0)
+      : o.on ? 'Mungon adresa, përdoruesi ose fjalëkalimi.' : 'Fikur: dashboard-i hapet vetëm në këtë kompjuter.');
+  const save = el('button', { type: 'button', class: 'btn' }, 'Ruaj qasjen online');
+  save.onclick = async () => {
+    if (passI.value !== pass2I.value) { toast('GABIM: fjalëkalimet nuk janë njësoj.', true); return pass2I.focus(); }
+    if (onI.checked && !o.set && !passI.value) { toast('GABIM: cakto fjalëkalimin.', true); return passI.focus(); }
+    save.disabled = true;
+    try {
+      const r = await fetch('/api/online-settings', { method: 'POST', headers: { 'X-Manager-Key': KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ host: hostI.value, user: userI.value, pass: passI.value || null, on: onI.checked }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Gabim');
+      toast(j.on ? 'Qasja online u ndez: https://' + j.host : 'Qasja online u ruajt (fikur).');
+      await loadOnline(); render();
+    } catch (e) { toast('GABIM: ' + e.message, true); }
+    save.disabled = false;
+  };
+  const endAll = el('button', { type: 'button', class: 'btn ghost' }, 'Mbyll të gjitha sesionet online');
+  endAll.onclick = async () => { const r = await fetch('/api/online-logout-all', { method: 'POST', headers: { 'X-Manager-Key': KEY } }).catch(() => null); if (r && r.ok) { toast('Sesionet online u mbyllën.'); await loadOnline(); render(); } };
+  box.append(
+    el('p', { class: 'desc', style: 'margin:0 0 12px' }, 'Hap dashboard-in nga larg me adresën e tunelit të këtij kompjuteri. Pa përdorues dhe fjalëkalim nuk hapet. Nga larg nuk lejohen: phpMyAdmin, SQL, importi dhe kthimi i backup-it, shkarkimi i backup-eve, çinstalimi, fjalëkalimet. Për çdo hyrje online vjen njoftim në telefon.'),
+    el('div', { style: 'display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))' }, hostL, userL, passL, pass2L),
+    el('label', { class: 'sw', style: 'margin:14px 0 8px' }, onI, el('i'), 'Lejo qasjen online'),
+    status,
+    el('div', { class: 'row', style: 'margin-top:12px;flex-wrap:wrap' }, save, o.sessions ? endAll : ''));
+  return box;
+}
+async function loadOnline() {
+  try { state.online = await (await fetch('/api/online', { cache: 'no-store' })).json(); } catch { state.online = state.online || {}; }
 }
 applyPrefs();
 
@@ -3546,7 +3629,9 @@ async function load(quiet) {
   finally { loading = false; if (again) { again = false; load(); } }
 }
 $('boottext').textContent = t('Po hapet dashboard-i...');
-load();
+// Online (v2.2.0): an expired online session answers 401: back to the online sign-in page instead of an empty dashboard.
+loadOnline().then(() => { if (state.online && state.online.remote) document.documentElement.classList.add('remote'); load(); });
+{ const f0 = window.fetch; window.fetch = async (...a) => { const r = await f0(...a); if (r.status === 401 && state.online && state.online.remote) location.replace('/'); return r; }; }
 startLive();
 // Refresh every 30 s, but not while the tab is hidden; coming back to the tab refreshes at once.
 setInterval(() => { if (!paused() && !document.hidden && !running().length) load(true); }, 30000);

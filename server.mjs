@@ -1900,8 +1900,12 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.0.6';
+const DASH_VERSION = '2.2.0';
 const DASH_NOTES = [
+  { version: '2.2.0', date: '2026-11-12', notes: [
+    'Qasja online (Cilësimet): dashboard-i hapet nga larg me adresën e tunelit, vetëm me përdorues dhe fjalëkalim.',
+    'Nga larg nuk lejohen phpMyAdmin, SQL, importi/kthimi dhe shkarkimi i backup-eve, çinstalimi dhe fjalëkalimet; çdo hyrje online vjen si njoftim në telefon.',
+  ] },
   { version: '2.0.6', date: '2026-11-12', notes: [
     'phpMyAdmin instalohet vetë në sfond sapo niset dashboard-i: "Hap databazën" e hap menjëherë, pa pritur instalimin.',
   ] },
@@ -2727,12 +2731,154 @@ const send = (res, code, data, type = 'application/json') => {
   res.end(typeof data === 'string' ? data : JSON.stringify(data));
 };
 
+// ======================= Online access (v2.2.0, owner 2026-11-12: "bëje online, amo me kusht: për online duhet me i lanë user edhe password nga Cilësimet, edhe me e lidh me tunnel") =======================
+// The dashboard still LISTENS on 127.0.0.1 only. A Cloudflare tunnel on this PC sends the online address (e.g. panel-admin.butikuregina.com)
+// to this port; such a request carries Cf-Connecting-IP / Cf-Ray and the online Host. It is answered ONLY when, in Cilësimet › "Qasja online",
+// the switch is on and a username + password (scrypt hash) are set, and only after that sign-in (its own session, separate from the local
+// password). From afar the dangerous actions stay closed (phpMyAdmin, SQL, import/restore, backup download, uninstall, secrets, tokens, folders on
+// the PC, the security settings): only the allow-list below passes. Local use (127.0.0.1) is unchanged.
+const ONLINE_FILE = path.join(HERE, 'online-auth.json'); // not in the repo: self-update never touches it
+const readOnline = () => { const j = readJsonFile(ONLINE_FILE) || {}; return { on: !!j.on, host: String(j.host || ''), user: String(j.user || ''), salt: String(j.salt || ''), hash: String(j.hash || '') }; };
+const onlineReady = (o) => !!(o.on && o.host && o.user && o.salt && o.hash);
+const scryptHex = (pass, salt) => crypto.scryptSync(String(pass), Buffer.from(salt, 'hex'), 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }).toString('hex');
+const onlineSessions = new Map(); // token -> { user, ip, created, last }
+const ONLINE_IDLE_MS = 60 * 60000, ONLINE_MAX_MS = 12 * 3600000;
+const onlineFails = new Map();   // ip -> [times]
+let onlineFailsAll = [];          // every wrong try (all addresses)
+let onlineClosedUntil = 0;        // 20 wrong tries in an hour close the online sign-in for an hour
+const clientIp = (req) => String(req.headers['cf-connecting-ip'] || req.socket.remoteAddress || '').slice(0, 64);
+const isRemote = (req) => { const h = (req.headers.host || '').split(':')[0].toLowerCase(); return !!(req.headers['cf-connecting-ip'] || req.headers['cf-ray']) || (h !== '127.0.0.1' && h !== 'localhost'); };
+function onlineSession(req) {
+  const m = /(?:^|;\s*)hrsonline=([0-9a-f]{64})/.exec(req.headers.cookie || '');
+  const s = m && onlineSessions.get(m[1]);
+  if (!s) return null;
+  const now = Date.now();
+  if (now - s.last > ONLINE_IDLE_MS || now - s.created > ONLINE_MAX_MS) { onlineSessions.delete(m[1]); return null; }
+  s.last = now;
+  return { token: m[1], ...s };
+}
+// What may be done from afar (POST /api/<name>); everything else answers 403. GET: everything except the backup download and diagnostics.
+const REMOTE_POST_OK = new Set(['backup', 'backup-test', 'update', 'rollback', 'system', 'notify', 'notify-test', 'daily-report', 'auto-backup', 'dashboard-update', 'bug-status', 'unpin', 'tool-update', 'errors-clear', 'phpmyadmin-stop', 'online-logout']);
+const REMOTE_GET_BLOCKED = new Set(['/api/backup-file', '/api/diagnostics']);
+const remoteHeaders = { 'Strict-Transport-Security': 'max-age=31536000', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' };
+function noteOnline(title, msg, level) {
+  try { const inst = instances().find((i) => i.root) || instances()[0]; if (inst) { notify(inst, title, msg, level); addHistory(inst, { title, ok: level !== 'error', detail: msg }); } } catch (e) { logError('Qasja online', e); }
+}
+const ONLINE_LOGIN_HTML = `<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>HRSystem Dashboard · Hyrja</title><style>
+:root{color-scheme:light dark;--bg:#f4f5f7;--card:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#1f2937;--bad:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1117;--card:#161b22;--text:#e6edf3;--muted:#8b949e;--line:#30363d;--accent:#e6edf3;--bad:#f87171}button{color:#0d1117!important}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;padding:16px}
+form{width:min(380px,100%);display:grid;gap:12px;padding:28px 24px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+h1{margin:0;font-size:20px;font-weight:650;letter-spacing:-.01em}p{margin:0 0 6px;color:var(--muted);font-size:13px}
+label{font-size:13px;font-weight:600;display:grid;gap:6px}
+input{font:inherit;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:600;height:44px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;margin-top:4px}
+button:disabled{opacity:.6;cursor:default}
+#e{min-height:20px;color:var(--bad);font-size:13px}
+</style></head><body><form id="f" autocomplete="on"><h1>HRSystem Dashboard</h1><p>Hyrja online · Online sign-in · Online prijava</p>
+<label>Përdoruesi<input id="u" name="username" autocomplete="username" required maxlength="40" autofocus></label>
+<label>Fjalëkalimi<input id="p" name="password" type="password" autocomplete="current-password" required maxlength="200"></label>
+<button id="b" type="submit">Hyr</button><div id="e" role="alert"></div></form>
+<script>
+document.getElementById("f").addEventListener("submit",async function(ev){ev.preventDefault();var b=document.getElementById("b"),e=document.getElementById("e");b.disabled=true;e.textContent="";
+var r;try{r=await fetch("/online-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:document.getElementById("u").value,pass:document.getElementById("p").value})})}catch(x){r={ok:false,status:0}}
+if(r.ok){location.replace("/");return}
+e.textContent=r.status===429?"Shumë tentativa. Provo pas 15 minutash.":r.status===403?"Përdoruesi ose fjalëkalimi nuk është i saktë.":"Lidhja dështoi. Provo përsëri.";b.disabled=false;document.getElementById("p").value="";document.getElementById("p").focus()});
+</script></body></html>`;
+// Validation of the settings saved on this computer (Cilësimet › Qasja online).
+function saveOnline(body) {
+  const cur = readOnline();
+  const host = String(body.host ?? cur.host).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  if (host && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(host)) throw new Error('Adresa online nuk është e vlefshme (p.sh. panel-admin.butikuregina.com).');
+  const user = String(body.user ?? cur.user).trim();
+  if (user && !/^[A-Za-z0-9._-]{3,40}$/.test(user)) throw new Error('Përdoruesi: 3-40 shkronja, numra, pikë, viza.');
+  let { salt, hash } = cur;
+  const pass = body.pass == null ? '' : String(body.pass);
+  if (pass) {
+    if (pass.length < 10 || pass.length > 200) throw new Error('Fjalëkalimi duhet të ketë së paku 10 shenja.');
+    if (user && pass.toLowerCase().includes(user.toLowerCase())) throw new Error('Fjalëkalimi nuk duhet ta përmbajë përdoruesin.');
+    salt = crypto.randomBytes(16).toString('hex');
+    hash = scryptHex(pass, salt);
+  }
+  const on = body.on == null ? cur.on : !!body.on;
+  if (on && !(host && user && salt && hash)) throw new Error('Për qasjen online cakto adresën, përdoruesin dhe fjalëkalimin.');
+  const next = { on, host, user, salt, hash, at: Date.now() };
+  fs.writeFileSync(ONLINE_FILE, JSON.stringify(next, null, 2));
+  // A new password, a new user, a new address or turning it off ends every online session.
+  if (pass || user !== cur.user || host !== cur.host || !on) onlineSessions.clear();
+  return { on, host, user, set: !!(salt && hash), sessions: onlineSessions.size };
+}
+
 const server = http.createServer(async (req, res) => {
-  // Only this machine, only its own page: blocks DNS-rebinding and other sites calling the API.
-  const host = (req.headers.host || '').split(':')[0];
-  if (host !== '127.0.0.1' && host !== 'localhost') return send(res, 403, { error: 'forbidden' });
+  // This machine (127.0.0.1 / localhost), or the online address through the tunnel when "Qasja online" is on (v2.2.0). Any other Host = 403
+  // (DNS rebinding, other sites calling the API).
+  const host = (req.headers.host || '').split(':')[0].toLowerCase();
+  const remote = isRemote(req);
   const url = new URL(req.url, 'http://x');
+  if (remote) {
+    const o = readOnline();
+    if (!onlineReady(o) || host !== o.host) return send(res, 403, { error: 'forbidden' });
+    for (const [k, v] of Object.entries(remoteHeaders)) res.setHeader(k, v);
+    const ip = clientIp(req);
+    if (req.method === 'POST' && url.pathname === '/online-login') {
+      const now = Date.now();
+      onlineFailsAll = onlineFailsAll.filter((t) => now - t < 3600000);
+      const mine = (onlineFails.get(ip) || []).filter((t) => now - t < 15 * 60000);
+      if (now < onlineClosedUntil || mine.length >= 5) return send(res, 429, { error: 'too_many' });
+      let body = '';
+      for await (const c of req) { body += c; if (body.length > 2000) break; }
+      let j = {};
+      try { j = JSON.parse(body); } catch { /* wrong */ }
+      const userOk = sameText(String(j.user || ''), o.user);
+      const passOk = sameText(scryptHex(String(j.pass || '').slice(0, 200), o.salt), o.hash); // always computed: same time for a wrong user
+      if (!userOk || !passOk) {
+        mine.push(now); onlineFails.set(ip, mine); onlineFailsAll.push(now);
+        if (onlineFailsAll.length >= 20) { onlineClosedUntil = now + 3600000; onlineFailsAll = []; noteOnline('Hyrja online u mbyll për 1 orë', '20 tentativa të gabuara brenda një ore. E fundit nga ' + ip + '.', 'error'); }
+        else if (mine.length === 5) noteOnline('Hyrje online e dështuar', '5 tentativa të gabuara nga ' + ip + ': kjo adresë pret 15 minuta.', 'warn');
+        return send(res, 403, { error: 'wrong_login' });
+      }
+      onlineFails.delete(ip);
+      for (const [t, s] of onlineSessions) if (now - s.last > ONLINE_IDLE_MS || now - s.created > ONLINE_MAX_MS) onlineSessions.delete(t);
+      if (onlineSessions.size >= 20) onlineSessions.delete(onlineSessions.keys().next().value);
+      const token = crypto.randomBytes(32).toString('hex');
+      onlineSessions.set(token, { user: o.user, ip, created: now, last: now });
+      noteOnline('Hyrje online në dashboard', 'Përdoruesi ' + o.user + ' nga ' + ip + '.', 'info');
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `hrsonline=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${ONLINE_MAX_MS / 1000}`, 'Cache-Control': 'no-store' });
+      return res.end('{"ok":true}');
+    }
+    const sess = onlineSession(req);
+    if (!sess) {
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/login')) return send(res, 200, ONLINE_LOGIN_HTML, 'text/html');
+      return send(res, 401, { error: 'sign_in_required' });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/online-logout') {
+      if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
+      onlineSessions.delete(sess.token);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'hrsonline=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0', 'Cache-Control': 'no-store' });
+      return res.end('{"ok":true}');
+    }
+    if (req.method === 'POST' && !(url.pathname.startsWith('/api/') && REMOTE_POST_OK.has(url.pathname.slice(5)))) return send(res, 403, { error: 'Ky veprim bëhet vetëm në kompjuterin ku është instaluar dashboard-i.' });
+    if (req.method === 'GET' && REMOTE_GET_BLOCKED.has(url.pathname)) return send(res, 403, { error: 'Ky veprim bëhet vetëm në kompjuterin ku është instaluar dashboard-i.' });
+    if (req.method !== 'GET' && req.method !== 'POST') return send(res, 405, { error: 'method' });
+  } else if (host !== '127.0.0.1' && host !== 'localhost') return send(res, 403, { error: 'forbidden' });
   try {
+    if (req.method === 'GET' && url.pathname === '/api/online') {
+      const o = readOnline();
+      return send(res, 200, { remote, on: o.on, host: o.host, user: remote ? '' : o.user, set: !!(o.salt && o.hash), ready: onlineReady(o), sessions: remote ? undefined : onlineSessions.size });
+    }
+    if (!remote && req.method === 'POST' && (url.pathname === '/api/online-settings' || url.pathname === '/api/online-logout-all')) {
+      if (req.headers['x-manager-key'] !== SESSION_KEY) return send(res, 403, { error: 'forbidden' });
+      if (!authed(req)) return send(res, 401, { error: 'sign_in_required' });
+      if (url.pathname === '/api/online-logout-all') { const n = onlineSessions.size; onlineSessions.clear(); return send(res, 200, { ok: true, ended: n }); }
+      let body = '';
+      for await (const c of req) { body += c; if (body.length > 4000) return send(res, 413, { error: 'too_large' }); }
+      let j;
+      try { j = JSON.parse(body || '{}'); } catch { return send(res, 400, { error: 'JSON i gabuar.' }); }
+      const r = saveOnline(j);
+      try { const inst = instances().find((i) => i.root); if (inst) addHistory(inst, { title: 'Qasja online u ndryshua', ok: true, detail: (r.on ? 'Ndezur' : 'Fikur') + (r.host ? ' · ' + r.host : '') + (r.user ? ' · ' + r.user : '') + (j.pass ? ' · fjalëkalim i ri' : '') }); } catch { /* history only */ }
+      return send(res, 200, r);
+    }
     if (req.method === 'POST' && url.pathname === '/login') {
       const now = Date.now();
       failures = failures.filter((t) => now - t < 60000);
@@ -2745,7 +2891,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `mgr=${COOKIE}; HttpOnly; SameSite=Strict; Path=/`, 'Cache-Control': 'no-store' });
       return res.end('{"ok":true}');
     }
-    if (!authed(req)) {
+    if (!remote && !authed(req)) { // an online request has passed its own sign-in above
       if (req.method === 'GET' && url.pathname === '/') return send(res, 200, LOGIN_HTML, 'text/html');
       return send(res, 401, { error: 'sign_in_required' });
     }

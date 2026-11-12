@@ -1214,7 +1214,7 @@ function pmaInfo(inst) {
   const meta = readJsonFile(path.join(d.data, 'installed.json')) || {};
   const installed = !!meta.version && fs.existsSync(path.join(d.php, 'php.exe')) && fs.existsSync(path.join(d.pma, 'index.php'));
   const running = !!(pmaRun.proc && pmaRun.instId === inst.id);
-  return { installed, version: installed ? String(meta.version) : '', php: installed ? String(meta.php || '') : '', running, port: running ? pmaRun.port : 0, since: running ? pmaRun.started : 0 };
+  return { installed, installing: !installed && pmaBg.has(inst.id), version: installed ? String(meta.version) : '', php: installed ? String(meta.php || '') : '', running, port: running ? pmaRun.port : 0, since: running ? pmaRun.started : 0 };
 }
 // The PHP line phpMyAdmin supports (its version.json says e.g. ">=7.2,<8.4" -> 8.3). Only the current lines 8.4 and 8.3 are considered.
 function pmaPhpLine(constraint, rel) {
@@ -1582,6 +1582,12 @@ function pmaStop(inst, why = 'manual') {
 // Open: installs on the first use (a job; the page asks again when it ends), otherwise starts it when needed and gives a one-time address.
 async function pmaOpen(inst, lang) {
   needLocal(inst);
+  // The install that runs by itself (pmaEnsure) is waited for: the click then opens phpMyAdmin instead of starting a second install.
+  const bg = pmaBg.get(inst.id);
+  if (bg) {
+    const done = await Promise.race([bg.then(() => true), new Promise((r) => setTimeout(() => r(false), 5 * 60000))]);
+    if (!done) throw new Error('phpMyAdmin po instalohet ende. Provo përsëri pas pak.');
+  }
   if (!pmaInfo(inst).installed) {
     startJob(inst, 'Instalimi i phpMyAdmin', (add) => pmaInstall(inst, add));
     return { installing: true };
@@ -1591,6 +1597,27 @@ async function pmaOpen(inst, lang) {
   fs.writeFileSync(path.join(pmaDirs(inst).data, 'signon-token.json'), JSON.stringify({ hash: crypto.createHash('sha256').update(token).digest('hex'), exp: Math.floor((Date.now() + PMA_TOKEN_MS) / 1000), lang: ['sq', 'en', 'sr'].includes(lang) ? lang : 'sq' }));
   pmaRun.last = Date.now();
   return { url: 'http://127.0.0.1:' + port + '/hrs-signon.php?t=' + token, port, version: pmaInfo(inst).version };
+}
+// Installed and ready before the first click (owner, 2026-11-12: "pse herën e parë më shfaq po instalohet, beje që të jetë e instaluar e gati"):
+// 30 s after the dashboard starts, and every 30 minutes while it is still missing (no internet yet), PHP + phpMyAdmin are installed quietly for
+// every installation on this PC. Not a job: it blocks nothing and shows no progress; the result is one history line, a failure one line in
+// Gabimet (the same message is not logged again). It only writes inside <install folder>\tools. HR_PMA_AUTO=0 turns it off (tests).
+const pmaBg = new Map();     // instance id -> the promise of the install that runs by itself (it never rejects)
+const pmaBgFail = new Map(); // instance id -> the last failure message
+function pmaEnsure(inst) {
+  if (!inst.root || !inst.data || pmaBg.has(inst.id) || pmaInfo(inst).installed) return;
+  const job = jobs.get(inst.id);
+  if (job && job.state === 'running') return; // e.g. the install started by the button, or a program update: next round
+  const p = pmaInstall(inst, () => {})
+    .then(() => { pmaBgFail.delete(inst.id); const i = pmaInfo(inst); addHistory(inst, { title: 'phpMyAdmin u instalua', ok: true, detail: 'phpMyAdmin ' + i.version + ' · PHP ' + i.php + '. U instalua vetë, që të jetë gati.' }); })
+    .catch((e) => { if (pmaBgFail.get(inst.id) !== e.message) logError('phpMyAdmin', e); pmaBgFail.set(inst.id, e.message); })
+    .finally(() => pmaBg.delete(inst.id));
+  pmaBg.set(inst.id, p);
+}
+if (process.env.HR_PMA_AUTO !== '0') {
+  const all = () => { try { for (const inst of instances()) pmaEnsure(inst); } catch (e) { logError('phpMyAdmin', e); } };
+  setTimeout(all, 30000).unref();
+  setInterval(all, 30 * 60000).unref();
 }
 // 30 minutes without a request: it is closed (opened again with one click).
 setInterval(() => { if (pmaRun.proc && Date.now() - pmaRun.last > PMA_IDLE_MS) pmaStop(find(pmaRun.instId), 'idle'); }, 60000).unref();
@@ -1873,8 +1900,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.0.5';
+const DASH_VERSION = '2.0.6';
 const DASH_NOTES = [
+  { version: '2.0.6', date: '2026-11-12', notes: [
+    'phpMyAdmin instalohet vetë në sfond sapo niset dashboard-i: "Hap databazën" e hap menjëherë, pa pritur instalimin.',
+  ] },
   { version: '2.0.5', date: '2026-11-12', notes: [
     'Hap databazën me phpMyAdmin (Veprime › Databaza): hyn drejt në databazën e programit pa shkruar fjalëkalim, vetëm nga ky kompjuter. Herën e parë instalohet vetë (PHP + phpMyAdmin).',
   ] },

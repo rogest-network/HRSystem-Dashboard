@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { execFile, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import net from 'node:net';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // In an installation the port is fixed (3500, see pickPort); MANAGER_PORT forces one, and on a development PC (not installed) it is 3700.
@@ -610,6 +611,8 @@ function pathsOf(inst, env) {
     { key: 'data', label: 'Te dhenat (databaza, backup-et)', path: inst.data },
     { key: 'mysql', label: 'Skedaret e databazes MySQL', path: mysqlData },
     { key: 'backups', label: 'Backup-et e databazes', path: path.join(inst.data, 'Backups') },
+    // PHP and phpMyAdmin (2.0.5), only once they were installed with "Hap databazën"
+    ...(fs.existsSync(path.join(inst.root, 'tools', 'phpmyadmin')) ? [{ key: 'tools', label: 'Mjetet e databazës (PHP, phpMyAdmin)', path: path.join(inst.root, 'tools') }] : []),
   ];
   const logDirs = [inst.root, path.join(inst.root, 'logs')];
   for (const dir of logDirs) {
@@ -1191,6 +1194,422 @@ setInterval(() => {
   } catch { /* next round */ }
 }, 20000).unref();
 
+// ======================= phpMyAdmin (owner, 2026-11-12: "me u fut në phpMyAdmin, me u fut në databazën SQL") =======================
+// A real phpMyAdmin, run on demand, local only. The first "Hap databazën" installs, as a job, PHP for Windows (x64 NTS, the line phpMyAdmin
+// supports, from windows.php.net with the SHA-256 of its releases.json) and the newest phpMyAdmin (phpmyadmin.net, checked against its .sha256)
+// into <install folder>\tools (php, phpmyadmin, phpmyadmin-data). Then `php.exe -S 127.0.0.1:3510` (3511-3519 when taken) serves it, a hidden
+// CHILD of the dashboard: it ends with the dashboard, with "Mbylle phpMyAdmin" and after 30 minutes without a request. A small router script
+// accepts only the Host 127.0.0.1/localhost on that port and closes phpMyAdmin's internal folders (php -S ignores .htaccess).
+// Sign-in without typing a password: auth_type 'signon'. The dashboard writes a one-time token (only its SHA-256, with an expiry of 60 s) to
+// phpmyadmin-data\signon-token.json and the page opens /hrs-signon.php?t=<token>. That script (written by the dashboard) deletes the token file
+// BEFORE it checks it (one use), reads the database account from the installation's .env (its path is in hrs-config.php, never the password)
+// and fills the signon session. The dashboard never writes the password anywhere: no log, job line, history or diagnostics.
+const PMA_PORT = 3510, PMA_IDLE_MS = Number(process.env.HR_PMA_IDLE_MS) || 30 * 60000, PMA_TOKEN_MS = 60000, PMA_SESSION = 'HRSSignon'; // HR_PMA_IDLE_MS: tests only
+const pmaDirs = (inst) => { const tools = path.join(inst.root, 'tools'); return { tools, php: path.join(tools, 'php'), pma: path.join(tools, 'phpmyadmin'), data: path.join(tools, 'phpmyadmin-data') }; };
+const fwd = (p) => String(p).replace(/\\/g, '/');
+const phpStr = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+const pmaRun = { proc: null, instId: '', port: 0, started: 0, last: 0, out: [] }; // the one phpMyAdmin that runs (one installation at a time)
+function pmaInfo(inst) {
+  const d = pmaDirs(inst);
+  const meta = readJsonFile(path.join(d.data, 'installed.json')) || {};
+  const installed = !!meta.version && fs.existsSync(path.join(d.php, 'php.exe')) && fs.existsSync(path.join(d.pma, 'index.php'));
+  const running = !!(pmaRun.proc && pmaRun.instId === inst.id);
+  return { installed, version: installed ? String(meta.version) : '', php: installed ? String(meta.php || '') : '', running, port: running ? pmaRun.port : 0, since: running ? pmaRun.started : 0 };
+}
+// The PHP line phpMyAdmin supports (its version.json says e.g. ">=7.2,<8.4" -> 8.3). Only the current lines 8.4 and 8.3 are considered.
+function pmaPhpLine(constraint, rel) {
+  const fits = (line) => String(constraint || '').split(',').every((c) => {
+    const m = /^\s*(>=|<=|>|<|=)?\s*(\d+(?:\.\d+){0,2})\s*$/.exec(c);
+    if (!m) return true;
+    const d = verCmp(line + '.0', m[2]);
+    return { '>=': d >= 0, '<=': d <= 0, '>': d > 0, '<': d < 0, '=': d === 0 }[m[1] || '>='];
+  });
+  for (const line of ['8.4', '8.3']) if (rel[line] && fits(line)) return line;
+  return '';
+}
+// The newest x64 NTS zip of that line ("nts-vs16-x64" for 8.3, "nts-vs17-x64" for 8.4) with its SHA-256.
+function pmaPhpBuild(entry) {
+  const key = Object.keys(entry || {}).filter((k) => /^nts-v[sc]\d+-x64$/.test(k)).sort().pop();
+  const zip = key ? (entry[key] || {}).zip : null;
+  if (!zip || !/^[A-Za-z0-9._-]+\.zip$/.test(String(zip.path || '')) || !/^[0-9a-f]{64}$/i.test(String(zip.sha256 || ''))) return null;
+  return { file: String(zip.path), sha: String(zip.sha256).toLowerCase() };
+}
+// Windows' own tar.exe unpacks a zip fast (phpMyAdmin has thousands of files); PowerShell's Expand-Archive is the fallback.
+async function unzipTo(zip, dir) {
+  const fresh = () => { fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); };
+  fresh();
+  const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+  if (fs.existsSync(tar)) { try { await run(tar, ['-xf', zip, '-C', dir]); return; } catch { fresh(); } }
+  await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `$ProgressPreference = 'SilentlyContinue'; Expand-Archive -LiteralPath ${q(zip)} -DestinationPath ${q(dir)} -Force`]);
+}
+// A new folder can be locked for a moment by the antivirus that reads it: the move is tried again for a few seconds.
+async function moveDir(from, to) {
+  fs.rmSync(to, { recursive: true, force: true });
+  for (let i = 0; ; i++) {
+    try { fs.renameSync(from, to); return; } catch (e) { if (i >= 10) throw e; await new Promise((r) => setTimeout(r, 1000)); }
+  }
+}
+const runCode = (file, args) => new Promise((resolve) => execFile(file, args, { windowsHide: true, timeout: 60000, env: { ...process.env, PHP_INI_SCAN_DIR: '' } }, (err, stdout, stderr) =>
+  resolve({ code: err ? (typeof err.code === 'number' ? err.code : -1) : 0, out: String(stdout || '') + String(stderr || '') })));
+// php -v and php -m with the dashboard's php.ini: a missing Visual C++ runtime (0xC0000135) or a missing module is said plainly.
+async function pmaCheckPhp(inst) {
+  const d = pmaDirs(inst), exe = path.join(d.php, 'php.exe'), ini = path.join(d.php, 'php.ini');
+  const v = await runCode(exe, ['-c', ini, '-v']);
+  const vc = v.code === -1073741515 || v.code === 3221225781 || /vcruntime|msvcp|VCRUNTIME140/i.test(v.out);
+  if (vc) throw new Error('PHP nuk niset: mungon Microsoft Visual C++ Redistributable 2015-2022 (x64). Instaloje nga faqja e Microsoft (vc_redist.x64.exe) dhe provo përsëri.');
+  if (v.code !== 0 || !/^PHP \d/.test(v.out.trim())) throw new Error('PHP nuk niset (kodi ' + v.code + '): ' + v.out.trim().split(/\r?\n/)[0].slice(0, 160));
+  const m = await runCode(exe, ['-c', ini, '-m']);
+  const mods = m.out.toLowerCase().split(/\r?\n/).map((l) => l.trim());
+  const missing = ['mysqli', 'mbstring', 'session'].filter((x) => !mods.includes(x));
+  if (missing.length) throw new Error('PHP nuk ka modulet e nevojshme: ' + missing.join(', ') + '.');
+  return v.out.trim().split(/\r?\n/)[0].replace(/\s*\(.*$/, '');
+}
+function pmaWriteIni(inst) {
+  const d = pmaDirs(inst), ext = path.join(d.php, 'ext');
+  for (const sub of ['sessions', 'tmp']) fs.mkdirSync(path.join(d.data, sub), { recursive: true });
+  const mods = ['mysqli', 'mbstring', 'openssl', 'zip', 'gd', 'sodium', 'fileinfo'].filter((n) => fs.existsSync(path.join(ext, 'php_' + n + '.dll')));
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { /* none */ }
+  const lines = [
+    '; Written by the HRSystem dashboard for phpMyAdmin. It is written again at every start: changes here are lost.',
+    '[PHP]',
+    'extension_dir = "' + fwd(ext) + '"',
+    ...mods.map((n) => 'extension=' + n),
+    'memory_limit = 512M', 'upload_max_filesize = 256M', 'post_max_size = 260M', 'max_execution_time = 600', 'max_input_vars = 10000',
+    'display_errors = Off', 'display_startup_errors = Off', 'log_errors = On', 'error_log = "' + fwd(path.join(d.data, 'php-errors.log')) + '"',
+    'expose_php = Off', 'allow_url_fopen = Off',
+    'session.save_path = "' + fwd(path.join(d.data, 'sessions')) + '"', 'session.use_strict_mode = 1', 'session.cookie_httponly = 1',
+    'sys_temp_dir = "' + fwd(path.join(d.data, 'tmp')) + '"', 'upload_tmp_dir = "' + fwd(path.join(d.data, 'tmp')) + '"',
+    ...(/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz) ? ['date.timezone = "' + tz + '"'] : []),
+  ];
+  fs.writeFileSync(path.join(d.php, 'php.ini'), lines.join('\r\n') + '\r\n');
+}
+// config.inc.php (phpMyAdmin), hrs-config.php (paths for the sign-in script), hrs-signon.php (the sign-in) and hrs-router.php (the guard of php -S).
+function pmaWriteRunFiles(inst, port) {
+  const d = pmaDirs(inst);
+  const envFile = path.join(inst.root, '.env');
+  const env = readEnv(envFile);
+  if (!env.DB_NAME || !env.DB_USER) throw new Error('Të dhënat e databazës mungojnë te .env (DB_NAME, DB_USER).');
+  const host = !env.DB_HOST || /^localhost$/i.test(env.DB_HOST) ? '127.0.0.1' : env.DB_HOST;
+  const dbPort = /^\d+$/.test(env.DB_PORT || '') ? env.DB_PORT : '3306';
+  const secretFile = path.join(d.data, 'secret.hex');
+  let hex = readTextOr(secretFile).trim();
+  if (!/^[0-9a-f]{64}$/.test(hex)) { hex = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(secretFile, hex); }
+  const base = 'http://127.0.0.1:' + port + '/';
+  const config = [
+    '<?php',
+    '// Written by the HRSystem dashboard at every start of phpMyAdmin: changes here are lost.',
+    'declare(strict_types=1);',
+    '$cfg[\'blowfish_secret\'] = "' + hex.replace(/../g, (b) => '\\x' + b) + '";',
+    '$i = 1;',
+    '$cfg[\'Servers\'][$i][\'auth_type\'] = \'signon\';',
+    '$cfg[\'Servers\'][$i][\'SignonSession\'] = ' + phpStr(PMA_SESSION) + ';',
+    '$cfg[\'Servers\'][$i][\'SignonURL\'] = ' + phpStr(base + 'hrs-signon.php') + ';',
+    '$cfg[\'Servers\'][$i][\'LogoutURL\'] = ' + phpStr(base + 'hrs-signon.php?bye=1') + ';',
+    '$cfg[\'Servers\'][$i][\'SignonCookieParams\'] = [\'lifetime\' => 0, \'path\' => \'/\', \'httponly\' => true];', // phpMyAdmin sends the signon cookie again: keep it HttpOnly
+    '$cfg[\'Servers\'][$i][\'host\'] = ' + phpStr(host) + ';',
+    '$cfg[\'Servers\'][$i][\'port\'] = ' + phpStr(dbPort) + ';',
+    '$cfg[\'Servers\'][$i][\'verbose\'] = ' + phpStr(inst.name || 'HRSystem') + ';',
+    '$cfg[\'Servers\'][$i][\'only_db\'] = ' + phpStr(env.DB_NAME) + ';',
+    '$cfg[\'Servers\'][$i][\'AllowNoPassword\'] = false;',
+    '$cfg[\'AllowArbitraryServer\'] = false;',
+    '$cfg[\'ServerDefault\'] = 1;',
+    '$cfg[\'TempDir\'] = ' + phpStr(fwd(path.join(d.data, 'tmp'))) + ';',
+    '$cfg[\'UploadDir\'] = \'\';',
+    '$cfg[\'SaveDir\'] = \'\';',
+    '$cfg[\'VersionCheck\'] = false;',
+    '$cfg[\'SendErrorReports\'] = \'never\';',
+    '$cfg[\'PmaNoRelation_DisableWarning\'] = true;',
+    '$cfg[\'ShowPhpInfo\'] = false;',
+    '$cfg[\'ShowChgPassword\'] = false;', // a new password from here would lock the application out (its .env keeps the old one)
+    '$cfg[\'ShowCreateDb\'] = false;',
+    '$cfg[\'CheckConfigurationPermissions\'] = false;',
+    '$cfg[\'ExecTimeLimit\'] = 600;',
+    '$cfg[\'NavigationDisplayServers\'] = false;',
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(d.pma, 'config.inc.php'), config);
+  fs.writeFileSync(path.join(d.data, 'hrs-config.php'), '<?php\n// Written by the HRSystem dashboard: where the sign-in script finds the database account (the .env of the installation) and the one-time token.\nreturn [\'env\' => ' + phpStr(fwd(envFile)) + ', \'token\' => ' + phpStr(fwd(path.join(d.data, 'signon-token.json'))) + ', \'session\' => ' + phpStr(PMA_SESSION) + '];\n');
+  const signon = String.raw`<?php
+// Written by the HRSystem dashboard at every start of phpMyAdmin: signs in once per token the dashboard gives (one use, 60 seconds).
+declare(strict_types=1);
+$c = require ${phpStr(fwd(path.join(d.data, 'hrs-config.php')))};
+header('Cache-Control: no-store');
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: no-referrer');
+function hrs_page(int $code, array $lines): void
+{
+    http_response_code($code);
+    header('Content-Type: text/html; charset=utf-8');
+    $h = '';
+    foreach ($lines as $i => $l) {
+        $h .= $i === 0 ? '<h1>' . htmlspecialchars($l) . '</h1>' : '<p>' . htmlspecialchars($l) . '</p>';
+    }
+    echo '<!doctype html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>phpMyAdmin · HRSystem</title>'
+        . '<style>:root{color-scheme:light dark}body{font:15px/1.55 system-ui,"Segoe UI",sans-serif;max-width:560px;margin:12vh auto;padding:0 20px}h1{font-size:20px;margin:0 0 12px}p{margin:0 0 8px;opacity:.8}</style>'
+        . '</head><body>' . $h . '</body></html>';
+    exit;
+}
+$open = [
+    'Hape nga dashboard-i',
+    'Hap dashboard-in e HRSystem: Veprime › Databaza › Hap databazën (phpMyAdmin).',
+    'Open it from the HRSystem dashboard: Actions › Database › Open the database (phpMyAdmin).',
+    'Otvori ga iz HRSystem dashboard-a: Akcije › Baza › Otvori bazu (phpMyAdmin).',
+];
+if (isset($_GET['bye'])) {
+    session_name($c['session']);
+    if (isset($_COOKIE[$c['session']])) {
+        @session_start();
+        $_SESSION = [];
+        @session_destroy();
+    }
+    setcookie($c['session'], '', ['expires' => 1, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    hrs_page(200, array_merge(['Dole nga phpMyAdmin · Signed out · Odjavljen'], array_slice($open, 1)));
+}
+$t = (string) ($_GET['t'] ?? '');
+if ($t === '') {
+    // phpMyAdmin comes back here when MySQL refused the account: its reason is in the signon session. Say it instead of a silent loop.
+    $err = '';
+    if (isset($_COOKIE[$c['session']])) {
+        session_name($c['session']);
+        @session_start();
+        $err = trim((string) ($_SESSION['PMA_single_signon_error_message'] ?? ''));
+        if ($err !== '') {
+            $_SESSION = [];
+            @session_destroy();
+        } else {
+            session_write_close();
+        }
+    }
+    if ($err !== '') {
+        hrs_page(200, [
+            'Hyrja në databazë dështoi',
+            strip_tags($err),
+            'Kontrollo DB_USER dhe DB_PASSWORD te skedari .env i instalimit dhe që databaza është e ndezur.',
+            'The database sign-in failed: check DB_USER and DB_PASSWORD in the .env file of the installation and that the database is running.',
+            'Prijava na bazu nije uspela: proveri DB_USER i DB_PASSWORD u .env fajlu instalacije i da li baza radi.',
+        ]);
+    }
+    hrs_page(200, $open);
+}
+$raw = @file_get_contents($c['token']);
+@unlink($c['token']);
+$j = is_string($raw) ? json_decode($raw, true) : null;
+if (file_exists($c['token']) || !is_array($j) || !preg_match('/^[0-9a-f]{64}$/', $t)
+    || !hash_equals((string) ($j['hash'] ?? ''), hash('sha256', $t)) || (int) ($j['exp'] ?? 0) < time()) {
+    hrs_page(403, [
+        'Lidhja nuk vlen më',
+        'Kjo lidhje hapet vetëm një herë dhe vlen 60 sekonda. Hape përsëri nga dashboard-i.',
+        'This link opens only once and is valid for 60 seconds. Open it again from the dashboard.',
+        'Ovaj link se otvara samo jednom i važi 60 sekundi. Otvori ga ponovo iz dashboard-a.',
+    ]);
+}
+$env = [];
+foreach ((@file($c['env'], FILE_IGNORE_NEW_LINES) ?: []) as $line) {
+    if (preg_match('/^([A-Z_]+)=(.*)$/', (string) $line, $m)) {
+        $env[$m[1]] = $m[2];
+    }
+}
+if (empty($env['DB_USER']) || empty($env['DB_NAME'])) {
+    hrs_page(500, ['Të dhënat e databazës mungojnë', 'DB_USER / DB_NAME (.env)']);
+}
+$host = (string) ($env['DB_HOST'] ?? '');
+if ($host === '' || strtolower($host) === 'localhost') {
+    $host = '127.0.0.1';
+}
+session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+session_name($c['session']);
+@session_start();
+session_regenerate_id(true);
+$_SESSION['PMA_single_signon_user'] = $env['DB_USER'];
+$_SESSION['PMA_single_signon_password'] = (string) ($env['DB_PASSWORD'] ?? '');
+$_SESSION['PMA_single_signon_host'] = $host;
+$_SESSION['PMA_single_signon_port'] = (string) ($env['DB_PORT'] ?? '3306');
+session_write_close();
+// The language of the dashboard when this phpMyAdmin package carries it (5.2 has no Serbian: English then).
+$lang = 'en';
+foreach (['sq' => ['sq'], 'en' => ['en'], 'sr' => ['sr@latin', 'sr']][(string) ($j['lang'] ?? '')] ?? ['sq'] as $l) {
+    if ($l === 'en' || is_dir(__DIR__ . '/locale/' . $l)) {
+        $lang = $l;
+        break;
+    }
+}
+header('Location: index.php?route=/database/structure&db=' . rawurlencode($env['DB_NAME']) . '&lang=' . rawurlencode($lang), true, 302);
+exit;
+`;
+  fs.writeFileSync(path.join(d.pma, 'hrs-signon.php'), signon);
+  const router = String.raw`<?php
+// Written by the HRSystem dashboard: the guard of php -S. Only 127.0.0.1 / localhost on this port; phpMyAdmin's internal folders stay closed
+// (the built-in server ignores .htaccess).
+$port = (string) ($_SERVER['SERVER_PORT'] ?? '');
+$host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+if ($host !== '127.0.0.1:' . $port && $host !== 'localhost:' . $port) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Forbidden';
+    return true;
+}
+// The path as the built-in server reads it: everything before "?" (parse_url would read "//libraries/x" as a host and let it through).
+$p = explode('?', (string) ($_SERVER['REQUEST_URI'] ?? '/'), 2)[0];
+$p = preg_replace('#/+#', '/', str_replace('\\', '/', rawurldecode($p)));
+// ":" and "~" are refused everywhere: on Windows "file::$DATA", "dir::$INDEX_ALLOCATION" and 8.3 short names ("LIBRAR~1") reach the
+// same files under another spelling, past the list below.
+if (preg_match('#[:~*?"<>|\x00-\x1f]#', $p)
+    || preg_match('#(^|/)\.|\.\.|[. ]+(/|$)#', $p)
+    || preg_match('#^/(README|LICENSE|ChangeLog|CONTRIBUTING|RELEASE-DATE)[^/]*$#i', $p)
+    || preg_match('#^/(setup|libraries|vendor|templates|sql|test|tests|examples|doc|locale|tmp|src|resources|po|scripts|bin)(/|$)#i', $p)
+    || preg_match('#^/config(\.sample)?\.inc\.php$#i', $p)
+    || preg_match('#^/[^/]+\.(json|lock|md|txt|xml|neon|dist|ini|log|yml|yaml|sh|bat)$#i', $p) && strtolower($p) !== '/robots.txt'
+    || preg_match('#\.(sql|twig|inc|log|ini)$#i', $p)) {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Not found';
+    return true;
+}
+return false;
+`;
+  fs.writeFileSync(path.join(d.data, 'hrs-router.php'), router);
+}
+async function pmaInstall(inst, add) {
+  const d = pmaDirs(inst);
+  const UA = { 'User-Agent': 'HRSystem-Dashboard' };
+  add('Po kontrollohet versioni i ri i phpMyAdmin ...');
+  const offline = () => { throw new Error('Faqet e shkarkimit (phpmyadmin.net, php.net) nuk u arritën. Kontrollo internetin dhe provo përsëri.'); };
+  const v = await fetchJson('https://www.phpmyadmin.net/home_page/version.json', 15000).catch(offline);
+  const pmaVer = String(v.version || '');
+  if (!/^\d+\.\d+\.\d+$/.test(pmaVer)) throw new Error('Versioni i phpMyAdmin nuk u lexua.');
+  const info = (v.releases || []).find((r) => r.version === pmaVer) || {};
+  const relRes = await fetch('https://windows.php.net/downloads/releases/releases.json', { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(20000) }).catch(offline);
+  if (!relRes.ok) throw new Error('Lista e versioneve të PHP nuk u lexua (HTTP ' + relRes.status + ').');
+  const rel = await relRes.json();
+  const line = pmaPhpLine(info.php_versions, rel);
+  const build = line ? pmaPhpBuild(rel[line]) : null;
+  if (!build) throw new Error('Nuk u gjet PHP për Windows (x64 NTS) me shumën e kontrollit (SHA-256): nuk shkarkohet pa kontroll.');
+  const phpVer = String(rel[line].version || line);
+  add('phpMyAdmin ' + pmaVer + ' · PHP ' + phpVer + ' (x64 NTS)');
+  if (pmaRun.proc && pmaRun.instId === inst.id) pmaStop(inst, 'install');
+  const dl = path.join(d.tools, 'downloads');
+  fs.rmSync(dl, { recursive: true, force: true });
+  fs.mkdirSync(d.data, { recursive: true });
+  try {
+    add('Po shkarkohet PHP ' + phpVer + ' ...');
+    const phpZip = path.join(dl, build.file);
+    const r1 = await downloadVerified(new URL(build.file, relRes.url).href, phpZip, build.sha);
+    add('PHP u shkarkua (' + Math.max(1, Math.round(r1.size / 1048576)) + ' MB) dhe u verifikua (SHA-256).');
+    const pmaUrl = `https://files.phpmyadmin.net/phpMyAdmin/${pmaVer}/phpMyAdmin-${pmaVer}-all-languages.zip`;
+    const shaRes = await fetch(pmaUrl + '.sha256', { headers: UA, redirect: 'follow', signal: AbortSignal.timeout(20000) });
+    const pmaSha = shaRes.ok ? ((/^([0-9a-f]{64})\b/i.exec((await shaRes.text()).trim()) || [])[1] || '').toLowerCase() : '';
+    if (!pmaSha) throw new Error('Nuk u gjet shuma e kontrollit (SHA-256) e phpMyAdmin: nuk shkarkohet pa kontroll.');
+    add('Po shkarkohet phpMyAdmin ' + pmaVer + ' ...');
+    const pmaZip = path.join(dl, `phpMyAdmin-${pmaVer}-all-languages.zip`);
+    const r2 = await downloadVerified(pmaUrl, pmaZip, pmaSha);
+    add('phpMyAdmin u shkarkua (' + Math.max(1, Math.round(r2.size / 1048576)) + ' MB) dhe u verifikua (SHA-256).');
+    add('Po hapen skedarët ...');
+    const newPhp = path.join(d.tools, '.php-new'), newPma = path.join(d.tools, '.phpmyadmin-new');
+    await unzipTo(phpZip, newPhp);
+    if (!fs.existsSync(path.join(newPhp, 'php.exe'))) throw new Error('Paketa e PHP nuk ka php.exe.');
+    await unzipTo(pmaZip, newPma);
+    const inner = [newPma, ...fs.readdirSync(newPma).map((n) => path.join(newPma, n))].find((p) => fs.existsSync(path.join(p, 'index.php')));
+    if (!inner) throw new Error('Paketa e phpMyAdmin nuk ka index.php.');
+    fs.rmSync(path.join(inner, 'setup'), { recursive: true, force: true }); // the web setup of phpMyAdmin is never needed here: the dashboard writes the configuration
+    await moveDir(newPhp, d.php);
+    await moveDir(inner, d.pma);
+    fs.rmSync(newPma, { recursive: true, force: true });
+  } finally { fs.rmSync(dl, { recursive: true, force: true }); }
+  pmaWriteIni(inst);
+  add('Po kontrollohet PHP ...');
+  add('PHP punon: ' + await pmaCheckPhp(inst));
+  fs.writeFileSync(path.join(d.data, 'installed.json'), JSON.stringify({ version: pmaVer, php: phpVer, at: Date.now() }));
+  add('phpMyAdmin u instalua: ' + pmaVer + ' · PHP ' + phpVer + '. Po hapet ...');
+  return true;
+}
+function portFree(port) {
+  return new Promise((resolve) => { const s = net.createServer(); s.once('error', () => resolve(false)); s.listen(port, '127.0.0.1', () => s.close(() => resolve(true))); });
+}
+async function pmaStart(inst) {
+  if (pmaRun.proc && pmaRun.instId === inst.id) return pmaRun.port;
+  if (pmaRun.proc) pmaStop(find(pmaRun.instId), 'other');
+  const d = pmaDirs(inst);
+  let port = 0;
+  for (let p = PMA_PORT; p <= PMA_PORT + 9 && !port; p++) if (await portFree(p)) port = p;
+  if (!port) throw new Error('Portat 3510-3519 janë të zëna: phpMyAdmin nuk u nis.');
+  pmaWriteIni(inst);
+  pmaWriteRunFiles(inst, port);
+  pmaClearSessions(inst);
+  const proc = spawn(path.join(d.php, 'php.exe'), ['-c', path.join(d.php, 'php.ini'), '-S', '127.0.0.1:' + port, '-t', d.pma, path.join(d.data, 'hrs-router.php')],
+    { cwd: d.pma, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PHP_INI_SCAN_DIR: '' } });
+  Object.assign(pmaRun, { proc, instId: inst.id, port, started: Date.now(), last: Date.now(), out: [] });
+  // Every line of the built-in server is a request: it keeps phpMyAdmin alive. The last lines (tokens masked) explain a failed start.
+  const seen = (b) => { pmaRun.last = Date.now(); if (pmaRun.proc === proc) pmaRun.out = [...pmaRun.out, ...String(b).replace(/t=[0-9a-f]+/g, 't=***').split(/\r?\n/).filter((l) => l.trim())].slice(-12); };
+  proc.stdout.on('data', seen);
+  proc.stderr.on('data', seen);
+  proc.on('error', (e) => { logError('phpMyAdmin', e); });
+  // The record of the process is removed only when it is still this process's (a stop and an open at the same moment: the new start has written its own).
+  proc.on('exit', () => { if (pmaRun.proc === proc) Object.assign(pmaRun, { proc: null, instId: '', port: 0 }); const f = path.join(d.data, 'server.json'); try { if (Number((readJsonFile(f) || {}).pid) === proc.pid) fs.rmSync(f, { force: true }); } catch { /* gone */ } });
+  try { fs.writeFileSync(path.join(d.data, 'server.json'), JSON.stringify({ pid: proc.pid, port, exe: path.join(d.php, 'php.exe') })); } catch { /* only for a cleanup after a crash */ }
+  let up = false;
+  for (let i = 0; i < 40 && !up && pmaRun.proc === proc; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    try { up = (await fetch('http://127.0.0.1:' + port + '/hrs-signon.php', { signal: AbortSignal.timeout(2000), cache: 'no-store' })).status === 200; } catch { /* not yet */ }
+  }
+  if (!up) {
+    const why = pmaRun.out.slice(-3).join(' · ').slice(0, 240);
+    if (pmaRun.proc === proc) { Object.assign(pmaRun, { proc: null, instId: '', port: 0 }); try { proc.kill(); } catch { /* gone */ } }
+    throw new Error('phpMyAdmin nuk u nis.' + (why ? ' ' + why : ''));
+  }
+  addHistory(inst, { title: 'phpMyAdmin u hap', ok: true, detail: 'http://127.0.0.1:' + port });
+  return port;
+}
+// PHP keeps the signon session (with the database password, as the .env does) as a file in phpmyadmin-data\sessions while phpMyAdmin is open:
+// the files are deleted when it closes and before it starts.
+function pmaClearSessions(inst) {
+  const dir = path.join(pmaDirs(inst).data, 'sessions');
+  try { for (const f of fs.readdirSync(dir)) { try { fs.rmSync(path.join(dir, f), { force: true }); } catch { /* in use: next time */ } } } catch { /* no folder */ }
+}
+function pmaStop(inst, why = 'manual') {
+  const proc = pmaRun.proc;
+  if (!proc) return false;
+  Object.assign(pmaRun, { proc: null, instId: '', port: 0 });
+  try { proc.kill(); } catch { /* already gone */ }
+  if (inst && inst.root) {
+    const d = pmaDirs(inst);
+    for (const f of ['server.json', 'signon-token.json']) { try { fs.rmSync(path.join(d.data, f), { force: true }); } catch { /* gone */ } }
+    pmaClearSessions(inst);
+    if (why !== 'exit') addHistory(inst, { title: 'phpMyAdmin u mbyll', ok: true, detail: { idle: '30 minuta pa përdorim.', manual: 'U mbyll nga dashboard-i.', other: 'U hap për një instalim tjetër.', install: 'Po instalohet përsëri.' }[why] || '' });
+  }
+  return true;
+}
+// Open: installs on the first use (a job; the page asks again when it ends), otherwise starts it when needed and gives a one-time address.
+async function pmaOpen(inst, lang) {
+  needLocal(inst);
+  if (!pmaInfo(inst).installed) {
+    startJob(inst, 'Instalimi i phpMyAdmin', (add) => pmaInstall(inst, add));
+    return { installing: true };
+  }
+  const port = await pmaStart(inst);
+  const token = crypto.randomBytes(32).toString('hex');
+  fs.writeFileSync(path.join(pmaDirs(inst).data, 'signon-token.json'), JSON.stringify({ hash: crypto.createHash('sha256').update(token).digest('hex'), exp: Math.floor((Date.now() + PMA_TOKEN_MS) / 1000), lang: ['sq', 'en', 'sr'].includes(lang) ? lang : 'sq' }));
+  pmaRun.last = Date.now();
+  return { url: 'http://127.0.0.1:' + port + '/hrs-signon.php?t=' + token, port, version: pmaInfo(inst).version };
+}
+// 30 minutes without a request: it is closed (opened again with one click).
+setInterval(() => { if (pmaRun.proc && Date.now() - pmaRun.last > PMA_IDLE_MS) pmaStop(find(pmaRun.instId), 'idle'); }, 60000).unref();
+// It ends with the dashboard (a restart, an update, Ctrl+C, the end of its task). After a hard kill of the dashboard the next start ends the
+// php.exe that was left behind (only when that process is really the php.exe of this tools folder).
+process.on('exit', () => { if (pmaRun.proc) { const owner = find(pmaRun.instId); try { pmaRun.proc.kill(); } catch { /* gone */ } if (owner) pmaClearSessions(owner); } });
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(sig, () => process.exit(0));
+setTimeout(() => {
+  for (const inst of instances()) {
+    if (!inst.root) continue;
+    const f = path.join(pmaDirs(inst).data, 'server.json'), j = readJsonFile(f);
+    if (!pmaRun.proc) pmaClearSessions(inst);
+    if (!j || !Number(j.pid)) continue;
+    run('powershell.exe', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(j.pid)}").ExecutablePath`])
+      .then((exe) => { if (exe && path.resolve(exe.trim()).toLowerCase() === path.resolve(String(j.exe || '')).toLowerCase()) process.kill(Number(j.pid)); })
+      .catch(() => {}).finally(() => { if (!pmaRun.proc) { try { fs.rmSync(f, { force: true }); } catch { /* gone */ } } });
+  }
+}, 3000).unref();
+
 // The dashboard updates itself from its own PUBLIC GitHub repo (owner, 2026-10-22): one repo for every installation, no token needed. The files
 // of its main branch are compared with the local ones by their git blob hash. A new version is downloaded and applied by itself (every 10
 // minutes, and from the "Përditëso dashboard-in" button); the old files are kept in manager/.previous/, server.mjs is written last (its change
@@ -1454,8 +1873,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.0.4';
+const DASH_VERSION = '2.0.5';
 const DASH_NOTES = [
+  { version: '2.0.5', date: '2026-11-12', notes: [
+    'Hap databazën me phpMyAdmin (Veprime › Databaza): hyn drejt në databazën e programit pa shkruar fjalëkalim, vetëm nga ky kompjuter. Herën e parë instalohet vetë (PHP + phpMyAdmin).',
+  ] },
   { version: '2.0.4', date: '2026-11-10', notes: [
     'Pastrim i brendshëm: dashboard-i njeh vetëm skedarin e sotëm të versionit (HRSystem-<versioni>.zip) dhe MySQL 8.4; emrat e vjetër u hoqën.',
   ] },
@@ -2129,7 +2551,7 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), bugsNew: bugNew.get(inst.id) || 0, offsite: offsiteOf(inst), job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), bugsNew: bugNew.get(inst.id) || 0, offsite: offsiteOf(inst), phpmyadmin: inst.root ? pmaInfo(inst) : null, job: jobs.get(inst.id) || null };
 }
 
 // ---- Start with Windows (owner, 2026-10-22): the owner can stop or enable the automatic start of each part, or all at once ----
@@ -2568,6 +2990,9 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Set-Cookie': r.headers.getSetCookie() });
         return res.end(JSON.stringify({ url: base + '/developer' }));
       }
+      // phpMyAdmin (2.0.5): open (installs on the first use, as a job) and close.
+      if (url.pathname === '/api/phpmyadmin') return send(res, 200, await pmaOpen(inst, String(url.searchParams.get('lang') || '')));
+      if (url.pathname === '/api/phpmyadmin-stop') { needLocal(inst); const was = pmaInfo(inst).running; if (was) pmaStop(inst, 'manual'); return send(res, 200, { ok: true, stopped: was }); }
       if (url.pathname === '/api/setup-link') {
         needLocal(inst);
         const env = readEnv(path.join(inst.root, '.env'));

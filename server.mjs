@@ -2045,8 +2045,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.4.0';
+const DASH_VERSION = '2.5.0';
 const DASH_NOTES = [
+  { version: '2.5.0', date: '2026-11-13', notes: [
+    'Pastro cache-in e aplikacionit (Veprime › Aplikacioni): telefonat dhe shfletuesit e marrin aplikacionin të freskët herën tjetër që e hapin, pa dalë nga llogaria. Vlen nga versioni 1.0.19 i programit.',
+  ] },
   { version: '2.4.0', date: '2026-11-13', notes: [
     'Pamja u kthye si te versioni 2.0.6 (me zgjedhjen e pamjes te Cilësimet), siç e kërkoi pronari.',
     'Mbetet nga 2.3.0: PHP për phpMyAdmin kontrollohet dhe riparohet vetë (Microsoft Visual C++ që mungon instalohet vetë), dhe dashboard-i hapet vetëm në këtë kompjuter.',
@@ -2719,6 +2722,34 @@ async function followStoredToken() {
 }
 setTimeout(() => { followStoredToken().catch(() => {}); }, 60000).unref();
 setInterval(() => { followStoredToken().catch(() => {}); }, 600000).unref();
+
+// ---- The application's cache on people's phones and browsers (2.5.0, owner 2026-11-13: "dmth cache te appit me e pastru").
+// The dashboard only writes <install folder>\cache-epoch.txt = one integer (Date.now()). From program 1.0.19 the app reads it, puts it in its page,
+// and its service worker drops every saved file and takes fresh ones the next time a phone or browser opens the app; nobody is signed out.
+// Written to a temporary file in the same folder and renamed, so the app never reads half a number. The path is only inst.root + a fixed name.
+const appCacheFile = (inst) => path.join(inst.root, 'cache-epoch.txt');
+function appCacheAt(inst) {
+  try { const n = Number(fs.readFileSync(appCacheFile(inst), 'utf8').trim()); return Number.isSafeInteger(n) && n > 0 ? n : 0; } catch { return 0; }
+}
+async function appCacheClear(inst) {
+  needLocal(inst);
+  const at = Math.max(Date.now(), appCacheAt(inst) + 1); // always a new number, also for two presses in one millisecond
+  const file = appCacheFile(inst), tmp = file + '.' + process.pid + '.tmp';
+  try {
+    fs.writeFileSync(tmp, String(at), 'ascii');
+    // The app may be reading the old file at this moment (Windows then refuses the rename for an instant): a few short retries.
+    for (let i = 0; ; i++) {
+      try { fs.renameSync(tmp, file); break; } catch (e) { if (i >= 9 || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) throw e; await new Promise((r) => setTimeout(r, 100)); }
+    }
+  } catch (e) {
+    try { fs.rmSync(tmp, { force: true }); } catch { /* gone */ }
+    logError('app-cache-clear', e);
+    throw new Error('Cache-i i aplikacionit nuk u pastrua: skedari nuk u shkrua.');
+  }
+  addHistory(inst, { title: 'Cache-i i aplikacionit u pastrua', ok: true, detail: 'Pajisjet e marrin të freskët herën tjetër që hapin aplikacionin' });
+  return { ok: true, at };
+}
+
 async function status(inst) {
   const [h, l] = await Promise.all([health(inst), latestCached(inst)]);
   const i = installed(inst);
@@ -2732,7 +2763,7 @@ async function status(inst) {
     accessOf(inst, env),
     fetch(inst.local + '/api/setup', { signal: AbortSignal.timeout(5000), cache: 'no-store' }).then((r) => r.json()).catch(() => null),
   ]);
-  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), bugsNew: bugNew.get(inst.id) || 0, offsite: offsiteOf(inst), phpmyadmin: inst.root ? pmaStatus(inst) : null, job: jobs.get(inst.id) || null };
+  return { id: inst.id, name: inst.name, url: access_domain_or_local(access, inst), autoBackup: autoBackupOf(inst), autostart: inst.root ? await autostartState(inst).catch(() => []) : [], tokenSet, paths: pathsOf(inst, env), access, ownerMissing: !!(setupState && setupState.ready === true), canUninstall: !!uninstallerOf(inst), pinned: pinOf(inst), database: { name: env.DB_NAME || '', host: env.DB_HOST || '', port: env.DB_PORT || '' }, repo: inst.repo || null, channel: inst.channel || null, local: !!inst.root, note: inst.note || '', health: h, installed: i, latest: l, update, backups: withVersions(inst, listBackups(inst).slice(0, 8)).map((b) => ({ ...b, check: checkBackup(inst, b) })), system: sys, usage: usageOf(inst), history: (readSettings(inst).history || []).slice(-100).reverse(), notify: notifyOf(inst), bugsNew: bugNew.get(inst.id) || 0, offsite: offsiteOf(inst), phpmyadmin: inst.root ? pmaStatus(inst) : null, appCacheAt: inst.root ? appCacheAt(inst) : 0, job: jobs.get(inst.id) || null };
 }
 
 // ---- Start with Windows (owner, 2026-10-22): the owner can stop or enable the automatic start of each part, or all at once ----
@@ -3101,6 +3132,7 @@ const server = http.createServer(async (req, res) => {
         if (url.searchParams.get('source') === 'repo') { if (!/^\d+\.\d+\.\d+$/.test(to)) return send(res, 400, { error: 'Version i pavlefshëm.' }); return send(res, 200, rollbackRepo(inst, to, url.searchParams.get('backup') || '')); }
         return send(res, 200, rollbackLocal(inst, to, url.searchParams.get('backup') || ''));
       }
+      if (url.pathname === '/api/app-cache-clear') return send(res, 200, await appCacheClear(inst));
       if (url.pathname === '/api/unpin') { needLocal(inst); savePin(inst, null); latestCache.delete(inst.id); return send(res, 200, { ok: true }); }
       if (url.pathname === '/api/update') return send(res, 200, runUpdate(inst));
       if (url.pathname === '/api/autostart') { needLocal(inst); return send(res, 200, { items: await setAutostart(inst, String(url.searchParams.get('item') || 'all'), url.searchParams.get('on') !== '0') }); }

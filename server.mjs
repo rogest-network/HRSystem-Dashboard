@@ -729,7 +729,13 @@ async function systemAction(inst, action) {
   const { stop, start } = appScripts(inst);
   const command = action === 'stop' ? stop : action === 'start' ? start : action === 'restart' ? `${stop}; Start-Sleep -Seconds 2; ${start}` : null;
   if (!command) throw new Error('Veprim i panjohur.');
-  await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);
+  // A Stop is remembered BEFORE the app is stopped (v2.6.0: the watcher asks every 10 s and must never see a Stop as a crash); a failed Stop forgets it again.
+  if (action === 'stop') { const cur = readSettings(inst); cur.manualStop = Date.now(); settingsWrite(inst, cur); }
+  settle(inst);
+  try { await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]); } catch (e) {
+    if (action === 'stop') { const cur = readSettings(inst); delete cur.manualStop; settingsWrite(inst, cur); }
+    throw e;
+  } finally { settle(inst); } // the app needs some seconds to boot after Start / Restart
   // A Stop pressed by the owner is remembered, so the watcher does not start the application again; Start / Restart forget it.
   { const cur = readSettings(inst); if (action === 'stop') cur.manualStop = Date.now(); else delete cur.manualStop; settingsWrite(inst, cur); }
   // The phone is told what was done and by whom (owner, 2026-10-22), and the history keeps it.
@@ -2045,8 +2051,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.5.0';
+const DASH_VERSION = '2.6.0';
 const DASH_NOTES = [
+  { version: '2.6.0', date: '2026-11-17', notes: [
+    'Njoftimet kritike vijnë menjëherë: aplikacioni ose databaza që bie (kontrollohet çdo 10 sekonda, 3 herë për siguri) dhe adresa që nuk hapet nga interneti (çdo 20 sekonda). Një njoftim kritik që nuk dërgohet provohet përsëri.',
+  ] },
   { version: '2.5.0', date: '2026-11-13', notes: [
     'Pastro cache-in e aplikacionit (Veprime › Aplikacioni): telefonat dhe shfletuesit e marrin aplikacionin të freskët herën tjetër që e hapin, pa dalë nga llogaria. Vlen nga versioni 1.0.19 i programit.',
   ] },
@@ -2197,6 +2206,7 @@ function notesText(notes) {
   return text.length > 600 ? text.slice(0, 597).trimEnd() + '...' : text;
 }
 function jobDone(inst, job) {
+  settle(inst); // an update / rollback / import may have restarted the app: let it boot before anything counts as down (v2.6.0)
   const last = job.lines[job.lines.length - 1] || '';
   const ok = job.state === 'ok';
   addHistory(inst, { title: job.title, ok, detail: last.slice(0, 160), by: job.by });
@@ -2238,11 +2248,21 @@ async function sendNotify(target, note) {
   const r = await fetch(isUrl ? target : 'https://ntfy.sh/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isUrl ? { title: note.title, message: note.message, level: note.level, text: note.title + ': ' + note.message } : { topic: target, title: note.title, message: note.message, priority: note.priority, tags: note.tags }), signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error('Shërbimi i njoftimit u përgjigj ' + r.status + '.');
 }
+// A critical or error message that could not be sent (no internet for a moment, ntfy busy) is sent again after 5 s and 20 s (v2.6.0),
+// so an alarm is not lost to one failed request. The time in the text stays the time of the event.
+const NOTE_RETRY_MS = [5000, 20000];
 function notify(inst, title, message, level = 'info', cat = noteCategory(title)) {
   const n = notifyOf(inst);
   if (!n.on || !n.target) return;
   if (cat !== 'daily' && n.events[cat] === false) return;
-  sendNotify(n.target, composeNote(inst, title, message, level)).catch(() => { /* a failed notification never breaks anything */ });
+  const note = composeNote(inst, title, message, level);
+  // The "back again" messages too: a lost one would leave the alarm open on the phone.
+  const retries = level === 'critical' || level === 'error' || / u kthye$/.test(title) ? NOTE_RETRY_MS : [];
+  const attempt = (i) => sendNotify(n.target, note).catch((e) => {
+    if (i < retries.length) setTimeout(() => attempt(i + 1), retries[i]).unref();
+    else if (retries.length) logError('Njoftimi nuk u dërgua: ' + title, e);
+  });
+  attempt(0); // a failed notification never breaks anything
 }
 function setNotify(inst, on, target, daily, hour, events) {
   const cur = readSettings(inst);
@@ -2254,7 +2274,7 @@ function setNotify(inst, on, target, daily, hour, events) {
   settingsWrite(inst, cur);
   return notifyOf(inst);
 }
-// Watcher: the app is down for 1 minute -> a message; it is back -> a message. Not while an update / rollback runs. Low disk: once a day.
+// Watcher: the app is down (3 failed answers in a row, v2.6.0; was 1 minute) -> a message at once; it is back -> a message. Not while an update / rollback runs. Low disk: once a day.
 // A new version of the program on GitHub: ONE message per version (owner, 2026-10-22), not one every 30 s. The end of the update is announced by jobDone().
 async function updateAvailableCheck(inst) {
   const l = await latestCached(inst).catch(() => null), i = installed(inst);
@@ -2318,24 +2338,74 @@ async function bugsCheck(inst) {
   notify(inst, 'Raport gabimi nga ' + (first.reporter || '?'), (first.store ? first.store + ': ' : '') + String(first.message || '').replace(/\s+/g, ' ').slice(0, 160) + (fresh.length > 1 ? NOTE_NL + '(+' + (fresh.length - 1) + ' raporte të tjera)' : ''), 'info');
   addHistory(inst, { title: 'Raport i ri gabimi', ok: true, detail: (first.reporter || '?') + (fresh.length > 1 ? ' +' + (fresh.length - 1) : '') });
 }
+// ---- critical checks (owner, 2026-11-17: "if the server goes down ... send a notification immediately; everything critical immediately"), v2.6.0:
+// the application (and through its /api/health the database) is asked every 10 s; a failed answer is asked twice more, 3 s apart, and when all
+// three fail the alarm goes out AT ONCE (it was: after 1 minute). The public address is asked every 20 s the same way (it was: 5 minutes).
+// The confirmation keeps one slow answer from waking the owner. Self-heal still waits 1 minute (an update run by hand must not be disturbed).
+// For 90 s after the dashboard starts (Windows boot: the app is still starting) nothing is announced as down.
+const CRIT_MS = Number(process.env.HR_CRIT_MS) || 10000;
+const ADDR_TICK_MS = Number(process.env.HR_ADDR_TICK_MS) || 20000;
+const CONFIRM_MS = Number(process.env.HR_CONFIRM_MS) || 3000;
+const START_GRACE_MS = process.env.HR_START_GRACE_MS !== undefined && Number.isFinite(Number(process.env.HR_START_GRACE_MS)) ? Number(process.env.HR_START_GRACE_MS) : 90000;
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// `answered`: node itself answered (only the database or the migrations are missing). Self-heal (starting node) is only for no answer at all.
+async function appProbe(inst) {
+  try {
+    const r = await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(5000), cache: 'no-store' });
+    if (r.ok) return { ok: true };
+    let body = {}; try { body = await r.json(); } catch { /* not JSON */ }
+    return { ok: false, answered: true, why: body.database === 'unavailable' ? 'database' : body.database === 'update-required' ? 'migrations' : 'app' };
+  } catch { return { ok: false, answered: false, why: 'app' }; }
+}
+// After a Start / Stop / Restart from the dashboard and after every job, the app gets 60 s to settle: nothing counts as down meanwhile
+// (QA 2026-11-17: a Restart or an update takes 5-20 s, and the 10 s checks would otherwise announce it as a crash).
+const SETTLE_MS = Number(process.env.HR_SETTLE_MS) || 60000;
+const settleUntil = new Map(); // inst.id -> time
+function settle(inst) {
+  settleUntil.set(inst.id, Date.now() + SETTLE_MS);
+  const w = watch.get(inst.id);
+  if (w && !w.told) w.down = 0; // a down time from before the action does not count after it
+}
+const settling = (inst) => (settleUntil.get(inst.id) || 0) > Date.now();
+// The first failure is asked twice more before it counts; once down, one look per round is enough.
+async function confirmed(probe, first) {
+  let last = first;
+  for (let i = 0; i < 2 && !last.ok; i++) { await pause(CONFIRM_MS); last = await probe(); }
+  return last;
+}
+const DOWN_TEXT = {
+  app: ['Aplikacioni u mbyll vetë', 'Nuk përgjigjet (u kontrollua 3 herë). Askush nuk mund të hyjë ose të skanojë. Nëse ndezja automatike është e ndezur, dashboard-i e ndez vetë pas 1 minute.'],
+  database: ['Aplikacioni: databaza nuk punon', 'MySQL nuk përgjigjet (u kontrollua 3 herë). Askush nuk mund të hyjë ose të skanojë.'],
+  migrations: ['Aplikacioni pret përditësimin e databazës', 'Databaza ka nevojë për migrimet e versionit të ri; aplikacioni nuk jep të dhëna derisa të ekzekutohen.'],
+};
 const watch = new Map();
-async function watchTick() {
-  for (const inst of instances()) {
-    if (!inst.root || !inst.local) continue;
+let appTickBusy = false;
+async function appWatchTick() {
+  if (appTickBusy) return; // a round with confirmations can last longer than 10 s
+  appTickBusy = true;
+  try { for (const inst of instances()) { if (inst.root && inst.local) await appWatchOne(inst); } } finally { appTickBusy = false; }
+}
+async function appWatchOne(inst) {
+  { // (kept as a block: the body was the loop of the old 30 s watchTick)
     const w = watch.get(inst.id) || { down: 0, told: false };
     watch.set(inst.id, w);
-    const job = jobs.get(inst.id);
-    let ok = false;
-    try { ok = (await fetch(inst.local + '/api/health', { signal: AbortSignal.timeout(5000) })).ok; } catch { ok = false; }
-    if (ok || (job && job.state === 'running')) {
+    const running = () => { const j = jobs.get(inst.id); return Boolean(j && j.state === 'running'); };
+    const firstAt = Date.now();
+    let res = await appProbe(inst);
+    if (!res.ok && !w.down && !running()) res = await confirmed(() => appProbe(inst), res);
+    const ok = res.ok;
+    if (ok || running()) {
       if (ok) { const st = readSettings(inst); if (st.manualStop && Date.now() - st.manualStop > 20000) { delete st.manualStop; settingsWrite(inst, st); } }
       if (ok && w.told && !w.selfStarted) { notify(inst, 'Aplikacioni u kthye', 'Punon përsëri.', 'ok'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
       w.down = 0; w.told = false; w.selfStarted = false;
+    } else if (settling(inst)) {
+      // just started / stopped / updated: no alarm and no self-heal yet
     } else {
-      if (!w.down) w.down = Date.now();
+      if (!w.down) w.down = firstAt;
       // Self-heal (owner, 2026-10-22): when it fell by itself (not stopped with the Stop button) and "Nisja me Windows" for the application is ON, it is started again
       // after a minute (at most once every 10 minutes). When the owner stopped it, or the switch is off, nothing is started.
-      if (Date.now() - w.down >= 60000 && Date.now() - (w.lastStart || 0) > 600000 && !readSettings(inst).manualStop) {
+      // Only when node gives no answer at all: a node that answers 503 (database down) is running, and starting it again would only send a false message.
+      if (!res.answered && Date.now() - w.down >= 60000 && Date.now() - (w.lastStart || 0) > 600000 && !readSettings(inst).manualStop) {
         try {
           const app = (await autostartState(inst).catch(() => [])).find((x) => x.key === 'app');
           if (app && app.on) {
@@ -2346,10 +2416,27 @@ async function watchTick() {
           }
         } catch { /* tried; the next attempt is in 10 minutes */ }
       }
-      if (!w.told && Date.now() - w.down >= 60000 && !readSettings(inst).manualStop) { w.told = true; notify(inst, 'Aplikacioni u mbyll vetë', 'U mbyll pa e ndalur ti dhe nuk përgjigjet prej 1 minute.', 'critical'); addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) }); }
+      if (!w.told && !settling(inst) && !readSettings(inst).manualStop && process.uptime() * 1000 >= START_GRACE_MS) { // settling: self-heal just started it
+        w.told = true;
+        const [title, text] = DOWN_TEXT[res.why] || DOWN_TEXT.app;
+        notify(inst, title, text, 'critical');
+        addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) + (res.why === 'database' ? ' (databaza)' : '') });
+      }
     }
+  }
+}
+setInterval(() => { appWatchTick().catch(() => {}); }, CRIT_MS).unref();
+let addrTickBusy = false;
+setInterval(() => {
+  if (addrTickBusy) return;
+  addrTickBusy = true;
+  (async () => { for (const inst of instances()) { if (inst.root && inst.local) { try { await addressCheck(inst); } catch { /* next time */ } } } })().finally(() => { addrTickBusy = false; });
+}, ADDR_TICK_MS).unref();
+// The slower checks (every 30 s): an old backup, a new version, the daily report, bug reports, the disk.
+async function watchTick() {
+  for (const inst of instances()) {
+    if (!inst.root || !inst.local) continue;
     try { staleBackupCheck(inst); } catch { /* next time */ }
-    try { await addressCheck(inst); } catch { /* next time */ }
     try { await updateAvailableCheck(inst); } catch { /* next time */ }
     try { await dailyReportCheck(inst); } catch { /* next time */ }
     try { await bugsCheck(inst); } catch { /* next time */ }
@@ -2571,7 +2658,8 @@ async function followTokenRepo(inst, token) {
 }
 // ======================= Alerts (owner, 2026-10-22): an old backup, an address that does not open, a test of a backup, a daily report =======================
 const STALE_MS = Number(process.env.HR_STALE_MS) || 48 * 3600 * 1000;      // a backup older than this is an alarm (override only for tests)
-const ADDR_DOWN_MS = Number(process.env.HR_ADDR_DOWN_MS) || 5 * 60 * 1000;  // an address that does not open for this long is an alarm
+// An address that does not open (3 answers in a row, 3 s apart) is an alarm at once (v2.6.0; it was 5 minutes). HR_ADDR_DOWN_MS can still add a wait.
+const ADDR_DOWN_MS = Number(process.env.HR_ADDR_DOWN_MS) || 0;
 const DAILY_HOUR = Number.isInteger(Number(process.env.HR_DAILY_HOUR)) && process.env.HR_DAILY_HOUR !== undefined ? Number(process.env.HR_DAILY_HOUR) : 8;
 const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
@@ -2592,11 +2680,15 @@ function staleBackupCheck(inst) {
   addHistory(inst, { title: 'Backup i vjetër', ok: false, detail: text });
 }
 
-// 3) A public address that does not open for 5 minutes while the application itself runs (a tunnel or a domain problem): one message, one more when it is back.
+// 3) A public address that does not open while the application itself runs (a tunnel or a domain problem): one message at once (after 3 failed answers),
+// one more when it is back. Each round asks the address itself (not the 45 s cache of the status page) and refreshes that cache.
 const addrWatch = new Map(); // url -> { down, told }
 async function addressCheck(inst) {
   const w = watch.get(inst.id);
   if (!w || w.down) { addrWatch.clear(); return; } // the application is down: that has its own message
+  // While a job runs, while the app settles after Start / Stop / Restart / a job, and after a Stop, the tunnel answering 502 is expected (QA 2026-11-17).
+  const busy = () => { const j = jobs.get(inst.id); return Boolean(j && j.state === 'running') || settling(inst) || Boolean(readSettings(inst).manualStop); };
+  if (busy()) return;
   let env = {}; try { env = readEnv(path.join(inst.root, '.env')); } catch { /* none */ }
   const a = await accessOf(inst, env);
   const urls = new Set((a.domains || []).map((d) => d.url));
@@ -2605,14 +2697,21 @@ async function addressCheck(inst) {
     const st = addrWatch.get(d.url) || { down: 0, told: false };
     addrWatch.set(d.url, st);
     const name = d.url.replace(/^https?:[/][/]/, '') + (d.temporary ? ' (e përkohshme)' : '');
-    if (d.ok) {
+    const probe = async () => { const ok = await healthOk(d.url.replace(/[/]$/, '') + '/api/health', 4000, 6000); domainHealth.set(d.url, { at: Date.now(), ok }); return { ok }; };
+    const firstAt = Date.now();
+    let res = await probe();
+    if (!res.ok && !st.down) res = await confirmed(probe, res);
+    if ((watch.get(inst.id) || {}).down || busy()) return; // the application fell, or a job / Stop began meanwhile: not an address problem
+    if (!res.ok && !(await appProbe(inst)).ok) return; // the app itself does not answer: the app loop announces that, with the right cause
+    if (res.ok) {
       if (st.told) { notify(inst, 'Adresa u kthye', name + ' hapet përsëri.', 'ok'); addHistory(inst, { title: 'Adresa u kthye', ok: true, detail: name }); }
       st.down = 0; st.told = false;
     } else {
-      if (!st.down) st.down = Date.now();
-      if (!st.told && Date.now() - st.down >= ADDR_DOWN_MS) {
+      if (!st.down) st.down = firstAt;
+      if (!st.told && Date.now() - st.down >= ADDR_DOWN_MS && process.uptime() * 1000 >= START_GRACE_MS) {
         st.told = true;
-        notify(inst, 'Adresa nuk hapet', name + ' nuk hapet prej ' + Math.round((Date.now() - st.down) / 60000) + ' minutash, edhe pse aplikacioni punon.', 'error');
+        // The temporary trycloudflare address changes by itself now and then: a warning, not an alarm.
+        notify(inst, 'Adresa nuk hapet', name + ' nuk hapet nga interneti (u kontrollua 3 herë), edhe pse aplikacioni punon në kompjuter. Stafi nuk mund të hyjë nga telefoni.', d.temporary ? 'warn' : 'critical');
         addHistory(inst, { title: 'Adresa nuk hapet', ok: false, detail: name });
       }
     }

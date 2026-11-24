@@ -2051,8 +2051,11 @@ function addHistory(inst, entry) {
 const NOTE_NL = String.fromCharCode(10);
 // The dashboard's own version and what each version brought (newest first, plain Albanian). Raise DASH_VERSION and add an entry with EVERY published change:
 // after a self-update the phone gets the notes of the versions that are new on this PC (announceDashboardVersion). (The page "Çfarë ka të re" was removed in 1.8.2.)
-const DASH_VERSION = '2.6.0';
+const DASH_VERSION = '2.6.1';
 const DASH_NOTES = [
+  { version: '2.6.1', date: '2026-11-24', notes: [
+    'Më pak njoftime të kota: adresa njoftohet si e rënë vetëm kur nuk hapet për 30 sekonda. Kur aplikacioni ose adresa bie e kthehet shpesh, vjen një njoftim "e paqëndrueshme" në vend të çdo ndërprerjeje, pastaj një njoftim kur bie për më shumë se 2 minuta dhe një kur stabilizohet.',
+  ] },
   { version: '2.6.0', date: '2026-11-17', notes: [
     'Njoftimet kritike vijnë menjëherë: aplikacioni ose databaza që bie (kontrollohet çdo 10 sekonda, 3 herë për siguri) dhe adresa që nuk hapet nga interneti (çdo 20 sekonda). Një njoftim kritik që nuk dërgohet provohet përsëri.',
   ] },
@@ -2373,6 +2376,41 @@ async function confirmed(probe, first) {
   for (let i = 0; i < 2 && !last.ok; i++) { await pause(CONFIRM_MS); last = await probe(); }
   return last;
 }
+// Flap guard (v2.6.1, owner 2026-11-24: "nonstop vjen hapet mbyllet" in ntfy): a link that drops for a few seconds again and again sent a
+// down + back pair every time. After FLAP_MAX alarms of the same thing within FLAP_WINDOW_MS one warning "e paqëndrueshme" goes out and
+// the next drops stay quiet (they are still written to the history). A quiet drop that lasts MUTED_DOWN_MS is a real outage: it is announced
+// as critical. When nothing has failed for STABLE_MS the owner gets one "u stabilizua" and the guard starts over.
+const FLAP_WINDOW_MS = Number(process.env.HR_FLAP_WINDOW_MS) || 30 * 60000;
+const FLAP_MAX = Number(process.env.HR_FLAP_MAX) || 2;
+const STABLE_MS = Number(process.env.HR_STABLE_MS) || 15 * 60000;
+const MUTED_DOWN_MS = Number(process.env.HR_MUTED_DOWN_MS) || 2 * 60000;
+const flaps = new Map(); // key -> { alarms: [time], muted, lastBad }
+const flapOf = (key) => { let f = flaps.get(key); if (!f) { f = { alarms: [], muted: false, lastBad: 0 }; flaps.set(key, f); } return f; };
+// Called when an alarm is due. 'send': send it as usual. 'quiet': say nothing yet. 'unstable': send the one warning (it was sent here).
+function flapDecide(inst, key, what, downSince) { // what: { name: 'Adresa', unstable: 'e paqëndrueshme' }
+  const f = flapOf(key), now = Date.now();
+  f.lastBad = now;
+  if (f.muted) return now - downSince >= MUTED_DOWN_MS ? 'send' : 'quiet';
+  f.alarms = f.alarms.filter((t) => now - t < FLAP_WINDOW_MS);
+  if (f.alarms.length >= FLAP_MAX) {
+    f.muted = true;
+    notify(inst, what.name + ' është ' + what.unstable,'Ra ' + (f.alarms.length + 1) + ' herë në ' + Math.round(FLAP_WINDOW_MS / 60000) + ' minutat e fundit dhe u kthye vetë pas pak sekondash (zakonisht interneti ose rrjeti që ndërpritet për pak). Nuk të njoftoj më për çdo ndërprerje të shkurtër; të njoftoj nëse bie për më shumë se ' + Math.round(MUTED_DOWN_MS / 60000) + ' minuta dhe kur të stabilizohet.', 'warn');
+    addHistory(inst, { title: what.name + ' ' + what.unstable,ok: false, detail: (f.alarms.length + 1) + ' rënie në ' + Math.round(FLAP_WINDOW_MS / 60000) + ' min' });
+    return 'unstable';
+  }
+  f.alarms.push(now);
+  return 'send';
+}
+// Called on every good answer: one "u stabilizua" once a quiet (muted) thing has had no failure for STABLE_MS.
+function flapGood(inst, key, what) {
+  const f = flaps.get(key);
+  if (!f || !f.muted || Date.now() - f.lastBad < STABLE_MS) return;
+  f.muted = false; f.alarms = [];
+  notify(inst, what.name + ' u stabilizua','Nuk ka pasur ndërprerje në ' + Math.round(STABLE_MS / 60000) + ' minutat e fundit. Njoftimet për çdo rënie janë aktive përsëri.', 'ok');
+  addHistory(inst, { title: what.name + ' u stabilizua', ok: true, detail: '' });
+}
+const APP_FLAP = { name: 'Aplikacioni', unstable: 'i paqëndrueshëm' };
+const ADDR_FLAP = { name: 'Adresa', unstable: 'e paqëndrueshme' };
 const DOWN_TEXT = {
   app: ['Aplikacioni u mbyll vetë', 'Nuk përgjigjet (u kontrollua 3 herë). Askush nuk mund të hyjë ose të skanojë. Nëse ndezja automatike është e ndezur, dashboard-i e ndez vetë pas 1 minute.'],
   database: ['Aplikacioni: databaza nuk punon', 'MySQL nuk përgjigjet (u kontrollua 3 herë). Askush nuk mund të hyjë ose të skanojë.'],
@@ -2397,7 +2435,8 @@ async function appWatchOne(inst) {
     if (ok || running()) {
       if (ok) { const st = readSettings(inst); if (st.manualStop && Date.now() - st.manualStop > 20000) { delete st.manualStop; settingsWrite(inst, st); } }
       if (ok && w.told && !w.selfStarted) { notify(inst, 'Aplikacioni u kthye', 'Punon përsëri.', 'ok'); addHistory(inst, { title: 'Aplikacioni u kthye online', ok: true, detail: '' }); }
-      w.down = 0; w.told = false; w.selfStarted = false;
+      if (ok) flapGood(inst, 'app:' + inst.id, APP_FLAP);
+      w.down = 0; w.told = false; w.selfStarted = false; w.quiet = false;
     } else if (settling(inst)) {
       // just started / stopped / updated: no alarm and no self-heal yet
     } else {
@@ -2417,11 +2456,18 @@ async function appWatchOne(inst) {
         } catch { /* tried; the next attempt is in 10 minutes */ }
       }
       if (!w.told && !settling(inst) && !readSettings(inst).manualStop && process.uptime() * 1000 >= START_GRACE_MS) { // settling: self-heal just started it
-        w.told = true;
-        const [title, text] = DOWN_TEXT[res.why] || DOWN_TEXT.app;
-        notify(inst, title, text, 'critical');
-        addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) + (res.why === 'database' ? ' (databaza)' : '') });
-      }
+        const how = flapDecide(inst, 'app:' + inst.id, APP_FLAP, w.down);
+        const since = 'prej ' + new Date(w.down).toLocaleTimeString('sq-AL', { hour12: false }) + (res.why === 'database' ? ' (databaza)' : '');
+        if (how === 'send') {
+          w.told = true;
+          const [title, text] = DOWN_TEXT[res.why] || DOWN_TEXT.app;
+          notify(inst, title, text, 'critical');
+          addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: since });
+        } else if (how === 'quiet' && !w.quiet) {
+          w.quiet = true; // a short drop while the guard is quiet: only the history knows
+          addHistory(inst, { title: 'Aplikacioni nuk përgjigjet', ok: false, detail: since + ' (pa njoftim: e paqëndrueshme)' });
+        }
+      } else if (w.told || w.quiet) flapOf('app:' + inst.id).lastBad = Date.now();
     }
   }
 }
@@ -2658,8 +2704,10 @@ async function followTokenRepo(inst, token) {
 }
 // ======================= Alerts (owner, 2026-10-22): an old backup, an address that does not open, a test of a backup, a daily report =======================
 const STALE_MS = Number(process.env.HR_STALE_MS) || 48 * 3600 * 1000;      // a backup older than this is an alarm (override only for tests)
-// An address that does not open (3 answers in a row, 3 s apart) is an alarm at once (v2.6.0; it was 5 minutes). HR_ADDR_DOWN_MS can still add a wait.
-const ADDR_DOWN_MS = Number(process.env.HR_ADDR_DOWN_MS) || 0;
+// An address that does not open (3 answers in a row, 3 s apart) was an alarm at once in v2.6.0 (it was 5 minutes). v2.6.1: it must stay
+// closed for 30 s first, because the shop's internet drops for a few seconds now and then and every drop sent a pair of messages
+// (owner, 2026-11-24). HR_ADDR_DOWN_MS changes the wait (tests).
+const ADDR_DOWN_MS = process.env.HR_ADDR_DOWN_MS !== undefined && Number.isFinite(Number(process.env.HR_ADDR_DOWN_MS)) ? Number(process.env.HR_ADDR_DOWN_MS) : 30000;
 const DAILY_HOUR = Number.isInteger(Number(process.env.HR_DAILY_HOUR)) && process.env.HR_DAILY_HOUR !== undefined ? Number(process.env.HR_DAILY_HOUR) : 8;
 const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
@@ -2703,12 +2751,15 @@ async function addressCheck(inst) {
     if (!res.ok && !st.down) res = await confirmed(probe, res);
     if ((watch.get(inst.id) || {}).down || busy()) return; // the application fell, or a job / Stop began meanwhile: not an address problem
     if (!res.ok && !(await appProbe(inst)).ok) return; // the app itself does not answer: the app loop announces that, with the right cause
+    const fkey = 'addr:' + d.url;
     if (res.ok) {
       if (st.told) { notify(inst, 'Adresa u kthye', name + ' hapet përsëri.', 'ok'); addHistory(inst, { title: 'Adresa u kthye', ok: true, detail: name }); }
+      flapGood(inst, fkey, ADDR_FLAP);
       st.down = 0; st.told = false;
     } else {
       if (!st.down) st.down = firstAt;
-      if (!st.told && Date.now() - st.down >= ADDR_DOWN_MS && process.uptime() * 1000 >= START_GRACE_MS) {
+      if (st.told || flapOf(fkey).muted) flapOf(fkey).lastBad = Date.now();
+      if (!st.told && Date.now() - st.down >= ADDR_DOWN_MS && process.uptime() * 1000 >= START_GRACE_MS && flapDecide(inst, fkey, ADDR_FLAP, st.down) === 'send') {
         st.told = true;
         // The temporary trycloudflare address changes by itself now and then: a warning, not an alarm.
         notify(inst, 'Adresa nuk hapet', name + ' nuk hapet nga interneti (u kontrollua 3 herë), edhe pse aplikacioni punon në kompjuter. Stafi nuk mund të hyjë nga telefoni.', d.temporary ? 'warn' : 'critical');
